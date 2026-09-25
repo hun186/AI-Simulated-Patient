@@ -12,34 +12,40 @@
       <div>
         <div class="eyebrow">Speech-Language Pathology · Prototype</div>
         <h1>AI 模擬病人</h1>
-        <p>以模擬病例練習臨床問診；目前 LLM 與評分皆使用 deterministic Mock。</p>
+        <p>提供學生問診練習，也讓教師建立病例、設定評分規準並檢閱作答紀錄。</p>
       </div>
       <div class="status"><span></span> Mock mode</div>
     </header>
 
     <nav class="tabs" aria-label="功能切換">
       <button class="tab active" data-tab="student">學生問診</button>
-      <button class="tab" data-tab="teacher">教師檢視</button>
+      <button class="tab" data-tab="teacher">教師管理</button>
       <button class="tab" data-tab="about">POC 說明</button>
     </nav>
 
     <main>
       <section id="student" class="panel active">
+        <div class="student-setup card">
+          <label>學生姓名<input id="studentName" placeholder="例如：王小明"></label>
+          <label>練習病例<select id="caseSelect"></select></label>
+          <span class="setup-note">POC 使用瀏覽器儲存，不需登入。</span>
+        </div>
+
         <div class="case-card">
           <div>
-            <div class="badge">入門病例</div>
-            <h2 id="caseTitle">中風後語言困難（失語症問診）</h2>
-            <p id="caseBrief">你是一名語言治療系學生，請針對病人的溝通困難進行初步問診。</p>
+            <div id="difficultyBadge" class="badge">入門</div>
+            <h2 id="caseTitle">病例載入中…</h2>
+            <p id="caseBrief"></p>
           </div>
-          <button id="resetBtn" class="secondary">重新開始</button>
+          <button id="resetBtn" class="secondary">重新開始本病例</button>
         </div>
 
         <div class="workspace">
           <section class="chat-card">
             <div class="chat-head">
               <div>
-                <strong>王先生，68 歲</strong>
-                <small>請像臨床問診一樣逐步詢問，不會一次顯示全部病例資訊。</small>
+                <strong id="patientSummary">模擬病人</strong>
+                <small>請像臨床問診一樣逐步詢問；病人不會一次顯示全部病例資訊。</small>
               </div>
             </div>
             <div id="chat" class="chat" aria-live="polite"></div>
@@ -53,17 +59,14 @@
             <h3>問診進度</h3>
             <div class="metric"><span>學生提問</span><strong id="turnCount">0</strong></div>
             <div class="metric"><span>已取得資訊</span><strong id="factCount">0</strong></div>
-            <p class="hint">正式版可把這個進度提示隱藏；POC 為方便展示而保留。</p>
+            <p class="hint">正式版可把進度提示隱藏。這版保留是為了方便 POC 展示。</p>
             <button id="finishBtn" class="finish">結束問診並評分</button>
           </aside>
         </div>
 
         <section id="resultCard" class="result-card hidden">
           <div class="result-head">
-            <div>
-              <div class="eyebrow">Mock Evaluation</div>
-              <h2>問診回饋</h2>
-            </div>
+            <div><div class="eyebrow">Mock Evaluation</div><h2>問診回饋</h2></div>
             <div id="scoreCircle" class="score-circle">--</div>
           </div>
           <div id="feedback"></div>
@@ -72,19 +75,84 @@
       </section>
 
       <section id="teacher" class="panel">
-        <div class="teacher-grid">
-          <article class="info-card">
-            <div class="eyebrow">Case Script</div>
-            <h2>病例不是一大段 Prompt</h2>
-            <p>每個病例資訊都有 trigger 與 reveal rule。學生問到相關方向時才允許病人回答，避免 AI 主動洩漏整份病例。</p>
-            <pre id="casePreview"></pre>
-          </article>
-          <article class="info-card">
-            <div class="eyebrow">Rubric</div>
-            <h2>結構化評分規準</h2>
-            <div id="teacherRubric"></div>
-          </article>
+        <div class="teacher-toolbar card">
+          <div>
+            <div class="eyebrow">Teacher Console</div>
+            <h2>教師管理介面</h2>
+            <p>新增／編輯病例、設定揭露關鍵字與配分，並檢閱學生完整問診紀錄。</p>
+          </div>
+          <div class="teacher-subtabs">
+            <button class="teacher-subtab active" data-teacher-view="cases">病例管理</button>
+            <button class="teacher-subtab" data-teacher-view="records">學生紀錄</button>
+          </div>
         </div>
+
+        <section id="teacher-cases" class="teacher-view active">
+          <div class="manage-card card">
+            <div class="section-head">
+              <div><h3>病例庫</h3><p>系統內建病例唯讀；教師建立的病例可以直接編輯與刪除。</p></div>
+              <button id="newCaseBtn" class="primary">＋ 新增病例</button>
+            </div>
+            <div id="teacherCaseList"></div>
+          </div>
+
+          <section id="caseEditor" class="case-editor card hidden">
+            <div class="section-head">
+              <div><div class="eyebrow">Case Builder</div><h3 id="caseEditorTitle">新增病例</h3></div>
+              <button id="cancelCaseBtn" type="button" class="secondary">取消</button>
+            </div>
+            <form id="caseEditorForm">
+              <input id="editCaseId" type="hidden">
+              <div class="form-grid">
+                <label>病例名稱<input id="editTitle" required placeholder="例如：吞嚥障礙初診"></label>
+                <label>難度<input id="editDifficulty" value="入門" placeholder="入門／進階"></label>
+              </div>
+              <label>給學生看的病例說明<textarea id="editBrief" rows="2" placeholder="只放學生在問診前應該知道的資訊"></textarea></label>
+              <div class="form-grid three">
+                <label>病人姓名<input id="editPatientName" required></label>
+                <label>年齡<input id="editPatientAge" type="number" min="1" max="120"></label>
+                <label>性別<input id="editPatientGender"></label>
+              </div>
+              <label>角色設定<textarea id="editPersona" rows="2" placeholder="例如：回答偏短、容易焦慮、不主動使用醫療術語"></textarea></label>
+              <label>病人開場白<textarea id="editOpening" rows="2" required placeholder="例如：最近吃東西的時候好像比較不順。"></textarea></label>
+
+              <div class="editor-section-head">
+                <div><h4>病例資訊與評分項目</h4><p>每個項目設定「病人真正知道的答案、學生問到哪些字才揭露、此項配幾分」。</p></div>
+                <button id="addFactBtn" type="button" class="secondary">＋ 新增資訊項目</button>
+              </div>
+              <div id="factRows"></div>
+              <div class="editor-footer">
+                <p class="hint">配分填 0 表示只作為病例資訊、不列入評分。</p>
+                <button type="submit" class="primary">儲存病例</button>
+              </div>
+            </form>
+          </section>
+        </section>
+
+        <section id="teacher-records" class="teacher-view">
+          <div class="record-stats">
+            <div class="stat-card"><span>完成紀錄</span><strong id="recordCount">0</strong></div>
+            <div class="stat-card"><span>平均分數</span><strong id="averageScore">--</strong></div>
+          </div>
+          <div class="manage-card card">
+            <div class="section-head"><div><h3>學生作答紀錄</h3><p>學生完成評分後會自動歸檔，可點選查看完整 transcript 與分項評分。</p></div></div>
+            <div id="recordList"></div>
+          </div>
+          <section id="recordDetail" class="record-detail card hidden">
+            <div class="section-head">
+              <div><div class="eyebrow">Interview Review</div><h3 id="recordDetailTitle"></h3><p id="recordMeta"></p></div>
+              <button id="closeRecordBtn" class="secondary">關閉</button>
+            </div>
+            <div class="record-detail-grid">
+              <div><h4>完整問診紀錄</h4><div id="recordTranscript" class="audit-transcript"></div></div>
+              <div><h4>評分明細</h4><div id="recordRubric"></div></div>
+            </div>
+            <div class="record-actions">
+              <button id="downloadRecordBtn" class="secondary">下載 JSON</button>
+              <button id="deleteRecordBtn" class="danger-button">刪除此紀錄</button>
+            </div>
+          </section>
+        </section>
       </section>
 
       <section id="about" class="panel">
@@ -96,8 +164,8 @@
             <div>Vercel Functions<br><small>/api/chat · /api/evaluate</small></div><b>→</b>
             <div>Mock Provider<br><small>之後換 OpenAI API</small></div>
           </div>
-          <p>目前完整對話保存在瀏覽器 localStorage，方便零設定展示。正式版再把 session 寫入 PostgreSQL（例如 Neon）並加入登入、課程、學生與病例版本管理。</p>
-          <p class="warning">此 POC 用於教學系統設計展示，不提供真實病患的診斷或醫療建議。</p>
+          <p>教師自訂病例、學生 session 與完成紀錄目前都儲存在同一瀏覽器的 localStorage，因此適合 POC 展示，但不適合多人正式教學。正式版會把這些資料搬到 PostgreSQL / Neon，並加入教師／學生登入與權限。</p>
+          <p class="warning">目前自訂病例定義會存在瀏覽器端，技術上學生可透過開發者工具查看；正式版病例真值必須只存在伺服器端。</p>
         </article>
       </section>
     </main>
