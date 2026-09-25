@@ -10,7 +10,11 @@ export default async function handler(req,res){
   const rows=await query(
     `select s.id,s.mode,s.coach_enabled as "coachEnabled",s.started_at as "startedAt",s.ended_at as "endedAt",
        u.display_name as "studentName",c.student_label as "caseTitle",
-       e.percentage,e.total_score as "totalScore",e.max_score as "maxScore",e.result_json as evaluation
+       e.percentage,e.total_score as "totalScore",e.max_score as "maxScore",e.result_json as evaluation,
+       coalesce((
+         select json_agg(json_build_object('role',m.role,'content',m.content,'at',m.created_at) order by m.id)
+         from interview_messages m where m.session_id=s.id
+       ),'[]'::json) as transcript
      from interview_sessions s
      join app_users u on u.id=s.student_user_id
      join cases c on c.id=s.case_id
