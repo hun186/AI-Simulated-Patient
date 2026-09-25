@@ -52,7 +52,10 @@ export default async function handler(req,res){
         [actor.id]
       );
     }
-    return res.status(200).json({users:rows,actorRole:actor.role,creatableRoles:rolesCreatableBy(actor.role)});
+    const assignments=actor.role===ROLE_ADMIN
+      ? await query('select teacher_user_id as "teacherUserId",student_user_id as "studentUserId" from teacher_student_assignments order by created_at desc')
+      : [];
+    return res.status(200).json({users:rows,assignments,actorRole:actor.role,creatableRoles:rolesCreatableBy(actor.role)});
   }
 
   if(req.method!=='POST') return res.status(405).json({error:'Method not allowed'});
