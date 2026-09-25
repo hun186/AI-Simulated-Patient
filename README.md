@@ -61,7 +61,13 @@ SQLite is therefore the current operational default, not a dead-end architecture
 
 ### Vercel
 
-A local SQLite file is not treated as durable persistence on Vercel. With no `DATABASE_URL`, Vercel falls back to browser demo mode. A future durable Vercel deployment should use PostgreSQL/Neon or another shared persistence service.
+Vercel is treated as a public PoC surface, not the SQLite production host.
+
+With no `DATABASE_URL`, Vercel runs browser persistence plus a dedicated Mock Login screen with Student / Teacher / Admin roles. Mock identities are stored only in the current browser and never enter the production authentication tables.
+
+A local SQLite file is not treated as durable persistence on Vercel. A future durable Vercel deployment should use PostgreSQL/Neon or another shared persistence service.
+
+The repository pins Vercel to Node 22.x, explicitly uses the "Other" framework preset with no build command, and excludes the native SQLite adapter from Vercel Function bundles. Windows/Linux continue to use SQLite normally.
 
 ## Authentication / authorization
 

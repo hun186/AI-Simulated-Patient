@@ -8,9 +8,11 @@ export default async function handler(req,res){
   const users=database?await countUsers():0;
   const admins=database?await countAdmins():0;
   const info=database?await databaseInfo():{driver};
+  const demoAuth=Boolean(process.env.VERCEL)&&!database;
   return res.status(200).json({
     persistence:driver,
     auth:database,
+    demoAuth,
     database:{driver:info.driver,schemaVersion:info.schemaVersion||null,wal:Boolean(info.wal)},
     needsBootstrap:database&&users===0,
     needsAdminMigration:database&&users>0&&admins===0,

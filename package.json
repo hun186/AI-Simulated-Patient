@@ -1,16 +1,18 @@
 {
-  "name":"ai-simulated-patient-poc",
-  "version":"0.4.0",
-  "private":true,
-  "type":"module",
-  "scripts":{
-    "dev":"node scripts/dev-server.mjs",
-    "test":"node --test",
-    "db:backup":"node scripts/backup-sqlite.mjs"
+  "name": "ai-simulated-patient-poc",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev-server.mjs",
+    "test": "node --test",
+    "db:backup": "node scripts/backup-sqlite.mjs"
   },
-  "dependencies":{
-    "@neondatabase/serverless":"^1.1.0",
-    "better-sqlite3":"^13.0.3"
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "better-sqlite3": "^13.0.3"
   },
-  "engines":{"node":">=22"}
+  "engines": {
+    "node": "22.x"
+  }
 }

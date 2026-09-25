@@ -1,5 +1,5 @@
-const SKEY='aisp-formal-session-v1',RKEY='aisp-formal-records-v1',CKEY='aisp-formal-custom-cases-v1';
-const state={serverMode:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[]};
+const SKEY='aisp-formal-session-v1',RKEY='aisp-formal-records-v1',CKEY='aisp-formal-custom-cases-v1',DKEY='aisp-vercel-demo-user-v1';
+const state={serverMode:false,demoAuth:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[]};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const uid=()=> 'session_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
@@ -64,19 +64,42 @@ async function loadApplication(){
   state.caseData=state.cases[0];
   state.caseId=state.caseData?.id||'aphasia_001';
   $('caseSelect').innerHTML=state.cases.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.studentLabel||'臨床問診案例')+(c.source==='custom'?'（教師建立）':'')+'</option>').join('');
-  const staff=!state.serverMode||['teacher','admin'].includes(state.user?.role);document.querySelector('[data-tab="teacher"]').classList.toggle('hidden',!staff);document.querySelector('[data-view="users"]').classList.toggle('hidden',!state.serverMode||!staff);document.querySelector('[data-view="audit"]').classList.toggle('hidden',!state.serverMode||state.user?.role!=='admin');$('studentName').disabled=state.serverMode;
-  $('runtimeStatus').textContent=state.serverMode?'Server DB · '+(state.user?.displayName||'')+' · '+(state.user?.role||''):'Demo · Browser local';$('logoutBtn').classList.toggle('hidden',!state.serverMode);$('changePasswordBtn').classList.toggle('hidden',!state.serverMode);
+  const staff=state.demoAuth?['teacher','admin'].includes(state.user?.role):(!state.serverMode||['teacher','admin'].includes(state.user?.role));document.querySelector('[data-tab="teacher"]').classList.toggle('hidden',!staff);document.querySelector('[data-view="users"]').classList.toggle('hidden',!state.serverMode||!staff);document.querySelector('[data-view="audit"]').classList.toggle('hidden',!state.serverMode||state.user?.role!=='admin');$('studentName').disabled=state.serverMode||state.demoAuth;
+  $('runtimeStatus').textContent=state.serverMode
+    ?'Server DB · '+(state.user?.displayName||'')+' · '+(state.user?.role||'')
+    :state.demoAuth
+      ?'Vercel PoC · '+(state.user?.displayName||'Demo')+' · '+(state.user?.role||'')
+      :'Demo · Browser local';
+  $('logoutBtn').classList.toggle('hidden',!state.serverMode&&!state.demoAuth);$('changePasswordBtn').classList.toggle('hidden',!state.serverMode);
   if(state.user?.displayName) state.studentName=state.user.displayName;
   renderRecords();await start();
 }
+function hideAuthCards(){
+  ['demoLoginForm','loginForm','registerForm','bootstrapForm'].forEach(id=>$(id)?.classList.add('hidden'));
+}
 function showLogin(message=''){
   $('authGate').classList.remove('hidden');$('appRoot').classList.add('hidden');
-  $('loginForm').classList.remove('hidden');$('registerForm').classList.add('hidden');$('bootstrapForm').classList.add('hidden');
+  hideAuthCards();$('loginForm').classList.remove('hidden');
   $('loginError').textContent=message;
+}
+function showDemoLogin(){
+  $('authGate').classList.remove('hidden');$('appRoot').classList.add('hidden');
+  hideAuthCards();$('demoLoginForm').classList.remove('hidden');
+}
+async function demoLogin(role){
+  const profiles={
+    student:{id:'demo-student',email:'student@demo.local',displayName:'示範學生',role:'student',accountStatus:'active'},
+    teacher:{id:'demo-teacher',email:'teacher@demo.local',displayName:'示範教師',role:'teacher',accountStatus:'active'},
+    admin:{id:'demo-admin',email:'admin@demo.local',displayName:'示範管理員',role:'admin',accountStatus:'active'}
+  };
+  state.user=profiles[role]||profiles.student;
+  write(DKEY,state.user);
+  $('authGate').classList.add('hidden');$('appRoot').classList.remove('hidden');
+  await loadApplication();
 }
 function showBootstrap(message='',migration=false){
   $('authGate').classList.remove('hidden');$('appRoot').classList.add('hidden');
-  $('loginForm').classList.add('hidden');$('registerForm').classList.add('hidden');$('bootstrapForm').classList.remove('hidden');
+  hideAuthCards();$('bootstrapForm').classList.remove('hidden');
   $('bootstrapTitle').textContent=migration?'升級現有帳號為系統管理員':'建立第一位系統管理員';
   $('bootstrapHelp').textContent=migration?'資料庫已有舊版帳號但尚無 admin。請輸入既有帳號密碼與 Setup Key 完成一次性升級。':'偵測到資料庫尚無帳號。此步驟只會成功一次。';
   $('bootstrapNameRow').classList.toggle('hidden',migration);
@@ -85,7 +108,7 @@ function showBootstrap(message='',migration=false){
 function showRegister(role='student'){
   const teacher=role==='teacher';
   $('authGate').classList.remove('hidden');$('appRoot').classList.add('hidden');
-  $('loginForm').classList.add('hidden');$('bootstrapForm').classList.add('hidden');$('registerForm').classList.remove('hidden');
+  hideAuthCards();$('registerForm').classList.remove('hidden');
   $('registerRole').value=teacher?'teacher':'student';
   $('registerEyebrow').textContent=teacher?'Teacher Registration':'Student Registration';
   $('registerTitle').textContent=teacher?'申請教師帳號':'申請學生帳號';
@@ -139,7 +162,12 @@ async function init(){
   try{
     const runtime=await fetch('/api/runtime').then(r=>r.json());
     state.serverMode=runtime.persistence!=='browser';
-    if(state.serverMode){
+    state.demoAuth=Boolean(runtime.demoAuth);
+    if(state.demoAuth){
+      const saved=read(DKEY,null);
+      if(!saved){showDemoLogin();return;}
+      state.user=saved;
+    }else if(state.serverMode){
       state.needsAdminMigration=Boolean(runtime.needsAdminMigration);
       if(runtime.needsBootstrap||runtime.needsAdminMigration){showBootstrap('',runtime.needsAdminMigration);return;}
       const me=await fetch('/api/auth/me');
@@ -173,7 +201,11 @@ async function bootstrap(event){
     await loadApplication();
   }catch{$('bootstrapError').textContent='建立/升級失敗；請確認 schema、Setup Key 與帳號密碼，且新密碼至少 12 個字元。';}
 }
-async function logout(){await post('/api/auth/logout',{});location.reload();}
+async function logout(){
+  if(state.demoAuth){localStorage.removeItem(DKEY);location.reload();return;}
+  if(state.serverMode)await post('/api/auth/logout',{});
+  location.reload();
+}
 $('chatForm').onsubmit=e=>{e.preventDefault();const i=$('messageInput'),q=i.value.trim();if(!q)return;i.value='';ask(q);};
 async function setCoachEnabled(enabled){
   if(state.mode!=='training'){state.coachEnabled=false;$('coachToggle').value='off';return;}
@@ -313,5 +345,5 @@ async function saveBuilder(e){e.preventDefault();const facts=[...$('builderFacts
   renderCases();
 }
 $('caseBuilder').classList.add('hidden');$('caseBuilderForm').reset();alert('病例已建立，可立即切回學生端選用。');}
-$('loginForm').onsubmit=login;$('registerForm').onsubmit=registerAccount;$('showRegisterBtn').onclick=()=>showRegister('student');$('showTeacherRegisterBtn').onclick=()=>showRegister('teacher');$('backToLoginBtn').onclick=()=>showLogin();$('bootstrapForm').onsubmit=bootstrap;$('assignStudentBtn').onclick=assignStudentToTeacher;$('logoutBtn').onclick=logout;$('changePasswordBtn').onclick=()=>$('passwordDialog').showModal();$('changePasswordForm').onsubmit=changeOwnPassword;$('cancelPasswordBtn').onclick=()=>$('passwordDialog').close();$('userForm').onsubmit=createManagedUser;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
+document.querySelectorAll('[data-demo-role]').forEach(button=>button.onclick=()=>demoLogin(button.dataset.demoRole));$('loginForm').onsubmit=login;$('registerForm').onsubmit=registerAccount;$('showRegisterBtn').onclick=()=>showRegister('student');$('showTeacherRegisterBtn').onclick=()=>showRegister('teacher');$('backToLoginBtn').onclick=()=>showLogin();$('bootstrapForm').onsubmit=bootstrap;$('assignStudentBtn').onclick=assignStudentToTeacher;$('logoutBtn').onclick=logout;$('changePasswordBtn').onclick=()=>$('passwordDialog').showModal();$('changePasswordForm').onsubmit=changeOwnPassword;$('cancelPasswordBtn').onclick=()=>$('passwordDialog').close();$('userForm').onsubmit=createManagedUser;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
 init();
