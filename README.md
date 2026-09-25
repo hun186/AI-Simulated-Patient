@@ -38,3 +38,8 @@ Teachers can create browser-local cases with patient profile, student-visible br
 Run locally with Node.js 22+: `npm run dev`. Tests: `npm test`.
 
 This is an educational prototype, not a medical device and not a source of diagnosis or treatment advice.
+
+
+## Information-boundary rule
+
+Student-facing case data must never reuse teacher/internal diagnostic titles. The public case endpoint exposes only a neutral student label, a neutral encounter brief, basic patient demographics and the patient's opening line. Internal diagnosis/etiology, learning goals, rubric and ground truth remain teacher/evaluator data. In production the teacher endpoint must be protected by role-based authentication.
