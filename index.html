@@ -24,6 +24,13 @@
       <label>初始密碼<input id="newUserPassword" type="password" minlength="12" required placeholder="至少 12 個字元"></label>
       <button class="primary" type="submit">建立帳號</button>
     </form>
+    <section id="assignmentPanel" class="assignment-panel hidden">
+      <div><strong>教師／學生指派</strong><small>admin 可把既有學生加入教師的可管理範圍。</small></div>
+      <select id="assignmentTeacher"></select>
+      <select id="assignmentStudent"></select>
+      <button id="assignStudentBtn" type="button" class="secondary">建立指派</button>
+      <span id="assignmentSummary" class="hint"></span>
+    </section>
     <div id="userList"></div>
   </div>
 </section>
