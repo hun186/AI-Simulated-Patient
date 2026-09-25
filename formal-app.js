@@ -31,10 +31,17 @@ async function post(url,payload){
   const headers={'content-type':'application/json'};
   if(state.serverMode&&state.csrfToken)headers['x-csrf-token']=state.csrfToken;
   const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(payload)});
-  if(!r.ok)throw new Error(url);
-  if(r.status===204)return {};
   const text=await r.text();
-  return text?JSON.parse(text):{};
+  let data={};
+  if(text){try{data=JSON.parse(text);}catch{data={error:text};}}
+  if(!r.ok){
+    const error=new Error(data.error||data.message||('HTTP '+r.status));
+    error.status=r.status;
+    error.retryAfter=Number(r.headers.get('Retry-After')||0);
+    error.details=data;
+    throw error;
+  }
+  return data;
 }
 async function ask(q){state.transcript.push({role:'student',content:q,at:new Date().toISOString()});renderChat();$('sendBtn').disabled=true;try{const d=await post('/api/chat',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,message:q,revealedFactIds:state.serverMode?[]:state.revealedFactIds});if(!state.serverMode)state.revealedFactIds=d.revealedFactIds;state.transcript.push({role:'patient',content:d.reply,at:new Date().toISOString()});if(state.mode==='training'&&state.coachEnabled){state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds});state.coachUsed=true;}save();renderChat();renderMode();renderCoach();}catch{state.transcript.push({role:'patient',content:'（系統暫時無法取得回覆。）'});renderChat();}finally{$('sendBtn').disabled=false;}}
 function renderEvaluation(d){$('resultCard').classList.remove('hidden');$('scoreCircle').textContent=String(d.percentage);$('resultMode').textContent=modeLabel(d.mode)+' · '+d.totalScore+'/'+d.maxScore+' 分';$('overallComment').textContent=d.overall.comment;$('strengthList').innerHTML=d.overall.strengths.map(x=>'<li>'+esc(x)+'</li>').join('');$('improvementList').innerHTML=d.overall.improvements.map(x=>'<li>'+esc(x)+'</li>').join('');$('recommendationList').innerHTML=d.overall.recommendations.map(x=>'<li>'+esc(x)+'</li>').join('');$('nextPracticeFocus').textContent=d.overall.nextPracticeFocus;$('rubricTable').innerHTML=d.items.map(i=>'<div class="rubric-item"><div class="rubric-main"><strong>'+esc(i.criterion)+'</strong><span>'+i.score+'/'+i.maxScore+'</span><span class="status status-'+i.status+'">'+(i.status==='covered'?'完整涵蓋':i.status==='partial'?'部分涵蓋':'未涵蓋')+'</span></div><div class="rubric-detail"><span>'+esc(i.reasoning)+'</span>'+(i.evidence?.[0]?'<span class="evidence-quote">證據：「'+esc(i.evidence[0].quote)+'」</span>':'')+'</div></div>').join('');}
@@ -83,25 +90,39 @@ function showRegister(){
 }
 async function registerAccount(event){
   event.preventDefault();
+  const displayName=$('registerName').value.trim();
+  const email=$('registerEmail').value.trim();
   const password=$('registerPassword').value;
-  if(password!==$('registerPasswordConfirm').value){
-    $('registerMessage').textContent='兩次輸入的密碼不一致。';
+  const confirmPassword=$('registerPasswordConfirm').value;
+  const requestedTeacherEmail=$('registerTeacherEmail').value.trim();
+
+  const showError=message=>{
+    $('registerMessage').textContent=message;
     $('registerMessage').className='auth-message auth-error';
-    return;
+  };
+
+  if(!displayName)return showError('請輸入姓名。');
+  if(!email || !/^[^\s@]+@[^\s@]+$/.test(email))return showError('請輸入有效的 Email，例如 student@example.com。');
+  if(password.length<12)return showError('密碼至少需要 12 個字元。');
+  if(password.length>256)return showError('密碼不可超過 256 個字元。');
+  if(password!==confirmPassword)return showError('兩次輸入的密碼不一致。');
+  if(requestedTeacherEmail && !/^[^\s@]+@[^\s@]+$/.test(requestedTeacherEmail)){
+    return showError('指導教師 Email 格式不正確；若不確定可留空，由系統管理員處理。');
   }
+
   try{
-    const d=await post('/api/auth/register',{
-      displayName:$('registerName').value.trim(),
-      email:$('registerEmail').value.trim(),
-      password,
-      requestedTeacherEmail:$('registerTeacherEmail').value.trim()
-    });
+    const d=await post('/api/auth/register',{displayName,email,password,requestedTeacherEmail});
     $('registerForm').reset();
     $('registerMessage').textContent=d.message||'申請已送出，請等待核准。';
     $('registerMessage').className='auth-message auth-success';
-  }catch{
-    $('registerMessage').textContent='申請無法送出；請確認資料格式、密碼至少 12 個字元，或稍後再試。';
-    $('registerMessage').className='auth-message auth-error';
+  }catch(error){
+    let message=error.message||'申請無法送出。';
+    if(error.status===429 && error.retryAfter){
+      message='申請次數過多，請約 '+error.retryAfter+' 秒後再試。';
+    }else if(error.status===500){
+      message='伺服器處理申請時發生錯誤。請查看執行 npm run dev 的視窗是否有錯誤訊息。';
+    }
+    showError(message);
   }
 }
 async function init(){
