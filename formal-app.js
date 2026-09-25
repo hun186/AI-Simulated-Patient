@@ -56,7 +56,7 @@ async function loadApplication(){
   state.caseId=state.caseData?.id||'aphasia_001';
   $('caseSelect').innerHTML=state.cases.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.studentLabel||'臨床問診案例')+(c.source==='custom'?'（教師建立）':'')+'</option>').join('');
   document.querySelector('[data-tab="teacher"]').classList.toggle('hidden',state.serverMode&&state.user?.role!=='teacher');document.querySelector('[data-view="users"]').classList.toggle('hidden',!state.serverMode||state.user?.role!=='teacher');$('studentName').disabled=state.serverMode;
-  $('runtimeStatus').textContent=state.serverMode?'Server DB · '+(state.user?.displayName||''):'Demo · Browser local';
+  $('runtimeStatus').textContent=state.serverMode?'Server DB · '+(state.user?.displayName||''):'Demo · Browser local';$('logoutBtn').classList.toggle('hidden',!state.serverMode);
   if(state.user?.displayName) state.studentName=state.user.displayName;
   renderRecords();await start();
 }
