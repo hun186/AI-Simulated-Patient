@@ -1,6 +1,12 @@
 import { getPublicCase } from '../lib/cases.js';
+import { isDatabaseEnabled } from '../lib/db.js';
+import { requireUser } from '../lib/server-auth.js';
+import { listStudentCases } from '../lib/server-cases.js';
 
-export default function handler(req, res) {
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
-  return res.status(200).json({ cases: [getPublicCase('aphasia_001')] });
+export default async function handler(req,res){
+  if(req.method!=='GET') return res.status(405).json({error:'Method not allowed'});
+  if(!isDatabaseEnabled()) return res.status(200).json({mode:'demo',cases:[getPublicCase('aphasia_001')]});
+  const user=await requireUser(req,res,['student','teacher']);
+  if(!user) return;
+  return res.status(200).json({mode:'production',cases:await listStudentCases()});
 }

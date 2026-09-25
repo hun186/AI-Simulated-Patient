@@ -1,11 +1,26 @@
 import { mockEvaluate } from '../lib/mock-evaluator.js';
+import { isDatabaseEnabled } from '../lib/db.js';
+import { requireUser } from '../lib/server-auth.js';
+import { getCaseDefinition } from '../lib/server-cases.js';
+import { getOwnedSession,getTranscript,completeSession } from '../lib/server-sessions.js';
 
-export default function handler(req,res){
+export default async function handler(req,res){
   if(req.method!=='POST') return res.status(405).json({error:'Method not allowed'});
-  const {caseId='aphasia_001',caseDefinition=null,transcript=[],revealedFactIds=[],mode='exam'}=req.body??{};
-  try{return res.status(200).json(mockEvaluate({caseId,caseDefinition,transcript,revealedFactIds,mode}));}
-  catch(error){
-    if(error.message==='CASE_NOT_FOUND') return res.status(404).json({error:'Case not found'});
-    return res.status(500).json({error:'Unexpected error'});
+  const {caseId='aphasia_001',caseDefinition=null,transcript=[],revealedFactIds=[],mode='exam',sessionId=null}=req.body??{};
+  try{
+    if(!isDatabaseEnabled()) return res.status(200).json(mockEvaluate({caseId,caseDefinition,transcript,revealedFactIds,mode}));
+    const user=await requireUser(req,res,['student','teacher']);
+    if(!user) return;
+    const session=await getOwnedSession(sessionId,user);
+    if(!session) return res.status(404).json({error:'Session not found'});
+    const found=await getCaseDefinition(session.case_id);
+    if(!found) return res.status(404).json({error:'Case not found'});
+    const serverTranscript=await getTranscript(sessionId);
+    const revealed=Array.isArray(session.revealed_fact_ids)?session.revealed_fact_ids:[];
+    const result=mockEvaluate({caseId:session.case_id,caseDefinition:found.definition,transcript:serverTranscript,revealedFactIds:revealed,mode:session.mode});
+    await completeSession(sessionId,result);
+    return res.status(200).json(result);
+  }catch(error){
+    console.error(error); return res.status(500).json({error:'Unexpected error'});
   }
 }

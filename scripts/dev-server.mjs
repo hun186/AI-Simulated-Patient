@@ -2,26 +2,58 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname,join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mockPatientReply } from '../lib/mock-patient.js';
-import { mockEvaluate } from '../lib/mock-evaluator.js';
-import { mockCoach } from '../lib/mock-coach.js';
-import { getPublicCase } from '../lib/cases.js';
+
+import casesHandler from '../api/cases.js';
+import chatHandler from '../api/chat.js';
+import coachHandler from '../api/coach.js';
+import evaluateHandler from '../api/evaluate.js';
+import runtimeHandler from '../api/runtime.js';
+import sessionsHandler from '../api/sessions.js';
+import loginHandler from '../api/auth/login.js';
+import logoutHandler from '../api/auth/logout.js';
+import meHandler from '../api/auth/me.js';
+import bootstrapHandler from '../api/auth/bootstrap.js';
+import teacherCasesHandler from '../api/teacher/cases.js';
+import teacherUsersHandler from '../api/teacher/users.js';
+import teacherRecordsHandler from '../api/teacher/records.js';
 
 const root=fileURLToPath(new URL('..',import.meta.url));
 const port=Number(process.env.PORT||3000);
-const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8'};
-async function body(req){let text='';for await(const chunk of req)text+=chunk;return text?JSON.parse(text):{};}
-function json(res,status,data){res.writeHead(status,{'content-type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));}
+const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8'};
+const routes=new Map([
+  ['/api/cases',casesHandler],['/api/chat',chatHandler],['/api/coach',coachHandler],['/api/evaluate',evaluateHandler],
+  ['/api/runtime',runtimeHandler],['/api/sessions',sessionsHandler],['/api/auth/login',loginHandler],['/api/auth/logout',logoutHandler],
+  ['/api/auth/me',meHandler],['/api/auth/bootstrap',bootstrapHandler],['/api/teacher/cases',teacherCasesHandler],
+  ['/api/teacher/users',teacherUsersHandler],['/api/teacher/records',teacherRecordsHandler]
+]);
+
+async function parseBody(req){
+  if(!['POST','PUT','PATCH','DELETE'].includes(req.method)) return {};
+  let text=''; for await(const chunk of req) text+=chunk;
+  if(!text) return {};
+  try{return JSON.parse(text);}catch{return {};}
+}
+function makeResponse(res){
+  let statusCode=200;
+  return {
+    status(code){statusCode=code;return this;},
+    setHeader(name,value){res.setHeader(name,value);},
+    json(data){res.writeHead(statusCode,{'content-type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));},
+    end(data=''){res.writeHead(statusCode);res.end(data);}
+  };
+}
 
 http.createServer(async(req,res)=>{
   try{
-    if(req.url==='/api/cases'&&req.method==='GET')return json(res,200,{cases:[getPublicCase()]});
-    if(req.url==='/api/chat'&&req.method==='POST'){const d=await body(req);return json(res,200,mockPatientReply({caseId:d.caseId,caseDefinition:d.caseDefinition,message:d.message,revealedFactIds:d.revealedFactIds||[]}));}
-    if(req.url==='/api/coach'&&req.method==='POST'){const d=await body(req);return json(res,200,mockCoach({caseId:d.caseId,caseDefinition:d.caseDefinition,transcript:d.transcript||[],revealedFactIds:d.revealedFactIds||[]}));}
-    if(req.url==='/api/evaluate'&&req.method==='POST'){const d=await body(req);return json(res,200,mockEvaluate({caseId:d.caseId,caseDefinition:d.caseDefinition,transcript:d.transcript||[],revealedFactIds:d.revealedFactIds||[],mode:d.mode||'exam'}));}
-    const path=req.url==='/'?'/index.html':req.url.split('?')[0];
-    if(!['/index.html','/styles.css','/app.js'].includes(path)){res.writeHead(404);return res.end('Not found');}
-    const file=await readFile(join(root,path));
-    res.writeHead(200,{'content-type':mime[extname(path)]||'application/octet-stream'});res.end(file);
-  }catch(error){json(res,500,{error:error.message});}
-}).listen(port,()=>console.log(`AI simulated patient POC: http://localhost:${port}`));
+    const path=req.url.split('?')[0];
+    if(routes.has(path)){req.body=await parseBody(req);return await routes.get(path)(req,makeResponse(res));}
+    const filePath=path==='/'?'/index.html':path;
+    if(!['/index.html','/styles.css','/formal.css','/app.js','/formal-app.js'].includes(filePath)){res.writeHead(404);return res.end('Not found');}
+    const file=await readFile(join(root,filePath));
+    res.writeHead(200,{'content-type':mime[extname(filePath)]||'application/octet-stream'});res.end(file);
+  }catch(error){
+    console.error(error);
+    if(!res.headersSent) res.writeHead(500,{'content-type':'application/json; charset=utf-8'});
+    res.end(JSON.stringify({error:'Unexpected server error'}));
+  }
+}).listen(port,()=>console.log(`AI simulated patient: http://localhost:${port}`));
