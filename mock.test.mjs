@@ -27,7 +27,8 @@ test('evaluator returns covered partial missed contract and overall comment',()=
 test('training coach returns non-answer next-step hint',()=>{
   const out=mockCoach({caseId:'aphasia_001',transcript:[{role:'student',content:'怎麼了？'}],revealedFactIds:['chief_complaint']});
   assert.equal(out.provider,'mock-learning-coach');
-  assert.ok(out.nextHint.includes('方向'));
+  assert.ok(out.nextHint.length>8);
+  assert.doesNotMatch(out.nextHint,/中風|失語|腦血管|左側/);
   assert.ok(out.progress.total>0);
 });
 
