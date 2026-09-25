@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { extname,join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,7 +16,8 @@ import meHandler from '../api/auth/me.js';
 import bootstrapHandler from '../api/auth/bootstrap.js';
 import changePasswordHandler from '../api/auth/change-password.js';
 import authAuditHandler from '../api/auth/audit.js';
-import { applySecurityHeaders } from '../lib/request-security.js';
+import { applySecurityHeaders,isProductionEnv } from '../lib/request-security.js';
+import { databaseDriver,databaseInfo } from '../lib/db.js';
 import teacherCasesHandler from '../api/teacher/cases.js';
 import teacherUsersHandler from '../api/teacher/users.js';
 import teacherRecordsHandler from '../api/teacher/records.js';
@@ -23,6 +25,22 @@ import healthHandler from '../api/health.js';
 
 const root=fileURLToPath(new URL('..',import.meta.url));
 const port=Number(process.env.PORT||3000);
+const driver=databaseDriver();
+if(driver==='sqlite' && !process.env.ADMIN_SETUP_KEY && !isProductionEnv()){
+  process.env.ADMIN_SETUP_KEY=randomBytes(24).toString('base64url');
+  console.log('[setup] Local first-admin setup key: '+process.env.ADMIN_SETUP_KEY);
+}
+if(driver==='sqlite'){
+  const info=await databaseInfo();
+  console.log('[db] SQLite: '+info.path+' (WAL='+info.wal+', schema='+info.schemaVersion+')');
+}else if(driver==='postgres'){
+  console.log('[db] PostgreSQL mode');
+}else{
+  console.log('[db] Browser/localStorage demo mode');
+}
+if(isProductionEnv() && driver!=='browser' && !process.env.ADMIN_SETUP_KEY){
+  console.warn('[security] ADMIN_SETUP_KEY is not set. First-admin bootstrap will be unavailable until it is configured.');
+}
 const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8'};
 const routes=new Map([
   ['/api/cases',casesHandler],['/api/chat',chatHandler],['/api/coach',coachHandler],['/api/evaluate',evaluateHandler],

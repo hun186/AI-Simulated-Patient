@@ -1,83 +1,102 @@
 # AI Simulated Patient — Product-shaped POC
 
-A speech-language pathology clinical-interview platform prototype with student training, exam assessment, optional AI coaching, teacher case management, authentication and server-side persistence.
+A speech-language pathology clinical-interview platform prototype with training, exam assessment, optional AI coaching, teacher case management, authentication and server-side persistence.
 
-## Current modes
+## Database strategy
 
-### Training
+### Current production default: SQLite
 
-- AI Coach is **off by default**
-- students can practise completely independently
-- Coach can be enabled mid-session without restarting
-- when Coach is off, coverage progress is hidden
-- final assessment and AI comments are still produced at the end
+On a normal Windows or Linux host, no database server is required.
 
-### Exam
+After:
 
+```bash
+npm install
+npm run dev
+```
+
+the application automatically creates:
+
+```text
+data/aisp.sqlite
+```
+
+and applies the current SQLite schema.
+
+SQLite production settings include:
+
+- WAL journal mode
+- foreign keys enabled
+- busy timeout
+- server-side users / sessions / cases / transcripts / evaluations / audit logs
+- automatic schema initialization
+- manual consistent backup with `npm run db:backup`
+
+The SQLite file and its WAL/SHM files are ignored by Git.
+
+### Browser-only demo
+
+Set:
+
+```text
+DB_DRIVER=browser
+```
+
+to use the old localStorage-only demonstration mode.
+
+### Future PostgreSQL path
+
+The application keeps a database-driver boundary.
+
+If future scale requires multiple application hosts or heavier concurrent writes:
+
+```text
+DB_DRIVER=postgres
+DATABASE_URL=postgresql://...
+```
+
+selects the retained PostgreSQL/Neon adapter.
+
+SQLite is therefore the current operational default, not a dead-end architecture.
+
+### Vercel
+
+A local SQLite file is not treated as durable persistence on Vercel. With no `DATABASE_URL`, Vercel falls back to browser demo mode. A future durable Vercel deployment should use PostgreSQL/Neon or another shared persistence service.
+
+## Authentication / authorization
+
+Production persistence includes:
+
+- `admin / teacher / student` roles
+- teacher → assigned-student resource scope
+- HttpOnly opaque session cookie
+- CSRF protection and Origin validation
+- database-backed login throttling
+- security audit events
+- password change/reset invalidates existing sessions
+- server-side hidden case ground truth
+
+See `docs/AUTH_SECURITY.md`.
+
+## Interview modes
+
+**Training**
+- AI Coach is off by default
+- students can practise independently
+- Coach can be enabled mid-session
+- final assessment is always available
+
+**Exam**
 - no Coach
 - no live coverage progress
 - no hidden case hints
 - final scoring only after the interview ends
 
-## Assessment output
-
-The current deterministic mock judge already returns the contract intended for a future structured-output LLM evaluator:
-
-- `covered | partial | missed`
-- score / maximum score
-- transcript evidence
-- question-quality flags
-- overall AI comment
-- strengths
-- improvement priorities
-- practice recommendations
-- next practice focus
-
-## Production persistence is implemented
-
-With no `DATABASE_URL`, the application remains a zero-setup browser-local Demo.
-
-With `DATABASE_URL`, it switches to PostgreSQL / Neon mode:
-
-- teacher/student login
-- HttpOnly session cookie
-- teacher account management
-- student-safe case listing
-- server-side hidden case ground truth
-- server-generated interview sessions
-- server-side transcript
-- server-side revealed-fact state
-- server-side evaluations
-- teacher centralized record review
-- permanent Coach-used audit flag
-- frozen case snapshot per interview
-
-See:
-
-- `docs/PRODUCTION_ARCHITECTURE.md`
-- `docs/AUTH_SECURITY.md`
-- `docs/WINDOWS_PRODUCTION.md`
-- `db/schema.sql`
-
-## Information-boundary rule
-
-Student-facing data must never reuse teacher/internal diagnostic titles. The production student API exposes only neutral case metadata. Internal diagnosis/etiology, learning goals, rubric and case facts remain server-side.
-
 ## LLM provider status
 
-Patient, Coach and Evaluator are still deterministic mock providers so the POC is reproducible.
+Patient, Coach and Evaluator remain deterministic mock providers for reproducible POC demonstrations. The persistence/auth contracts are designed so they can later be replaced by structured LLM providers.
 
-The next provider step is:
-
-```text
-mock patient / coach / evaluator
-            ↓
-structured OpenAI providers
-```
-
-without changing the authentication, session, database or UI contracts.
-
-## Local demo
+## Local start
 
 Node.js 22+:
 
@@ -86,12 +105,24 @@ npm install
 npm run dev
 ```
 
-Then open `http://localhost:3000`.
+Open:
+
+```text
+http://localhost:3000
+```
+
+On a non-production local run, if no `ADMIN_SETUP_KEY` is configured, the server prints a temporary first-admin setup key in the console.
 
 Tests:
 
 ```bash
 npm test
+```
+
+Backup:
+
+```bash
+npm run db:backup
 ```
 
 This is an educational prototype, not a medical device and not a source of diagnosis or treatment advice.

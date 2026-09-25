@@ -78,7 +78,7 @@ function showBootstrap(message='',migration=false){
 async function init(){
   try{
     const runtime=await fetch('/api/runtime').then(r=>r.json());
-    state.serverMode=runtime.persistence==='postgres';
+    state.serverMode=runtime.persistence!=='browser';
     if(state.serverMode){
       state.needsAdminMigration=Boolean(runtime.needsAdminMigration);
       if(runtime.needsBootstrap||runtime.needsAdminMigration){showBootstrap('',runtime.needsAdminMigration);return;}

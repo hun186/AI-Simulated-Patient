@@ -1,99 +1,88 @@
-# Windows production-like deployment
+# Windows deployment — SQLite production default
 
 ## 1. Prerequisites
 
-Install Node.js 22+ and verify:
+Install Node.js 22+.
 
 ```powershell
 node -v
 npm -v
 ```
 
-Clone the repository and install dependencies:
+Clone/update the repository:
 
 ```powershell
 git clone https://github.com/hun186/AI-Simulated-Patient.git
 cd AI-Simulated-Patient
-npm install
+npm.cmd install
 ```
 
-## 2. Create PostgreSQL / Neon
+## 2. Start
 
-Create a Neon project (or another PostgreSQL database), then run the complete `db/schema.sql` in the SQL editor.
-
-The schema is intentionally re-runnable and contains the current additive migration steps (for example `coach_used` and frozen `case_snapshot`). Re-run the current schema after pulling a newer application version.
-
-## 3. Configure the Windows process
-
-In PowerShell:
+For local POC/testing:
 
 ```powershell
-$env:DATABASE_URL="postgresql://..."
-$env:ADMIN_SETUP_KEY="replace-with-a-long-random-secret"
+npm.cmd run dev
+```
+
+No PostgreSQL, Neon, Docker, or SQL Server installation is needed.
+
+The console should show something similar to:
+
+```text
+[setup] Local first-admin setup key: ...
+[db] SQLite: D:\...\AI-Simulated-Patient\data\aisp.sqlite (WAL=true, schema=1)
+AI simulated patient: http://localhost:3000
+```
+
+Open `http://localhost:3000`.
+
+On first run, paste the temporary setup key shown in the console into the first-administrator form.
+
+## 3. Real production settings
+
+For a persistent LAN/server deployment, set a fixed secret before starting:
+
+```powershell
+$env:APP_ENV="production"
+$env:DB_DRIVER="sqlite"
+$env:SQLITE_PATH="D:\AIData\AI-Simulated-Patient\aisp.sqlite"
+$env:ADMIN_SETUP_KEY="<at-least-32-random-bytes>"
 $env:LLM_PROVIDER="mock"
-npm run dev
+npm.cmd run dev
 ```
 
-Open:
+After the first admin is created, rotate or remove `ADMIN_SETUP_KEY`.
+
+The Windows service account must have read/write/create permission on the SQLite directory.
+
+## 4. Backup
+
+```powershell
+npm.cmd run db:backup
+```
+
+By default backups are written under:
 
 ```text
-http://localhost:3000
+data\backups\
 ```
 
-If `DATABASE_URL` is present, the application automatically enters server-persistence mode.
+For production, also copy backups to storage outside the application machine.
 
-## 4. first administrator setup
-
-On the first page load, when the database contains no users, the browser shows **建立第一位系統管理員**.
-
-Enter:
-
-- teacher display name
-- teacher email
-- a password with at least 12 characters
-- the same `ADMIN_SETUP_KEY` configured in PowerShell
-
-The setup endpoint succeeds only while the user table is empty. After creating the first administrator, rotate or remove `ADMIN_SETUP_KEY`.
-
-## 5. Create student accounts
-
-Log in as a teacher:
-
-```text
-教師管理 → 帳號管理
-```
-
-Create student or additional teacher accounts. In production mode the student name shown on a session comes from the authenticated account and cannot be edited by the student.
-
-## 6. Runtime checks
-
-Health endpoint:
+## 5. Health
 
 ```text
 http://localhost:3000/api/health
 ```
 
-Expected database mode response includes:
+SQLite mode reports `driver: "sqlite"`, schema version and WAL state.
 
-```json
-{"ok":true,"mode":"production","database":"connected"}
-```
+## Browser demo fallback
 
-The same API handler modules are used by the Windows Node server and Vercel Functions.
-
-
-## Authentication security environment variables
-
-Recommended production values:
+To deliberately disable server persistence:
 
 ```powershell
-$env:APP_ENV="production"
-$env:AUTH_SESSION_TTL_SECONDS="43200"
-$env:AUTH_THROTTLE_FAILURE_LIMIT="5"
-$env:AUTH_THROTTLE_WINDOW_SECONDS="900"
-$env:AUTH_THROTTLE_BLOCK_SECONDS="900"
-# Optional explicit origin allowlist:
-# $env:AUTH_ALLOWED_ORIGINS="https://your-app.example"
+$env:DB_DRIVER="browser"
+npm.cmd run dev
 ```
-
-When `APP_ENV=production`, the first-admin bootstrap refuses an `ADMIN_SETUP_KEY` shorter than 32 bytes.

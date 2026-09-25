@@ -2,6 +2,11 @@ import { isDatabaseEnabled,query } from '../../lib/db.js';
 import { requireUser } from '../../lib/server-auth.js';
 import { hasPermission,PERMISSIONS } from '../../lib/authz.js';
 
+function parseMetadata(value){
+  if(value==null || typeof value!=='string') return value||{};
+  try{return JSON.parse(value);}catch{return {};}
+}
+
 export default async function handler(req,res){
   if(req.method!=='GET') return res.status(405).json({error:'Method not allowed'});
   if(!isDatabaseEnabled()) return res.status(409).json({error:'Database mode is not enabled'});
@@ -24,5 +29,8 @@ export default async function handler(req,res){
        order by created_at desc limit $2`,[user.id,limit]
     );
   }
-  return res.status(200).json({events:rows,isRestrictedToSelf:!hasPermission(user.role,PERMISSIONS.SECURITY_AUDIT_ALL)});
+  return res.status(200).json({
+    events:rows.map(row=>({...row,success:Boolean(row.success),metadata:parseMetadata(row.metadata)})),
+    isRestrictedToSelf:!hasPermission(user.role,PERMISSIONS.SECURITY_AUDIT_ALL)
+  });
 }

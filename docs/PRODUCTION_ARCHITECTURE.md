@@ -1,97 +1,91 @@
 # Production architecture
 
+## Current default
+
 ```text
-Windows Node server / Vercel Functions
-                 │
-                 ├─ HttpOnly cookie authentication
-                 │      ├─ teacher
-                 │      └─ student
-                 │
-                 ├─ Student-safe case API
-                 ├─ Teacher case / user / record APIs
-                 ├─ Interview session API
-                 ├─ Patient provider
-                 ├─ Optional Learning Coach
-                 └─ Final Evaluator
-                         │
-                         ▼
-                  PostgreSQL / Neon
-                         │
-                         ├─ app_users
-                         ├─ auth_sessions
-                         ├─ cases
-                         ├─ interview_sessions
-                         ├─ interview_messages
-                         └─ evaluations
+Windows / Linux host
+        │
+        ▼
+      Node.js
+        │
+        ├─ Authentication / RBAC / CSRF
+        ├─ Case management
+        ├─ Interview sessions
+        ├─ Patient / Coach / Evaluator
+        └─ Security audit
+               │
+               ▼
+         SQLite adapter
+               │
+               ▼
+       data/aisp.sqlite
 ```
 
-## Runtime modes
+No separate SQL server is required.
 
-### Demo mode
+## Database boundary
 
-When `DATABASE_URL` is absent, the browser-local POC stays available for zero-setup demonstrations. Cases and records can use browser storage. This mode is not suitable for real examinations.
+```text
+Application services / APIs
+            │
+            ▼
+          lib/db.js
+        driver facade
+        ┌─────┴──────┐
+        ▼            ▼
+ SQLite adapter   PostgreSQL adapter
+   current          future scale
+```
 
-### Production persistence mode
+The application-level auth, cases, sessions and evaluation code uses the shared query facade. SQLite compatibility stays inside the adapter plus the portable SQL used by service modules.
 
-When `DATABASE_URL` is present:
+## SQLite runtime
 
-- teacher/student login is required;
-- authentication uses an HttpOnly SameSite=Lax session cookie;
-- student APIs return only neutral student-facing case metadata;
-- internal diagnosis, facts, triggers and rubrics remain server-side;
-- each interview gets a server-generated UUID;
-- transcript and revealed-fact state are written to PostgreSQL;
-- interactive session APIs are strictly owner-scoped;
-- teachers review centralized records through teacher-only APIs;
-- the final evaluator reads the transcript from PostgreSQL instead of trusting browser-submitted transcript data;
-- the browser does not persist the production transcript or hidden fact state in localStorage.
+Startup automatically:
 
-## Frozen case ground truth
+1. creates the configured data directory;
+2. opens `data/aisp.sqlite` (or `SQLITE_PATH`);
+3. enables `foreign_keys`;
+4. enables WAL;
+5. configures a 5-second busy timeout;
+6. uses NORMAL synchronous mode;
+7. applies `db/sqlite-schema.sql`;
+8. records schema version through SQLite `user_version`.
 
-At interview creation, the server writes both:
+The main SQLite database, WAL and SHM files must stay on the same local filesystem while the server is running.
 
-- `case_version`
-- `case_snapshot`
+## Database selection
 
-into `interview_sessions`.
+Priority:
 
-Patient, Coach and Evaluator all use that frozen snapshot for the entire session. Later edits to a case therefore cannot silently change the meaning or score of an already-started interview.
+1. explicit `DB_DRIVER`
+2. `DATABASE_URL` implies PostgreSQL
+3. Vercel without a database URL → browser demo
+4. normal Windows/Linux host → SQLite
 
-## Coach audit
+Supported values:
 
-`coach_enabled` stores the current switch state.
+```text
+DB_DRIVER=sqlite
+DB_DRIVER=browser
+DB_DRIVER=postgres
+```
 
-`coach_used` is a permanent audit flag that becomes true once Coach has ever been enabled during that session. Turning Coach off later does not erase that fact from the teacher record.
+## Future PostgreSQL upgrade
 
-## Information boundary
+The PostgreSQL/Neon adapter remains in the repository. `db/schema.sql` is the PostgreSQL schema reference.
 
-The student browser must never receive the complete production `definition_json`.
+A future migration should copy data through a controlled migration utility rather than making application modules depend on PostgreSQL-specific types.
 
-Teacher/internal title, etiology, hidden case facts, rubric, learning goals and scoring ground truth remain on the server. The student receives only the neutral case label, neutral brief, basic demographics and opening line.
+PostgreSQL becomes useful when requirements change to multiple application instances, HA, shared cloud storage, or substantially heavier concurrent writes.
 
-## Initial teacher bootstrap
+## Security and data boundaries
 
-After applying the schema and configuring `DATABASE_URL` plus `ADMIN_SETUP_KEY`, the application detects an empty user table and shows a one-time first-teacher setup form.
+- student-facing APIs never return complete case ground truth;
+- interview sessions use a frozen case snapshot;
+- interactive sessions are owner-scoped;
+- teachers inspect assigned students through read-only management APIs;
+- administrators manage global account scope and security audit;
+- production browser sessions do not persist hidden fact state or transcripts in localStorage.
 
-After bootstrap, rotate or remove `ADMIN_SETUP_KEY`.
-
-## Windows and Vercel
-
-The Windows Node server and Vercel Functions import the same API handler modules. Only the hosting adapter differs.
-
-For Vercel configure at least:
-
-- `DATABASE_URL`
-- `ADMIN_SETUP_KEY` during first setup
-- `LLM_PROVIDER=mock` for the current POC
-
-A future OpenAI provider can add `OPENAI_API_KEY` without changing the persistence/auth architecture.
-
-
-## Account authorization
-
-Production authentication follows three domain roles: `admin`, `teacher`, and `student`.
-
-Teachers are not globally privileged. Their student/account/result access is filtered through `teacher_student_assignments`. Admins have global account/audit visibility. Interactive student sessions remain owner-scoped.
-
-See `docs/AUTH_SECURITY.md` for the security model adapted from the portable auth reference pack.
+See `docs/AUTH_SECURITY.md`.

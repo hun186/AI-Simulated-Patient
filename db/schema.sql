@@ -1,3 +1,4 @@
+-- Future PostgreSQL / Neon schema. SQLite production uses db/sqlite-schema.sql automatically.
 -- AI Simulated Patient production schema for PostgreSQL / Neon.
 -- Re-runnable schema + additive migrations for the current application.
 
