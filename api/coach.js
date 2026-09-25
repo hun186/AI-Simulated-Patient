@@ -1,6 +1,6 @@
 import { mockCoach } from '../lib/mock-coach.js';
 import { isDatabaseEnabled } from '../lib/db.js';
-import { requireUser } from '../lib/server-auth.js';
+import { requireUser,requireCsrf } from '../lib/server-auth.js';
 import { getOwnedSession,getTranscript } from '../lib/server-sessions.js';
 
 export default async function handler(req,res){
@@ -8,8 +8,9 @@ export default async function handler(req,res){
   const {caseId='aphasia_001',caseDefinition=null,transcript=[],revealedFactIds=[],sessionId=null}=req.body??{};
   try{
     if(!isDatabaseEnabled()) return res.status(200).json(mockCoach({caseId,caseDefinition,transcript,revealedFactIds}));
-    const user=await requireUser(req,res,['student','teacher']);
+    const user=await requireUser(req,res,['student','teacher','admin']);
     if(!user) return;
+    if(!(await requireCsrf(req,res))) return;
     const session=await getOwnedSession(sessionId,user);
     if(!session || session.status!=='active') return res.status(404).json({error:'Active session not found'});
     if(session.mode!=='training' || !session.coach_enabled) return res.status(403).json({error:'Coach is disabled for this session'});
@@ -18,6 +19,6 @@ export default async function handler(req,res){
     const caseSnapshot=typeof session.case_snapshot==='string'?JSON.parse(session.case_snapshot):session.case_snapshot;
     return res.status(200).json(mockCoach({caseId:session.case_id,caseDefinition:caseSnapshot,transcript:serverTranscript,revealedFactIds:revealed}));
   }catch(error){
-    console.error(error); return res.status(500).json({error:'Unexpected error'});
+    console.error(error);return res.status(500).json({error:'Unexpected error'});
   }
 }

@@ -4,6 +4,8 @@ import { mockPatientReply } from './lib/mock-patient.js';
 import { mockEvaluate } from './lib/mock-evaluator.js';
 import { mockCoach } from './lib/mock-coach.js';
 import { getPublicCase } from './lib/cases.js';
+import { hasPermission,rolesCreatableBy,PERMISSIONS } from './lib/authz.js';
+import { validatePassword,MIN_PASSWORD_LENGTH } from './lib/passwords.js';
 
 test('patient does not dump unrelated facts for greeting',()=>{
   const out=mockPatientReply({caseId:'aphasia_001',message:'你好',revealedFactIds:[]});
@@ -69,4 +71,20 @@ test('training coach hint avoids revealing hidden stroke answer',()=>{
   const out=mockCoach({caseId:'aphasia_001',transcript,revealedFactIds:['chief_complaint','onset']});
   assert.doesNotMatch(out.nextHint,/中風|失語|腦血管|左側/);
   assert.equal('learningGoals' in out,false);
+});
+
+
+test('education RBAC separates admin teacher and student capabilities',()=>{
+  assert.equal(hasPermission('admin',PERMISSIONS.USER_MANAGE_ALL),true);
+  assert.equal(hasPermission('teacher',PERMISSIONS.CASE_MANAGE),true);
+  assert.equal(hasPermission('teacher',PERMISSIONS.USER_MANAGE_ALL),false);
+  assert.equal(hasPermission('student',PERMISSIONS.CASE_MANAGE),false);
+  assert.deepEqual(rolesCreatableBy('teacher'),['student']);
+  assert.deepEqual(rolesCreatableBy('admin'),['admin','teacher','student']);
+});
+
+test('production password policy requires at least 12 characters',()=>{
+  assert.equal(MIN_PASSWORD_LENGTH,12);
+  assert.throws(()=>validatePassword('short-pass'));
+  assert.doesNotThrow(()=>validatePassword('LongEnough!2026'));
 });

@@ -1,12 +1,13 @@
 import { isDatabaseEnabled } from '../lib/db.js';
-import { requireUser } from '../lib/server-auth.js';
+import { requireUser,requireCsrf } from '../lib/server-auth.js';
 import { createInterviewSession,updateCoachEnabled } from '../lib/server-sessions.js';
 
 export default async function handler(req,res){
   if(req.method!=='POST') return res.status(405).json({error:'Method not allowed'});
   if(!isDatabaseEnabled()) return res.status(409).json({error:'Server persistence disabled'});
-  const user=await requireUser(req,res,['student','teacher']);
+  const user=await requireUser(req,res,['student','teacher','admin']);
   if(!user) return;
+  if(!(await requireCsrf(req,res))) return;
   const {action='create',caseId,mode='training',coachEnabled=false,sessionId=null}=req.body??{};
   try{
     if(action==='setCoach'){

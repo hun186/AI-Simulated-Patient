@@ -1,5 +1,5 @@
 const SKEY='aisp-formal-session-v1',RKEY='aisp-formal-records-v1',CKEY='aisp-formal-custom-cases-v1';
-const state={serverMode:false,user:null,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[]};
+const state={serverMode:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[]};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const uid=()=> 'session_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
@@ -28,7 +28,9 @@ function renderMode(){const training=state.mode==='training';const coachOn=train
 function renderChat(){const c=$('chat');c.innerHTML=state.transcript.map(m=>'<div class="message '+(m.role==='student'?'student':'patient')+'"><div class="bubble"><div class="role">'+(m.role==='student'?'學生':'模擬病人')+'</div><div>'+esc(m.content)+'</div></div></div>').join('');c.scrollTop=c.scrollHeight;$('turnCount').textContent=state.transcript.filter(m=>m.role==='student').length;}
 function renderCoach(d=state.coach){if(state.mode!=='training'||!state.coachEnabled)return;$('coachEmpty').classList.toggle('hidden',!!d);$('coachContent').classList.toggle('hidden',!d);if(!d){$('trainingProgress').textContent='0/?';return}$('trainingProgress').textContent=d.progress.covered+'/'+d.progress.total;$('coachQuality').textContent=d.lastQuestion?.level==='good'?'問句品質良好':'可再精進';$('coachQuality').className=d.lastQuestion?.level==='good'?'quality-good':'quality-needs';$('coachComment').textContent=d.lastQuestion?.comment||'';$('coachHint').textContent=d.nextHint;$('coachReflection').textContent=d.reflectionPrompt;}
 async function post(url,payload){
-  const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+  const headers={'content-type':'application/json'};
+  if(state.serverMode&&state.csrfToken)headers['x-csrf-token']=state.csrfToken;
+  const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(payload)});
   if(!r.ok)throw new Error(url);
   if(r.status===204)return {};
   const text=await r.text();
@@ -38,7 +40,7 @@ async function ask(q){state.transcript.push({role:'student',content:q,at:new Dat
 function renderEvaluation(d){$('resultCard').classList.remove('hidden');$('scoreCircle').textContent=String(d.percentage);$('resultMode').textContent=modeLabel(d.mode)+' · '+d.totalScore+'/'+d.maxScore+' 分';$('overallComment').textContent=d.overall.comment;$('strengthList').innerHTML=d.overall.strengths.map(x=>'<li>'+esc(x)+'</li>').join('');$('improvementList').innerHTML=d.overall.improvements.map(x=>'<li>'+esc(x)+'</li>').join('');$('recommendationList').innerHTML=d.overall.recommendations.map(x=>'<li>'+esc(x)+'</li>').join('');$('nextPracticeFocus').textContent=d.overall.nextPracticeFocus;$('rubricTable').innerHTML=d.items.map(i=>'<div class="rubric-item"><div class="rubric-main"><strong>'+esc(i.criterion)+'</strong><span>'+i.score+'/'+i.maxScore+'</span><span class="status status-'+i.status+'">'+(i.status==='covered'?'完整涵蓋':i.status==='partial'?'部分涵蓋':'未涵蓋')+'</span></div><div class="rubric-detail"><span>'+esc(i.reasoning)+'</span>'+(i.evidence?.[0]?'<span class="evidence-quote">證據：「'+esc(i.evidence[0].quote)+'」</span>':'')+'</div></div>').join('');}
 async function finish(){try{const d=await post('/api/evaluate',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.revealedFactIds,mode:state.mode});renderEvaluation(d);if(state.serverMode){if(state.user?.role==='teacher')await renderRecords();return;}const rec={id:state.sessionId,studentName:state.studentName||'未填姓名',caseTitle:state.caseData.studentLabel||state.caseData.title||'臨床問診案例',mode:state.mode,coachUsed:state.mode==='training'&&state.coachUsed,completedAt:new Date().toISOString(),transcript:state.transcript,evaluation:d};state.records=read(RKEY,[]);const ix=state.records.findIndex(x=>x.id===rec.id);if(ix>=0)state.records[ix]=rec;else state.records.unshift(rec);write(RKEY,state.records);renderRecords();}catch{alert('評量失敗');}}
 function renderCases(){const list=state.teacherCases.length?state.teacherCases:state.customCases;$('teacherCaseList').innerHTML=list.length?list.map(c=>'<div class="manage-row"><div><strong>'+esc(c.internalTitle||c.title||'未命名病例')+'</strong><small>學生看到：'+esc(c.studentLabel||'臨床問診案例')+' · '+esc(c.patient?.name||'')+' · '+esc(c.difficulty||'')+' · '+(c.learningGoals||[]).length+' 個學習目標</small></div><span class="readonly-pill">'+(c.source==='custom'?'教師建立':'系統內建')+'</span></div>').join(''):'<p class="empty">尚無病例。</p>';}
-async function renderRecords(){if(state.serverMode){if(state.user?.role!=='teacher')return;try{
+async function renderRecords(){if(state.serverMode){if(!['teacher','admin'].includes(state.user?.role))return;try{
   const rows=(await fetch('/api/teacher/records').then(r=>r.json())).records||[];
   state.records=rows.map(r=>({...r,percentage:Number(r.percentage),completedAt:r.endedAt||r.startedAt,coachUsed:Boolean(r.coachUsed),evaluation:r.evaluation||{percentage:Number(r.percentage),items:[]},transcript:r.transcript||[]}));
 }catch{state.records=[];}}else state.records=read(RKEY,[]);$('recordCount').textContent=state.records.length;$('trainingCount').textContent=state.records.filter(r=>r.mode==='training').length;$('examCount').textContent=state.records.filter(r=>r.mode==='exam').length;const scored=state.records.filter(r=>Number.isFinite(r.evaluation?.percentage));$('averageScore').textContent=scored.length?Math.round(scored.reduce((a,r)=>a+r.evaluation.percentage,0)/scored.length)+'%':'--';$('recordList').innerHTML=state.records.length?state.records.map(r=>'<button class="record-row" data-id="'+esc(r.id)+'"><span><strong>'+esc(r.studentName)+'</strong><small>'+esc(r.caseTitle)+'</small></span><span class="record-mode '+r.mode+'">'+(r.mode==='training'?'訓練':'考試')+'</span><span>'+new Date(r.completedAt).toLocaleString('zh-TW')+'</span><b>'+(r.evaluation?.percentage??'--')+'%</b></button>').join(''):'<p class="empty">尚無完成紀錄。</p>';$('recordList').querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>showRecord(b.dataset.id));}
@@ -55,8 +57,8 @@ async function loadApplication(){
   state.caseData=state.cases[0];
   state.caseId=state.caseData?.id||'aphasia_001';
   $('caseSelect').innerHTML=state.cases.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.studentLabel||'臨床問診案例')+(c.source==='custom'?'（教師建立）':'')+'</option>').join('');
-  document.querySelector('[data-tab="teacher"]').classList.toggle('hidden',state.serverMode&&state.user?.role!=='teacher');document.querySelector('[data-view="users"]').classList.toggle('hidden',!state.serverMode||state.user?.role!=='teacher');$('studentName').disabled=state.serverMode;
-  $('runtimeStatus').textContent=state.serverMode?'Server DB · '+(state.user?.displayName||''):'Demo · Browser local';$('logoutBtn').classList.toggle('hidden',!state.serverMode);
+  const staff=!state.serverMode||['teacher','admin'].includes(state.user?.role);document.querySelector('[data-tab="teacher"]').classList.toggle('hidden',!staff);document.querySelector('[data-view="users"]').classList.toggle('hidden',!state.serverMode||!staff);document.querySelector('[data-view="audit"]').classList.toggle('hidden',!state.serverMode||state.user?.role!=='admin');$('studentName').disabled=state.serverMode;
+  $('runtimeStatus').textContent=state.serverMode?'Server DB · '+(state.user?.displayName||'')+' · '+(state.user?.role||''):'Demo · Browser local';$('logoutBtn').classList.toggle('hidden',!state.serverMode);$('changePasswordBtn').classList.toggle('hidden',!state.serverMode);
   if(state.user?.displayName) state.studentName=state.user.displayName;
   renderRecords();await start();
 }
@@ -65,9 +67,12 @@ function showLogin(message=''){
   $('loginForm').classList.remove('hidden');$('bootstrapForm').classList.add('hidden');
   $('loginError').textContent=message;
 }
-function showBootstrap(message=''){
+function showBootstrap(message='',migration=false){
   $('authGate').classList.remove('hidden');$('appRoot').classList.add('hidden');
   $('loginForm').classList.add('hidden');$('bootstrapForm').classList.remove('hidden');
+  $('bootstrapTitle').textContent=migration?'升級現有帳號為系統管理員':'建立第一位系統管理員';
+  $('bootstrapHelp').textContent=migration?'資料庫已有舊版帳號但尚無 admin。請輸入既有帳號密碼與 Setup Key 完成一次性升級。':'偵測到資料庫尚無帳號。此步驟只會成功一次。';
+  $('bootstrapNameRow').classList.toggle('hidden',migration);
   $('bootstrapError').textContent=message;
 }
 async function init(){
@@ -75,10 +80,12 @@ async function init(){
     const runtime=await fetch('/api/runtime').then(r=>r.json());
     state.serverMode=runtime.persistence==='postgres';
     if(state.serverMode){
-      if(runtime.needsBootstrap){showBootstrap();return;}
+      state.needsAdminMigration=Boolean(runtime.needsAdminMigration);
+      if(runtime.needsBootstrap||runtime.needsAdminMigration){showBootstrap('',runtime.needsAdminMigration);return;}
       const me=await fetch('/api/auth/me');
       if(!me.ok){showLogin();return;}
-      state.user=(await me.json()).user;
+      const meData=await me.json();
+      state.user=meData.user;state.csrfToken=meData.csrfToken;
     }
     $('authGate').classList.add('hidden');$('appRoot').classList.remove('hidden');
     await loadApplication();
@@ -88,7 +95,7 @@ async function login(event){
   event.preventDefault();
   try{
     const d=await post('/api/auth/login',{email:$('loginEmail').value.trim(),password:$('loginPassword').value});
-    state.user=d.user;$('authGate').classList.add('hidden');$('appRoot').classList.remove('hidden');await loadApplication();
+    state.user=d.user;state.csrfToken=d.csrfToken;$('authGate').classList.add('hidden');$('appRoot').classList.remove('hidden');await loadApplication();
   }catch{$('loginError').textContent='登入失敗，請檢查帳號密碼。';}
 }
 async function bootstrap(event){
@@ -98,12 +105,13 @@ async function bootstrap(event){
       setupKey:$('bootstrapKey').value,
       email:$('bootstrapEmail').value.trim(),
       password:$('bootstrapPassword').value,
-      displayName:$('bootstrapName').value.trim()
+      displayName:$('bootstrapName').value.trim()||'Administrator',
+      promoteExisting:state.needsAdminMigration
     });
-    state.user=d.user;
+    state.user=d.user;state.csrfToken=d.csrfToken;
     $('authGate').classList.add('hidden');$('appRoot').classList.remove('hidden');
     await loadApplication();
-  }catch{$('bootstrapError').textContent='建立失敗；請確認 schema 已套用、Setup Key 正確，且密碼至少 10 個字元。';}
+  }catch{$('bootstrapError').textContent='建立/升級失敗；請確認 schema、Setup Key 與帳號密碼，且新密碼至少 12 個字元。';}
 }
 async function logout(){await post('/api/auth/logout',{});location.reload();}
 $('chatForm').onsubmit=e=>{e.preventDefault();const i=$('messageInput'),q=i.value.trim();if(!q)return;i.value='';ask(q);};
@@ -125,12 +133,20 @@ async function setCoachEnabled(enabled){
 }
 $('finishBtn').onclick=finish;$('resetBtn').onclick=start;$('caseSelect').onchange=e=>switchCase(e.target.value);$('modeSelect').onchange=e=>switchMode(e.target.value);$('coachToggle').onchange=e=>setCoachEnabled(e.target.value==='on');$('studentName').oninput=e=>{if(state.serverMode)return;state.studentName=e.target.value;save();};$('closeRecordBtn').onclick=()=>$('recordDetail').classList.add('hidden');
 async function renderUsers(){
-  if(!state.serverMode||state.user?.role!=='teacher')return;
+  if(!state.serverMode||!['teacher','admin'].includes(state.user?.role))return;
   try{
     const r=await fetch('/api/teacher/users');
     if(!r.ok)throw new Error('users');
     const d=await r.json();
-    $('userList').innerHTML=(d.users||[]).map(u=>'<div class="manage-row"><div><strong>'+esc(u.displayName)+'</strong><small>'+esc(u.email)+' · '+(u.role==='teacher'?'教師':'學生')+'</small></div><span class="readonly-pill">'+(u.isActive?'啟用':'停用')+'</span></div>').join('')||'<p class="empty">尚無帳號。</p>';
+    const roleLabels={admin:'管理員',teacher:'教師',student:'學生'};
+    $('newUserRole').innerHTML=(d.creatableRoles||[]).map(role=>'<option value="'+role+'">'+roleLabels[role]+'</option>').join('');
+    $('userList').innerHTML=(d.users||[]).map(u=>{
+      const self=u.id===state.user?.id;
+      const active=u.accountStatus==='active';
+      const actions=self?'':('<button class="small-btn" data-user-action="'+(active?'suspend':'activate')+'" data-user-id="'+u.id+'">'+(active?'停權':'啟用')+'</button>'+(u.role==='student'||state.user?.role==='admin'?'<button class="small-btn" data-user-action="resetPassword" data-user-id="'+u.id+'">重設密碼</button>':''));
+      return '<div class="manage-row"><div><strong>'+esc(u.displayName)+'</strong><small>'+esc(u.email)+' · '+roleLabels[u.role]+'</small></div><div class="row-actions"><span class="readonly-pill">'+(active?'啟用':'停權')+'</span>'+actions+'</div></div>';
+    }).join('')||'<p class="empty">尚無帳號。</p>';
+    $('userList').querySelectorAll('[data-user-action]').forEach(b=>b.onclick=()=>manageUser(b.dataset.userId,b.dataset.userAction));
   }catch{$('userList').innerHTML='<p class="empty">帳號清單讀取失敗。</p>';}
 }
 async function createManagedUser(event){
@@ -145,17 +161,42 @@ async function createManagedUser(event){
     $('userForm').reset();
     await renderUsers();
     alert('帳號已建立。');
-  }catch{alert('帳號建立失敗；請確認 Email 未重複，且密碼至少 10 個字元。');}
+  }catch{alert('帳號建立失敗；請確認 Email 未重複、角色權限正確，且密碼至少 12 個字元。');}
 }
-async function loadTeacherCases(){if(state.serverMode&&state.user?.role!=='teacher')return;if(state.teacherCases.length)return;try{const r=await fetch('/api/teacher/cases');const d=await r.json();state.teacherCases=[...(d.cases||[]).map(c=>({...c,source:'builtin'})),...state.customCases.map(c=>({...c,internalTitle:c.title,source:'custom'}))];renderCases();}catch{state.teacherCases=state.customCases.map(c=>({...c,internalTitle:c.title,source:'custom'}));renderCases();}}
+async function manageUser(userId,action){
+  const payload={action,userId};
+  if(action==='resetPassword'){
+    const p=prompt('輸入新的暫時密碼（至少 12 個字元）');
+    if(!p)return;
+    payload.newPassword=p;
+  }else if(!confirm(action==='suspend'?'確定停權此帳號？既有登入會立即失效。':'確定重新啟用此帳號？'))return;
+  try{await post('/api/teacher/users',payload);await renderUsers();}
+  catch{alert('帳號操作失敗或權限不足。');}
+}
+async function renderSecurityAudit(){
+  if(!state.serverMode||state.user?.role!=='admin')return;
+  try{
+    const d=await fetch('/api/auth/audit?limit=100').then(r=>r.json());
+    $('auditList').innerHTML=(d.events||[]).map(e=>'<div class="audit-event '+(e.success?'ok':'fail')+'"><div><strong>'+esc(e.action)+'</strong><small>'+esc(e.reason||'')+' · '+new Date(e.createdAt).toLocaleString('zh-TW')+'</small></div><span>'+esc(e.identifier||'')+'</span></div>').join('')||'<p class="empty">尚無稽核事件。</p>';
+  }catch{$('auditList').innerHTML='<p class="empty">稽核紀錄讀取失敗。</p>';}
+}
+async function changeOwnPassword(event){
+  event.preventDefault();
+  try{
+    await post('/api/auth/change-password',{currentPassword:$('currentPassword').value,newPassword:$('nextPassword').value});
+    alert('密碼已變更，所有既有登入已失效，請重新登入。');location.reload();
+  }catch{$('passwordError').textContent='變更失敗；請確認目前密碼與新密碼（至少 12 個字元）。';}
+}
+async function loadTeacherCases(){if(state.serverMode&&!['teacher','admin'].includes(state.user?.role))return;if(state.teacherCases.length)return;try{const r=await fetch('/api/teacher/cases');const d=await r.json();state.teacherCases=[...(d.cases||[]).map(c=>({...c,source:'builtin'})),...state.customCases.map(c=>({...c,internalTitle:c.title,source:'custom'}))];renderCases();}catch{state.teacherCases=state.customCases.map(c=>({...c,internalTitle:c.title,source:'custom'}));renderCases();}}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.tab).classList.add('active');if(b.dataset.tab==='teacher')loadTeacherCases();});
 document.querySelectorAll('.teacher-subtab').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.teacher-subtab,.teacher-view').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
-  const map={cases:'teacherCases',records:'teacherRecords',users:'teacherUsers'};
+  const map={cases:'teacherCases',records:'teacherRecords',users:'teacherUsers',audit:'teacherAudit'};
   $(map[b.dataset.view]).classList.add('active');
   if(b.dataset.view==='records')renderRecords();
   if(b.dataset.view==='users')renderUsers();
+  if(b.dataset.view==='audit')renderSecurityAudit();
 });
 
 function addBuilderFactRow(){
@@ -178,5 +219,5 @@ async function saveBuilder(e){e.preventDefault();const facts=[...$('builderFacts
   renderCases();
 }
 $('caseBuilder').classList.add('hidden');$('caseBuilderForm').reset();alert('病例已建立，可立即切回學生端選用。');}
-$('loginForm').onsubmit=login;$('bootstrapForm').onsubmit=bootstrap;$('logoutBtn').onclick=logout;$('userForm').onsubmit=createManagedUser;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
+$('loginForm').onsubmit=login;$('bootstrapForm').onsubmit=bootstrap;$('logoutBtn').onclick=logout;$('changePasswordBtn').onclick=()=>$('passwordDialog').showModal();$('changePasswordForm').onsubmit=changeOwnPassword;$('cancelPasswordBtn').onclick=()=>$('passwordDialog').close();$('userForm').onsubmit=createManagedUser;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
 init();

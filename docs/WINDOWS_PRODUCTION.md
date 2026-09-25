@@ -42,18 +42,18 @@ http://localhost:3000
 
 If `DATABASE_URL` is present, the application automatically enters server-persistence mode.
 
-## 4. First teacher setup
+## 4. first administrator setup
 
-On the first page load, when the database contains no users, the browser shows **建立第一位教師**.
+On the first page load, when the database contains no users, the browser shows **建立第一位系統管理員**.
 
 Enter:
 
 - teacher display name
 - teacher email
-- a password with at least 10 characters
+- a password with at least 12 characters
 - the same `ADMIN_SETUP_KEY` configured in PowerShell
 
-The setup endpoint succeeds only while the user table is empty. After creating the first teacher, rotate or remove `ADMIN_SETUP_KEY`.
+The setup endpoint succeeds only while the user table is empty. After creating the first administrator, rotate or remove `ADMIN_SETUP_KEY`.
 
 ## 5. Create student accounts
 
@@ -80,3 +80,20 @@ Expected database mode response includes:
 ```
 
 The same API handler modules are used by the Windows Node server and Vercel Functions.
+
+
+## Authentication security environment variables
+
+Recommended production values:
+
+```powershell
+$env:APP_ENV="production"
+$env:AUTH_SESSION_TTL_SECONDS="43200"
+$env:AUTH_THROTTLE_FAILURE_LIMIT="5"
+$env:AUTH_THROTTLE_WINDOW_SECONDS="900"
+$env:AUTH_THROTTLE_BLOCK_SECONDS="900"
+# Optional explicit origin allowlist:
+# $env:AUTH_ALLOWED_ORIGINS="https://your-app.example"
+```
+
+When `APP_ENV=production`, the first-admin bootstrap refuses an `ADMIN_SETUP_KEY` shorter than 32 bytes.

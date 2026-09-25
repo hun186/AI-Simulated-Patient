@@ -13,6 +13,9 @@ import loginHandler from '../api/auth/login.js';
 import logoutHandler from '../api/auth/logout.js';
 import meHandler from '../api/auth/me.js';
 import bootstrapHandler from '../api/auth/bootstrap.js';
+import changePasswordHandler from '../api/auth/change-password.js';
+import authAuditHandler from '../api/auth/audit.js';
+import { applySecurityHeaders } from '../lib/request-security.js';
 import teacherCasesHandler from '../api/teacher/cases.js';
 import teacherUsersHandler from '../api/teacher/users.js';
 import teacherRecordsHandler from '../api/teacher/records.js';
@@ -24,7 +27,7 @@ const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8',
 const routes=new Map([
   ['/api/cases',casesHandler],['/api/chat',chatHandler],['/api/coach',coachHandler],['/api/evaluate',evaluateHandler],
   ['/api/runtime',runtimeHandler],['/api/health',healthHandler],['/api/sessions',sessionsHandler],['/api/auth/login',loginHandler],['/api/auth/logout',logoutHandler],
-  ['/api/auth/me',meHandler],['/api/auth/bootstrap',bootstrapHandler],['/api/teacher/cases',teacherCasesHandler],
+  ['/api/auth/me',meHandler],['/api/auth/bootstrap',bootstrapHandler],['/api/auth/change-password',changePasswordHandler],['/api/auth/audit',authAuditHandler],['/api/teacher/cases',teacherCasesHandler],
   ['/api/teacher/users',teacherUsersHandler],['/api/teacher/records',teacherRecordsHandler]
 ]);
 
@@ -46,7 +49,10 @@ function makeResponse(res){
 
 http.createServer(async(req,res)=>{
   try{
-    const path=req.url.split('?')[0];
+    applySecurityHeaders(res);
+    const parsedUrl=new URL(req.url,'http://localhost');
+    req.query=Object.fromEntries(parsedUrl.searchParams.entries());
+    const path=parsedUrl.pathname;
     if(routes.has(path)){req.body=await parseBody(req);return await routes.get(path)(req,makeResponse(res));}
     const filePath=path==='/'?'/index.html':path;
     if(!['/index.html','/styles.css','/formal.css','/app.js','/formal-app.js'].includes(filePath)){res.writeHead(404);return res.end('Not found');}

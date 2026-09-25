@@ -55,6 +55,7 @@ With `DATABASE_URL`, it switches to PostgreSQL / Neon mode:
 See:
 
 - `docs/PRODUCTION_ARCHITECTURE.md`
+- `docs/AUTH_SECURITY.md`
 - `docs/WINDOWS_PRODUCTION.md`
 - `db/schema.sql`
 

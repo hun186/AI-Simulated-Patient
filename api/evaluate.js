@@ -1,6 +1,6 @@
 import { mockEvaluate } from '../lib/mock-evaluator.js';
 import { isDatabaseEnabled } from '../lib/db.js';
-import { requireUser } from '../lib/server-auth.js';
+import { requireUser,requireCsrf } from '../lib/server-auth.js';
 import { getOwnedSession,getTranscript,completeSession } from '../lib/server-sessions.js';
 
 export default async function handler(req,res){
@@ -8,8 +8,9 @@ export default async function handler(req,res){
   const {caseId='aphasia_001',caseDefinition=null,transcript=[],revealedFactIds=[],mode='exam',sessionId=null}=req.body??{};
   try{
     if(!isDatabaseEnabled()) return res.status(200).json(mockEvaluate({caseId,caseDefinition,transcript,revealedFactIds,mode}));
-    const user=await requireUser(req,res,['student','teacher']);
+    const user=await requireUser(req,res,['student','teacher','admin']);
     if(!user) return;
+    if(!(await requireCsrf(req,res))) return;
     const session=await getOwnedSession(sessionId,user);
     if(!session) return res.status(404).json({error:'Session not found'});
     if(session.status!=='active') return res.status(409).json({error:'Session already finalized'});
@@ -20,6 +21,6 @@ export default async function handler(req,res){
     await completeSession(sessionId,result);
     return res.status(200).json(result);
   }catch(error){
-    console.error(error); return res.status(500).json({error:'Unexpected error'});
+    console.error(error);return res.status(500).json({error:'Unexpected error'});
   }
 }

@@ -86,3 +86,12 @@ For Vercel configure at least:
 - `LLM_PROVIDER=mock` for the current POC
 
 A future OpenAI provider can add `OPENAI_API_KEY` without changing the persistence/auth architecture.
+
+
+## Account authorization
+
+Production authentication follows three domain roles: `admin`, `teacher`, and `student`.
+
+Teachers are not globally privileged. Their student/account/result access is filtered through `teacher_student_assignments`. Admins have global account/audit visibility. Interactive student sessions remain owner-scoped.
+
+See `docs/AUTH_SECURITY.md` for the security model adapted from the portable auth reference pack.
