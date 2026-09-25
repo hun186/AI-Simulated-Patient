@@ -11,6 +11,7 @@ import evaluateHandler from '../api/evaluate.js';
 import runtimeHandler from '../api/runtime.js';
 import sessionsHandler from '../api/sessions.js';
 import loginHandler from '../api/auth/login.js';
+import registerHandler from '../api/auth/register.js';
 import logoutHandler from '../api/auth/logout.js';
 import meHandler from '../api/auth/me.js';
 import bootstrapHandler from '../api/auth/bootstrap.js';
@@ -44,7 +45,7 @@ if(isProductionEnv() && driver!=='browser' && !process.env.ADMIN_SETUP_KEY){
 const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8'};
 const routes=new Map([
   ['/api/cases',casesHandler],['/api/chat',chatHandler],['/api/coach',coachHandler],['/api/evaluate',evaluateHandler],
-  ['/api/runtime',runtimeHandler],['/api/health',healthHandler],['/api/sessions',sessionsHandler],['/api/auth/login',loginHandler],['/api/auth/logout',logoutHandler],
+  ['/api/runtime',runtimeHandler],['/api/health',healthHandler],['/api/sessions',sessionsHandler],['/api/auth/login',loginHandler],['/api/auth/register',registerHandler],['/api/auth/logout',logoutHandler],
   ['/api/auth/me',meHandler],['/api/auth/bootstrap',bootstrapHandler],['/api/auth/change-password',changePasswordHandler],['/api/auth/audit',authAuditHandler],['/api/teacher/cases',teacherCasesHandler],
   ['/api/teacher/users',teacherUsersHandler],['/api/teacher/records',teacherRecordsHandler]
 ]);

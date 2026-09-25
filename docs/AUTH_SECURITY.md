@@ -8,6 +8,7 @@ This implementation is adapted from `hun186/poc-agent/portable_auth_pack`, but i
 - a dummy password hash path for unknown accounts, reducing obvious timing differences;
 - login throttling after repeated failures;
 - login/account security audit events with client host and user agent;
+- public registration throttling and pending-account audit events;
 - password changes and staff resets invalidate every existing session for that account;
 - production bootstrap secret requirements;
 - server-side authorization checks rather than UI-only hiding;
@@ -35,15 +36,25 @@ A teacher's account list and completed-interview list are filtered by this relat
 
 A student interview session remains strictly owner-scoped even for a teacher. Teachers inspect completed work through the read-only teacher record endpoint rather than impersonating a student's interactive session.
 
-### 3. No public registration
+### 3. Student self-registration uses pending approval
 
-This is a managed teaching environment. Student accounts are provisioned by staff, so the public pending-registration workflow from the portable pack is intentionally omitted.
+Students may request their own account from the login screen. They choose their own password, which is immediately processed by the server's scrypt password-hashing path; teachers and administrators never receive the plaintext password.
 
-If open registration is later required, it should be introduced as a separate enrollment workflow with course/institution policy rather than exposing generic self-registration.
+The public registration response is intentionally generic whether an email is new or already exists, reducing account-enumeration value.
+
+Public student registration is disabled until at least one active administrator exists, preventing a pre-bootstrap registration from interfering with first-admin initialization.
+
+New student accounts are created as `pending` with `is_active=false`, so they cannot authenticate before approval.
+
+A student may optionally provide the known email address of a teacher. If it matches an active teacher, the pending student is resource-scoped to that teacher through `teacher_student_assignments`; otherwise the request is visible only to an administrator until assignment.
+
+Teachers may approve or reject only pending students already in their assignment scope. Administrators may review all pending accounts. Approval changes only account state (`pending → active`) and does not change or expose the student's password. Rejection deletes the never-activated pending account so the student can submit a fresh request later.
+
+Staff-created accounts remain available for testing and exceptional assistance, but self-registration is the preferred student onboarding path.
 
 ### 4. Opaque DB-backed cookies instead of bearer tokens
 
-Authentication uses a cryptographically random opaque token in an HttpOnly cookie. Only its SHA-256 hash is stored in PostgreSQL.
+Authentication uses a cryptographically random opaque token in an HttpOnly cookie. Only its SHA-256 hash is stored in the server-side database.
 
 This means no long-lived signing secret is required for session-token integrity, and logout is a direct deletion of the server-side session.
 
@@ -61,7 +72,7 @@ Unsafe authenticated requests also validate the browser Origin. `AUTH_ALLOWED_OR
 
 The portable pack correctly notes that process-local throttling is insufficient for multi-worker / multi-instance production.
 
-This project stores throttle state in PostgreSQL (`auth_throttle`), so Windows multi-process evolution and Vercel/serverless instances share the same login-failure state.
+This project stores throttle state in the configured server database (`auth_throttle`). SQLite is the current single-host production default; the retained PostgreSQL adapter provides a future shared multi-instance path.
 
 Defaults:
 

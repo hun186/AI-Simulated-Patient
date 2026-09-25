@@ -64,16 +64,45 @@ async function loadApplication(){
 }
 function showLogin(message=''){
   $('authGate').classList.remove('hidden');$('appRoot').classList.add('hidden');
-  $('loginForm').classList.remove('hidden');$('bootstrapForm').classList.add('hidden');
+  $('loginForm').classList.remove('hidden');$('registerForm').classList.add('hidden');$('bootstrapForm').classList.add('hidden');
   $('loginError').textContent=message;
 }
 function showBootstrap(message='',migration=false){
   $('authGate').classList.remove('hidden');$('appRoot').classList.add('hidden');
-  $('loginForm').classList.add('hidden');$('bootstrapForm').classList.remove('hidden');
+  $('loginForm').classList.add('hidden');$('registerForm').classList.add('hidden');$('bootstrapForm').classList.remove('hidden');
   $('bootstrapTitle').textContent=migration?'升級現有帳號為系統管理員':'建立第一位系統管理員';
   $('bootstrapHelp').textContent=migration?'資料庫已有舊版帳號但尚無 admin。請輸入既有帳號密碼與 Setup Key 完成一次性升級。':'偵測到資料庫尚無帳號。此步驟只會成功一次。';
   $('bootstrapNameRow').classList.toggle('hidden',migration);
   $('bootstrapError').textContent=message;
+}
+function showRegister(){
+  $('authGate').classList.remove('hidden');$('appRoot').classList.add('hidden');
+  $('loginForm').classList.add('hidden');$('bootstrapForm').classList.add('hidden');$('registerForm').classList.remove('hidden');
+  $('registerMessage').textContent='';
+  $('registerMessage').className='auth-message';
+}
+async function registerAccount(event){
+  event.preventDefault();
+  const password=$('registerPassword').value;
+  if(password!==$('registerPasswordConfirm').value){
+    $('registerMessage').textContent='兩次輸入的密碼不一致。';
+    $('registerMessage').className='auth-message auth-error';
+    return;
+  }
+  try{
+    const d=await post('/api/auth/register',{
+      displayName:$('registerName').value.trim(),
+      email:$('registerEmail').value.trim(),
+      password,
+      requestedTeacherEmail:$('registerTeacherEmail').value.trim()
+    });
+    $('registerForm').reset();
+    $('registerMessage').textContent=d.message||'申請已送出，請等待核准。';
+    $('registerMessage').className='auth-message auth-success';
+  }catch{
+    $('registerMessage').textContent='申請無法送出；請確認資料格式、密碼至少 12 個字元，或稍後再試。';
+    $('registerMessage').className='auth-message auth-error';
+  }
 }
 async function init(){
   try{
@@ -139,21 +168,29 @@ async function renderUsers(){
     if(!r.ok)throw new Error('users');
     const d=await r.json();
     const roleLabels={admin:'管理員',teacher:'教師',student:'學生'};
+    const statusLabels={active:'啟用',pending:'待審核',suspended:'停權'};
     $('newUserRole').innerHTML=(d.creatableRoles||[]).map(role=>'<option value="'+role+'">'+roleLabels[role]+'</option>').join('');
     const admin=state.user?.role==='admin';
     $('assignmentPanel').classList.toggle('hidden',!admin);
     if(admin){
       const teachers=(d.users||[]).filter(u=>u.role==='teacher'&&u.accountStatus==='active');
-      const students=(d.users||[]).filter(u=>u.role==='student'&&u.accountStatus==='active');
+      const students=(d.users||[]).filter(u=>u.role==='student'&&['active','pending'].includes(u.accountStatus));
       $('assignmentTeacher').innerHTML=teachers.map(u=>'<option value="'+u.id+'">'+esc(u.displayName)+' · '+esc(u.email)+'</option>').join('');
-      $('assignmentStudent').innerHTML=students.map(u=>'<option value="'+u.id+'">'+esc(u.displayName)+' · '+esc(u.email)+'</option>').join('');
+      $('assignmentStudent').innerHTML=students.map(u=>'<option value="'+u.id+'">'+esc(u.displayName)+' · '+esc(u.email)+(u.accountStatus==='pending'?'（待審核）':'')+'</option>').join('');
       $('assignmentSummary').textContent=(d.assignments||[]).length+' 組有效指派';
     }
-    $('userList').innerHTML=(d.users||[]).map(u=>{
+    const sorted=[...(d.users||[])].sort((a,b)=>(a.accountStatus==='pending'?0:1)-(b.accountStatus==='pending'?0:1));
+    $('userList').innerHTML=sorted.map(u=>{
       const self=u.id===state.user?.id;
-      const active=u.accountStatus==='active';
-      const actions=self?'':('<button class="small-btn" data-user-action="'+(active?'suspend':'activate')+'" data-user-id="'+u.id+'">'+(active?'停權':'啟用')+'</button>'+(u.role==='student'||state.user?.role==='admin'?'<button class="small-btn" data-user-action="resetPassword" data-user-id="'+u.id+'">重設密碼</button>':''));
-      return '<div class="manage-row"><div><strong>'+esc(u.displayName)+'</strong><small>'+esc(u.email)+' · '+roleLabels[u.role]+'</small></div><div class="row-actions"><span class="readonly-pill">'+(active?'啟用':'停權')+'</span>'+actions+'</div></div>';
+      let actions='';
+      if(!self && u.accountStatus==='pending'){
+        actions='<button class="small-btn approve-btn" data-user-action="approve" data-user-id="'+u.id+'">核准</button><button class="small-btn danger-btn" data-user-action="reject" data-user-id="'+u.id+'">拒絕</button>';
+      }else if(!self && u.accountStatus==='active'){
+        actions='<button class="small-btn" data-user-action="suspend" data-user-id="'+u.id+'">停權</button>'+(u.role==='student'||state.user?.role==='admin'?'<button class="small-btn" data-user-action="resetPassword" data-user-id="'+u.id+'">重設密碼</button>':'');
+      }else if(!self && u.accountStatus==='suspended'){
+        actions='<button class="small-btn" data-user-action="activate" data-user-id="'+u.id+'">啟用</button>'+(u.role==='student'||state.user?.role==='admin'?'<button class="small-btn" data-user-action="resetPassword" data-user-id="'+u.id+'">重設密碼</button>':'');
+      }
+      return '<div class="manage-row '+(u.accountStatus==='pending'?'pending-row':'')+'"><div><strong>'+esc(u.displayName)+'</strong><small>'+esc(u.email)+' · '+roleLabels[u.role]+' · '+new Date(u.createdAt).toLocaleString('zh-TW')+'</small></div><div class="row-actions"><span class="readonly-pill status-'+esc(u.accountStatus)+'">'+(statusLabels[u.accountStatus]||u.accountStatus)+'</span>'+actions+'</div></div>';
     }).join('')||'<p class="empty">尚無帳號。</p>';
     $('userList').querySelectorAll('[data-user-action]').forEach(b=>b.onclick=()=>manageUser(b.dataset.userId,b.dataset.userAction));
   }catch{$('userList').innerHTML='<p class="empty">帳號清單讀取失敗。</p>';}
@@ -187,7 +224,15 @@ async function manageUser(userId,action){
     const p=prompt('輸入新的暫時密碼（至少 12 個字元）');
     if(!p)return;
     payload.newPassword=p;
-  }else if(!confirm(action==='suspend'?'確定停權此帳號？既有登入會立即失效。':'確定重新啟用此帳號？'))return;
+  }else{
+    const prompts={
+      suspend:'確定停權此帳號？既有登入會立即失效。',
+      activate:'確定重新啟用此帳號？',
+      approve:'確定核准這個學生帳號？核准後即可登入。',
+      reject:'確定拒絕這個申請？尚未啟用的 pending 帳號會被刪除，學生之後可重新申請。'
+    };
+    if(!confirm(prompts[action]||'確定執行此操作？'))return;
+  }
   try{await post('/api/teacher/users',payload);await renderUsers();}
   catch{alert('帳號操作失敗或權限不足。');}
 }
@@ -237,5 +282,5 @@ async function saveBuilder(e){e.preventDefault();const facts=[...$('builderFacts
   renderCases();
 }
 $('caseBuilder').classList.add('hidden');$('caseBuilderForm').reset();alert('病例已建立，可立即切回學生端選用。');}
-$('loginForm').onsubmit=login;$('bootstrapForm').onsubmit=bootstrap;$('assignStudentBtn').onclick=assignStudentToTeacher;$('logoutBtn').onclick=logout;$('changePasswordBtn').onclick=()=>$('passwordDialog').showModal();$('changePasswordForm').onsubmit=changeOwnPassword;$('cancelPasswordBtn').onclick=()=>$('passwordDialog').close();$('userForm').onsubmit=createManagedUser;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
+$('loginForm').onsubmit=login;$('registerForm').onsubmit=registerAccount;$('showRegisterBtn').onclick=showRegister;$('backToLoginBtn').onclick=()=>showLogin();$('bootstrapForm').onsubmit=bootstrap;$('assignStudentBtn').onclick=assignStudentToTeacher;$('logoutBtn').onclick=logout;$('changePasswordBtn').onclick=()=>$('passwordDialog').showModal();$('changePasswordForm').onsubmit=changeOwnPassword;$('cancelPasswordBtn').onclick=()=>$('passwordDialog').close();$('userForm').onsubmit=createManagedUser;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
 init();

@@ -123,7 +123,37 @@ export default async function handler(req,res){
   if(!(await canManage(actor,target))) return res.status(403).json({error:'Forbidden'});
   if(target.id===actor.id && action==='suspend') return res.status(400).json({error:'You cannot suspend your own account'});
 
+  if(action==='approve' || action==='reject'){
+    if(target.role!==ROLE_STUDENT || target.account_status!=='pending') return res.status(409).json({error:'Account is not pending'});
+    if(action==='approve'){
+      await query(
+        "update app_users set account_status='active',is_active=true,updated_at=now() where id=$1 and account_status='pending'",
+        [target.id]
+      );
+      if(actor.role===ROLE_TEACHER){
+        await query(
+          `insert into teacher_student_assignments (teacher_user_id,student_user_id,assigned_by)
+           values ($1,$2,$1) on conflict do nothing`,
+          [actor.id,target.id]
+        );
+      }
+      await recordAuthEvent({
+        req,action:'account.approve',success:true,reason:'pending_approved',
+        actorUserId:actor.id,targetUserId:target.id,identifier:target.email
+      });
+      return res.status(200).json({ok:true,accountStatus:'active'});
+    }
+    await recordAuthEvent({
+      req,action:'account.reject',success:true,reason:'pending_rejected',
+      actorUserId:actor.id,targetUserId:target.id,identifier:target.email
+    });
+    await query("delete from app_users where id=$1 and account_status='pending'",[target.id]);
+    return res.status(200).json({ok:true,removed:true});
+  }
+
   if(action==='suspend' || action==='activate'){
+    if(action==='suspend' && target.account_status!=='active') return res.status(409).json({error:'Only active accounts can be suspended'});
+    if(action==='activate' && target.account_status!=='suspended') return res.status(409).json({error:'Only suspended accounts can be activated'});
     const status=action==='suspend'?'suspended':'active';
     await query(
       'update app_users set account_status=$2,is_active=$3,updated_at=now() where id=$1',
