@@ -19,6 +19,7 @@ export default async function handler(req,res){
      join app_users u on u.id=s.student_user_id
      join cases c on c.id=s.case_id
      left join evaluations e on e.session_id=s.id
+     where s.status='completed'
      order by s.started_at desc limit 500`
   );
   return res.status(200).json({records:rows});
