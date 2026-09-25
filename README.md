@@ -1,54 +1,40 @@
-# AI Simulated Patient — Zero-config POC
+# AI Simulated Patient — Product-shaped POC
 
-A lightweight proof of concept for speech-language pathology students to practice clinical interviewing with an AI simulated patient.
+A lightweight teaching prototype for speech-language pathology clinical-interview training.
 
-This version deliberately uses **Mock LLM providers**, so it can be demonstrated without an OpenAI API key or database.
+## Student modes
 
-## What works
+- **Training mode**: AI learning coach gives formative feedback after each turn, including question-quality feedback and a non-spoiler next-step hint.
+- **Exam mode**: hides progress and coaching; only produces summative feedback after the interview.
 
-- One aphasia-oriented simulated-patient case.
-- Patient information is revealed progressively according to question triggers.
-- Student/patient transcript is kept in browser `localStorage` for the demo.
-- End-of-interview rubric scoring and feedback.
-- Teacher-facing preview of the case-script idea and rubric.
-- Vercel-compatible `/api` serverless functions.
-- No runtime npm dependencies.
+## Assessment contract
 
-## Local demo
+The POC evaluator already returns the structure intended for a future LLM judge:
 
-Requires Node.js 22+.
+- `covered | partial | missed`
+- per-item score and evidence quote
+- question-quality flags
+- overall AI comment
+- strengths
+- improvement priorities
+- practice recommendations
+- next practice focus
 
-```bash
-npm run dev
-```
+The current implementation is deterministic (`mock-semantic-judge`) so demonstrations remain repeatable. Production can replace the provider with an OpenAI structured-output evaluator without changing the UI contract.
 
-Open `http://localhost:3000`.
+## Teacher console
 
-Run tests:
+Teachers can create browser-local cases with patient profile, student-visible brief, learning goals, controlled facts, disclosure triggers and rubric points. Completed sessions are archived locally with transcript, mode, scores, evidence and overall feedback.
 
-```bash
-npm test
-```
+## Production path
 
-## Deploy to Vercel
+1. Move case definitions, rubrics, sessions and transcripts to PostgreSQL / Neon.
+2. Add teacher/student authentication and authorization.
+3. Replace `mock-patient` with a real Patient LLM provider.
+4. Keep deterministic candidate matching as a fast first pass, then use an LLM semantic classifier.
+5. Replace `mock-semantic-judge` with a structured-output final LLM evaluator over the complete transcript.
+6. Persist model version, prompt version, case version, rubric version and evidence for auditability.
 
-1. Push this folder to a GitHub repository.
-2. In Vercel, create a new project and import that repository.
-3. Framework preset can be left as **Other**; no build command is needed.
-4. Deploy.
+Run locally with Node.js 22+: `npm run dev`. Tests: `npm test`.
 
-The POC requires no secrets because `LLM_PROVIDER=mock` is the default design.
-
-## Next implementation step
-
-Replace the mock provider behind `/api/chat` and `/api/evaluate`, rather than changing the UI flow:
-
-- `MockPatientProvider` → `OpenAIPatientProvider`
-- `MockEvaluator` → structured OpenAI evaluator
-- browser `localStorage` → server-side interview sessions in PostgreSQL / Neon
-
-`db/schema.sql` contains a starting production schema.
-
-## Important scope note
-
-This repository is a teaching-system prototype, not a medical device and not a source of diagnosis or treatment advice.
+This is an educational prototype, not a medical device and not a source of diagnosis or treatment advice.

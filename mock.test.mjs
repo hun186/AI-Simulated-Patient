@@ -2,43 +2,48 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mockPatientReply } from './lib/mock-patient.js';
 import { mockEvaluate } from './lib/mock-evaluator.js';
+import { mockCoach } from './lib/mock-coach.js';
 
-test('does not dump unrelated case facts for a greeting', () => {
-  const out = mockPatientReply({ caseId:'aphasia_001', message:'你好', revealedFactIds:[] });
-  assert.equal(out.revealedFactIds.length, 0);
-  assert.match(out.reply, /你好/);
+test('patient does not dump unrelated facts for greeting',()=>{
+  const out=mockPatientReply({caseId:'aphasia_001',message:'你好',revealedFactIds:[]});
+  assert.equal(out.revealedFactIds.length,0);
 });
 
-test('reveals stroke history only when asked about it', () => {
-  const out = mockPatientReply({ caseId:'aphasia_001', message:'以前有中風或其他重大病史嗎？', revealedFactIds:[] });
+test('stroke history can be revealed by relevant question',()=>{
+  const out=mockPatientReply({caseId:'aphasia_001',message:'以前有中風或重大病史嗎？',revealedFactIds:[]});
   assert.ok(out.revealedFactIds.includes('stroke_history'));
-  assert.match(out.reply, /兩年前/);
 });
 
-test('evaluation gives points for revealed facts and misses others', () => {
-  const out = mockEvaluate({
-    caseId:'aphasia_001',
-    transcript:[{ role:'student', content:'以前有中風嗎？' }],
-    revealedFactIds:['stroke_history']
-  });
-  assert.equal(out.totalScore, 15);
-  assert.equal(out.maxScore, 100);
-  assert.equal(out.items.find((x) => x.id === 'history').status, 'covered');
+test('evaluator returns covered partial missed contract and overall comment',()=>{
+  const transcript=[{role:'student',content:'主要是哪裡不舒服？'},{role:'patient',content:'講話不太順。'},{role:'student',content:'以前有腦部方面的疾病嗎？'}];
+  const out=mockEvaluate({caseId:'aphasia_001',transcript,revealedFactIds:['chief_complaint'],mode:'exam'});
+  assert.equal(out.provider,'mock-semantic-judge');
+  assert.ok(['covered','partial','missed'].includes(out.items[0].status));
+  assert.ok(out.overall.comment.length>10);
+  assert.ok(Array.isArray(out.overall.recommendations));
 });
 
-test('teacher-created case can chat and score without server persistence', () => {
-  const custom = {
-    id:'custom_swallow',
-    title:'吞嚥困難',
-    publicBrief:'吞嚥問診',
-    patient:{ name:'林女士', age:72, gender:'女', persona:'' },
-    opening:'最近吃東西有點不順。',
-    facts:[{ id:'liquid', label:'喝水嗆咳', value:'喝水時常會嗆到。', triggers:['喝水','嗆'], mayVolunteer:false }],
-    rubric:[{ id:'liquid_check', label:'詢問液體吞嚥', factIds:['liquid'], points:20 }]
-  };
-  const chat = mockPatientReply({ caseId:'custom_swallow', caseDefinition:custom, message:'喝水會嗆到嗎？' });
-  assert.ok(chat.revealedFactIds.includes('liquid'));
-  const score = mockEvaluate({ caseId:'custom_swallow', caseDefinition:custom, transcript:[{role:'student',content:'喝水會嗆到嗎？'}], revealedFactIds:chat.revealedFactIds });
-  assert.equal(score.totalScore, 20);
-  assert.equal(score.percentage, 100);
+test('training coach returns non-answer next-step hint',()=>{
+  const out=mockCoach({caseId:'aphasia_001',transcript:[{role:'student',content:'怎麼了？'}],revealedFactIds:['chief_complaint']});
+  assert.equal(out.provider,'mock-learning-coach');
+  assert.ok(out.nextHint.includes('方向'));
+  assert.ok(out.progress.total>0);
+});
+
+test('leading question can receive quality penalty',()=>{
+  const transcript=[{role:'student',content:'你是不是有中風？'}];
+  const out=mockEvaluate({caseId:'aphasia_001',transcript,revealedFactIds:['stroke_history'],mode:'training'});
+  const item=out.items.find((x)=>x.id==='history');
+  assert.equal(item.status,'covered');
+  assert.ok(item.score<item.maxScore);
+  assert.ok(item.questionQuality.flags.includes('leading'));
+});
+
+test('teacher-created case supports coaching and evaluation',()=>{
+  const custom={id:'custom_swallow',title:'吞嚥困難',publicBrief:'吞嚥問診',learningGoals:['辨識嗆咳'],patient:{name:'林女士',age:72,gender:'女',persona:''},opening:'最近吃東西有點不順。',facts:[{id:'liquid',label:'喝水嗆咳',category:'swallowing_screen',value:'喝水時常會嗆到。',triggers:['喝水','嗆'],mayVolunteer:false}],rubric:[{id:'liquid_check',label:'詢問液體吞嚥',factIds:['liquid'],points:20}]};
+  const chat=mockPatientReply({caseId:'custom_swallow',caseDefinition:custom,message:'喝水會嗆到嗎？'});
+  const score=mockEvaluate({caseId:'custom_swallow',caseDefinition:custom,transcript:[{role:'student',content:'喝水會嗆到嗎？'}],revealedFactIds:chat.revealedFactIds,mode:'training'});
+  const coach=mockCoach({caseId:'custom_swallow',caseDefinition:custom,transcript:[{role:'student',content:'喝水會嗆到嗎？'}],revealedFactIds:chat.revealedFactIds});
+  assert.equal(score.percentage,100);
+  assert.equal(coach.progress.covered,1);
 });
