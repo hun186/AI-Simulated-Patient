@@ -55,7 +55,7 @@ async function loadApplication(){
   state.caseData=state.cases[0];
   state.caseId=state.caseData?.id||'aphasia_001';
   $('caseSelect').innerHTML=state.cases.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.studentLabel||'臨床問診案例')+(c.source==='custom'?'（教師建立）':'')+'</option>').join('');
-  document.querySelector('[data-tab="teacher"]').classList.toggle('hidden',state.serverMode&&state.user?.role!=='teacher');
+  document.querySelector('[data-tab="teacher"]').classList.toggle('hidden',state.serverMode&&state.user?.role!=='teacher');document.querySelector('[data-view="users"]').classList.toggle('hidden',!state.serverMode||state.user?.role!=='teacher');$('studentName').disabled=state.serverMode;
   $('runtimeStatus').textContent=state.serverMode?'Server DB · '+(state.user?.displayName||''):'Demo · Browser local';
   if(state.user?.displayName) state.studentName=state.user.displayName;
   renderRecords();await start();
@@ -102,10 +102,40 @@ async function setCoachEnabled(enabled){
   }
   save();renderMode();renderCoach();
 }
-$('finishBtn').onclick=finish;$('resetBtn').onclick=start;$('caseSelect').onchange=e=>switchCase(e.target.value);$('modeSelect').onchange=e=>switchMode(e.target.value);$('coachToggle').onchange=e=>setCoachEnabled(e.target.value==='on');$('studentName').oninput=e=>{state.studentName=e.target.value;save();};$('closeRecordBtn').onclick=()=>$('recordDetail').classList.add('hidden');
+$('finishBtn').onclick=finish;$('resetBtn').onclick=start;$('caseSelect').onchange=e=>switchCase(e.target.value);$('modeSelect').onchange=e=>switchMode(e.target.value);$('coachToggle').onchange=e=>setCoachEnabled(e.target.value==='on');$('studentName').oninput=e=>{if(state.serverMode)return;state.studentName=e.target.value;save();};$('closeRecordBtn').onclick=()=>$('recordDetail').classList.add('hidden');
+async function renderUsers(){
+  if(!state.serverMode||state.user?.role!=='teacher')return;
+  try{
+    const r=await fetch('/api/teacher/users');
+    if(!r.ok)throw new Error('users');
+    const d=await r.json();
+    $('userList').innerHTML=(d.users||[]).map(u=>'<div class="manage-row"><div><strong>'+esc(u.displayName)+'</strong><small>'+esc(u.email)+' · '+(u.role==='teacher'?'教師':'學生')+'</small></div><span class="readonly-pill">'+(u.isActive?'啟用':'停用')+'</span></div>').join('')||'<p class="empty">尚無帳號。</p>';
+  }catch{$('userList').innerHTML='<p class="empty">帳號清單讀取失敗。</p>';}
+}
+async function createManagedUser(event){
+  event.preventDefault();
+  try{
+    await post('/api/teacher/users',{
+      displayName:$('newUserName').value.trim(),
+      email:$('newUserEmail').value.trim(),
+      password:$('newUserPassword').value,
+      role:$('newUserRole').value
+    });
+    $('userForm').reset();
+    await renderUsers();
+    alert('帳號已建立。');
+  }catch{alert('帳號建立失敗；請確認 Email 未重複，且密碼至少 10 個字元。');}
+}
 async function loadTeacherCases(){if(state.serverMode&&state.user?.role!=='teacher')return;if(state.teacherCases.length)return;try{const r=await fetch('/api/teacher/cases');const d=await r.json();state.teacherCases=[...(d.cases||[]).map(c=>({...c,source:'builtin'})),...state.customCases.map(c=>({...c,internalTitle:c.title,source:'custom'}))];renderCases();}catch{state.teacherCases=state.customCases.map(c=>({...c,internalTitle:c.title,source:'custom'}));renderCases();}}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.tab).classList.add('active');if(b.dataset.tab==='teacher')loadTeacherCases();});
-document.querySelectorAll('.teacher-subtab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.teacher-subtab,.teacher-view').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.view==='cases'?'teacherCases':'teacherRecords').classList.add('active');if(b.dataset.view==='records')renderRecords();});
+document.querySelectorAll('.teacher-subtab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.teacher-subtab,.teacher-view').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  const map={cases:'teacherCases',records:'teacherRecords',users:'teacherUsers'};
+  $(map[b.dataset.view]).classList.add('active');
+  if(b.dataset.view==='records')renderRecords();
+  if(b.dataset.view==='users')renderUsers();
+});
 
 function addBuilderFactRow(){
   const row=document.createElement('div');row.className='fact-editor-row';
@@ -127,5 +157,5 @@ async function saveBuilder(e){e.preventDefault();const facts=[...$('builderFacts
   renderCases();
 }
 $('caseBuilder').classList.add('hidden');$('caseBuilderForm').reset();alert('病例已建立，可立即切回學生端選用。');}
-$('loginForm').onsubmit=login;$('logoutBtn').onclick=logout;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
+$('loginForm').onsubmit=login;$('logoutBtn').onclick=logout;$('userForm').onsubmit=createManagedUser;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
 init();
