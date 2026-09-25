@@ -12,6 +12,7 @@ export default async function handler(req,res){
     if(!user) return;
     const session=await getOwnedSession(sessionId,user);
     if(!session) return res.status(404).json({error:'Session not found'});
+    if(session.status!=='active') return res.status(409).json({error:'Session already finalized'});
     const serverTranscript=await getTranscript(sessionId);
     const revealed=Array.isArray(session.revealed_fact_ids)?session.revealed_fact_ids:[];
     const caseSnapshot=typeof session.case_snapshot==='string'?JSON.parse(session.case_snapshot):session.case_snapshot;
