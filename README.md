@@ -1,18 +1,31 @@
 # AI Simulated Patient — Product-shaped POC
 
-A lightweight teaching prototype for speech-language pathology clinical-interview training.
+A speech-language pathology clinical-interview platform prototype with student training, exam assessment, optional AI coaching, teacher case management, authentication and server-side persistence.
 
-## Student modes
+## Current modes
 
-- **Training mode**: AI learning coach gives formative feedback after each turn, including question-quality feedback and a non-spoiler next-step hint.
-- **Exam mode**: hides progress and coaching; only produces summative feedback after the interview.
+### Training
 
-## Assessment contract
+- AI Coach is **off by default**
+- students can practise completely independently
+- Coach can be enabled mid-session without restarting
+- when Coach is off, coverage progress is hidden
+- final assessment and AI comments are still produced at the end
 
-The POC evaluator already returns the structure intended for a future LLM judge:
+### Exam
+
+- no Coach
+- no live coverage progress
+- no hidden case hints
+- final scoring only after the interview ends
+
+## Assessment output
+
+The current deterministic mock judge already returns the contract intended for a future structured-output LLM evaluator:
 
 - `covered | partial | missed`
-- per-item score and evidence quote
+- score / maximum score
+- transcript evidence
 - question-quality flags
 - overall AI comment
 - strengths
@@ -20,26 +33,64 @@ The POC evaluator already returns the structure intended for a future LLM judge:
 - practice recommendations
 - next practice focus
 
-The current implementation is deterministic (`mock-semantic-judge`) so demonstrations remain repeatable. Production can replace the provider with an OpenAI structured-output evaluator without changing the UI contract.
+## Production persistence is implemented
 
-## Teacher console
+With no `DATABASE_URL`, the application remains a zero-setup browser-local Demo.
 
-Teachers can create browser-local cases with patient profile, student-visible brief, learning goals, controlled facts, disclosure triggers and rubric points. Completed sessions are archived locally with transcript, mode, scores, evidence and overall feedback.
+With `DATABASE_URL`, it switches to PostgreSQL / Neon mode:
 
-## Production path
+- teacher/student login
+- HttpOnly session cookie
+- teacher account management
+- student-safe case listing
+- server-side hidden case ground truth
+- server-generated interview sessions
+- server-side transcript
+- server-side revealed-fact state
+- server-side evaluations
+- teacher centralized record review
+- permanent Coach-used audit flag
+- frozen case snapshot per interview
 
-1. Move case definitions, rubrics, sessions and transcripts to PostgreSQL / Neon.
-2. Add teacher/student authentication and authorization.
-3. Replace `mock-patient` with a real Patient LLM provider.
-4. Keep deterministic candidate matching as a fast first pass, then use an LLM semantic classifier.
-5. Replace `mock-semantic-judge` with a structured-output final LLM evaluator over the complete transcript.
-6. Persist model version, prompt version, case version, rubric version and evidence for auditability.
+See:
 
-Run locally with Node.js 22+: `npm run dev`. Tests: `npm test`.
-
-This is an educational prototype, not a medical device and not a source of diagnosis or treatment advice.
-
+- `docs/PRODUCTION_ARCHITECTURE.md`
+- `docs/WINDOWS_PRODUCTION.md`
+- `db/schema.sql`
 
 ## Information-boundary rule
 
-Student-facing case data must never reuse teacher/internal diagnostic titles. The public case endpoint exposes only a neutral student label, a neutral encounter brief, basic patient demographics and the patient's opening line. Internal diagnosis/etiology, learning goals, rubric and ground truth remain teacher/evaluator data. In production the teacher endpoint must be protected by role-based authentication.
+Student-facing data must never reuse teacher/internal diagnostic titles. The production student API exposes only neutral case metadata. Internal diagnosis/etiology, learning goals, rubric and case facts remain server-side.
+
+## LLM provider status
+
+Patient, Coach and Evaluator are still deterministic mock providers so the POC is reproducible.
+
+The next provider step is:
+
+```text
+mock patient / coach / evaluator
+            ↓
+structured OpenAI providers
+```
+
+without changing the authentication, session, database or UI contracts.
+
+## Local demo
+
+Node.js 22+:
+
+```bash
+npm install
+npm run dev
+```
+
+Then open `http://localhost:3000`.
+
+Tests:
+
+```bash
+npm test
+```
+
+This is an educational prototype, not a medical device and not a source of diagnosis or treatment advice.
