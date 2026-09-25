@@ -62,13 +62,20 @@ async function loadApplication(){
 }
 function showLogin(message=''){
   $('authGate').classList.remove('hidden');$('appRoot').classList.add('hidden');
+  $('loginForm').classList.remove('hidden');$('bootstrapForm').classList.add('hidden');
   $('loginError').textContent=message;
+}
+function showBootstrap(message=''){
+  $('authGate').classList.remove('hidden');$('appRoot').classList.add('hidden');
+  $('loginForm').classList.add('hidden');$('bootstrapForm').classList.remove('hidden');
+  $('bootstrapError').textContent=message;
 }
 async function init(){
   try{
     const runtime=await fetch('/api/runtime').then(r=>r.json());
     state.serverMode=runtime.persistence==='postgres';
     if(state.serverMode){
+      if(runtime.needsBootstrap){showBootstrap();return;}
       const me=await fetch('/api/auth/me');
       if(!me.ok){showLogin();return;}
       state.user=(await me.json()).user;
@@ -83,6 +90,20 @@ async function login(event){
     const d=await post('/api/auth/login',{email:$('loginEmail').value.trim(),password:$('loginPassword').value});
     state.user=d.user;$('authGate').classList.add('hidden');$('appRoot').classList.remove('hidden');await loadApplication();
   }catch{$('loginError').textContent='登入失敗，請檢查帳號密碼。';}
+}
+async function bootstrap(event){
+  event.preventDefault();
+  try{
+    const d=await post('/api/auth/bootstrap',{
+      setupKey:$('bootstrapKey').value,
+      email:$('bootstrapEmail').value.trim(),
+      password:$('bootstrapPassword').value,
+      displayName:$('bootstrapName').value.trim()
+    });
+    state.user=d.user;
+    $('authGate').classList.add('hidden');$('appRoot').classList.remove('hidden');
+    await loadApplication();
+  }catch{$('bootstrapError').textContent='建立失敗；請確認 schema 已套用、Setup Key 正確，且密碼至少 10 個字元。';}
 }
 async function logout(){await post('/api/auth/logout',{});location.reload();}
 $('chatForm').onsubmit=e=>{e.preventDefault();const i=$('messageInput'),q=i.value.trim();if(!q)return;i.value='';ask(q);};
@@ -157,5 +178,5 @@ async function saveBuilder(e){e.preventDefault();const facts=[...$('builderFacts
   renderCases();
 }
 $('caseBuilder').classList.add('hidden');$('caseBuilderForm').reset();alert('病例已建立，可立即切回學生端選用。');}
-$('loginForm').onsubmit=login;$('logoutBtn').onclick=logout;$('userForm').onsubmit=createManagedUser;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
+$('loginForm').onsubmit=login;$('bootstrapForm').onsubmit=bootstrap;$('logoutBtn').onclick=logout;$('userForm').onsubmit=createManagedUser;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
 init();
