@@ -8,7 +8,7 @@ export default async function handler(req,res){
   const teacher=await requireUser(req,res,['teacher']);
   if(!teacher) return;
   const rows=await query(
-    `select s.id,s.mode,s.coach_enabled as "coachEnabled",s.started_at as "startedAt",s.ended_at as "endedAt",
+    `select s.id,s.mode,s.coach_enabled as "coachEnabled",s.coach_used as "coachUsed",s.started_at as "startedAt",s.ended_at as "endedAt",
        u.display_name as "studentName",c.student_label as "caseTitle",
        e.percentage,e.total_score as "totalScore",e.max_score as "maxScore",e.result_json as evaluation,
        coalesce((
