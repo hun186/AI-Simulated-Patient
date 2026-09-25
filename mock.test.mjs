@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mockPatientReply } from './lib/mock-patient.js';
 import { mockEvaluate } from './lib/mock-evaluator.js';
 import { mockCoach } from './lib/mock-coach.js';
+import { getPublicCase } from './lib/cases.js';
 
 test('patient does not dump unrelated facts for greeting',()=>{
   const out=mockPatientReply({caseId:'aphasia_001',message:'你好',revealedFactIds:[]});
@@ -46,4 +47,25 @@ test('teacher-created case supports coaching and evaluation',()=>{
   const coach=mockCoach({caseId:'custom_swallow',caseDefinition:custom,transcript:[{role:'student',content:'喝水會嗆到嗎？'}],revealedFactIds:chat.revealedFactIds});
   assert.equal(score.percentage,100);
   assert.equal(coach.progress.covered,1);
+});
+
+
+test('student-facing case payload does not leak diagnosis or etiology',()=>{
+  const view=getPublicCase('aphasia_001');
+  assert.equal('title' in view,false);
+  assert.equal('learningGoals' in view,false);
+  assert.ok(view.studentLabel);
+  assert.doesNotMatch(view.studentLabel,/中風|失語|腦血管/);
+  assert.doesNotMatch(view.studentBrief,/中風|失語|腦血管/);
+});
+
+test('training coach hint avoids revealing hidden stroke answer',()=>{
+  const transcript=[
+    {role:'student',content:'主要是哪裡不舒服？'},
+    {role:'patient',content:'最近講話不太順。'},
+    {role:'student',content:'這個狀況大概多久了？'}
+  ];
+  const out=mockCoach({caseId:'aphasia_001',transcript,revealedFactIds:['chief_complaint','onset']});
+  assert.doesNotMatch(out.nextHint,/中風|失語|腦血管|左側/);
+  assert.equal('learningGoals' in out,false);
 });
