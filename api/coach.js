@@ -1,7 +1,6 @@
 import { mockCoach } from '../lib/mock-coach.js';
 import { isDatabaseEnabled } from '../lib/db.js';
 import { requireUser } from '../lib/server-auth.js';
-import { getCaseDefinition } from '../lib/server-cases.js';
 import { getOwnedSession,getTranscript } from '../lib/server-sessions.js';
 
 export default async function handler(req,res){
@@ -14,10 +13,10 @@ export default async function handler(req,res){
     const session=await getOwnedSession(sessionId,user);
     if(!session || session.status!=='active') return res.status(404).json({error:'Active session not found'});
     if(session.mode!=='training' || !session.coach_enabled) return res.status(403).json({error:'Coach is disabled for this session'});
-    const found=await getCaseDefinition(session.case_id);
     const serverTranscript=await getTranscript(sessionId);
     const revealed=Array.isArray(session.revealed_fact_ids)?session.revealed_fact_ids:[];
-    return res.status(200).json(mockCoach({caseId:session.case_id,caseDefinition:found.definition,transcript:serverTranscript,revealedFactIds:revealed}));
+    const caseSnapshot=typeof session.case_snapshot==='string'?JSON.parse(session.case_snapshot):session.case_snapshot;
+    return res.status(200).json(mockCoach({caseId:session.case_id,caseDefinition:caseSnapshot,transcript:serverTranscript,revealedFactIds:revealed}));
   }catch(error){
     console.error(error); return res.status(500).json({error:'Unexpected error'});
   }
