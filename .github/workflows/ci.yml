@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - name: Syntax check
+        run: |
+          node --check formal-app.js
+          node --check scripts/dev-server.mjs
+          for f in api/*.js api/auth/*.js api/teacher/*.js lib/*.js; do node --check "$f"; done
+      - run: npm test
