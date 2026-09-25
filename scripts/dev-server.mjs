@@ -16,13 +16,14 @@ import bootstrapHandler from '../api/auth/bootstrap.js';
 import teacherCasesHandler from '../api/teacher/cases.js';
 import teacherUsersHandler from '../api/teacher/users.js';
 import teacherRecordsHandler from '../api/teacher/records.js';
+import healthHandler from '../api/health.js';
 
 const root=fileURLToPath(new URL('..',import.meta.url));
 const port=Number(process.env.PORT||3000);
 const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8'};
 const routes=new Map([
   ['/api/cases',casesHandler],['/api/chat',chatHandler],['/api/coach',coachHandler],['/api/evaluate',evaluateHandler],
-  ['/api/runtime',runtimeHandler],['/api/sessions',sessionsHandler],['/api/auth/login',loginHandler],['/api/auth/logout',logoutHandler],
+  ['/api/runtime',runtimeHandler],['/api/health',healthHandler],['/api/sessions',sessionsHandler],['/api/auth/login',loginHandler],['/api/auth/logout',logoutHandler],
   ['/api/auth/me',meHandler],['/api/auth/bootstrap',bootstrapHandler],['/api/teacher/cases',teacherCasesHandler],
   ['/api/teacher/users',teacherUsersHandler],['/api/teacher/records',teacherRecordsHandler]
 ]);
