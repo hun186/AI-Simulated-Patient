@@ -1,7 +1,6 @@
 import { mockEvaluate } from '../lib/mock-evaluator.js';
 import { isDatabaseEnabled } from '../lib/db.js';
 import { requireUser } from '../lib/server-auth.js';
-import { getCaseDefinition } from '../lib/server-cases.js';
 import { getOwnedSession,getTranscript,completeSession } from '../lib/server-sessions.js';
 
 export default async function handler(req,res){
@@ -13,11 +12,10 @@ export default async function handler(req,res){
     if(!user) return;
     const session=await getOwnedSession(sessionId,user);
     if(!session) return res.status(404).json({error:'Session not found'});
-    const found=await getCaseDefinition(session.case_id);
-    if(!found) return res.status(404).json({error:'Case not found'});
     const serverTranscript=await getTranscript(sessionId);
     const revealed=Array.isArray(session.revealed_fact_ids)?session.revealed_fact_ids:[];
-    const result=mockEvaluate({caseId:session.case_id,caseDefinition:found.definition,transcript:serverTranscript,revealedFactIds:revealed,mode:session.mode});
+    const caseSnapshot=typeof session.case_snapshot==='string'?JSON.parse(session.case_snapshot):session.case_snapshot;
+    const result=mockEvaluate({caseId:session.case_id,caseDefinition:caseSnapshot,transcript:serverTranscript,revealedFactIds:revealed,mode:session.mode});
     await completeSession(sessionId,result);
     return res.status(200).json(result);
   }catch(error){
