@@ -10,7 +10,7 @@ function normalizeEmail(value){
   return String(value||'').trim().toLowerCase();
 }
 function validEmail(value){
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  return /^[^\s@]+@[^\s@]+$/.test(value);
 }
 async function findRequestedTeacher(email){
   if(!email)return null;
