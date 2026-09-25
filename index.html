@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 模擬病人 POC</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">Speech-Language Pathology · Prototype</div>
+        <h1>AI 模擬病人</h1>
+        <p>以模擬病例練習臨床問診；目前 LLM 與評分皆使用 deterministic Mock。</p>
+      </div>
+      <div class="status"><span></span> Mock mode</div>
+    </header>
+
+    <nav class="tabs" aria-label="功能切換">
+      <button class="tab active" data-tab="student">學生問診</button>
+      <button class="tab" data-tab="teacher">教師檢視</button>
+      <button class="tab" data-tab="about">POC 說明</button>
+    </nav>
+
+    <main>
+      <section id="student" class="panel active">
+        <div class="case-card">
+          <div>
+            <div class="badge">入門病例</div>
+            <h2 id="caseTitle">中風後語言困難（失語症問診）</h2>
+            <p id="caseBrief">你是一名語言治療系學生，請針對病人的溝通困難進行初步問診。</p>
+          </div>
+          <button id="resetBtn" class="secondary">重新開始</button>
+        </div>
+
+        <div class="workspace">
+          <section class="chat-card">
+            <div class="chat-head">
+              <div>
+                <strong>王先生，68 歲</strong>
+                <small>請像臨床問診一樣逐步詢問，不會一次顯示全部病例資訊。</small>
+              </div>
+            </div>
+            <div id="chat" class="chat" aria-live="polite"></div>
+            <form id="chatForm" class="composer">
+              <textarea id="messageInput" rows="2" placeholder="例如：請問您的說話困難大概從什麼時候開始？" required></textarea>
+              <button type="submit" id="sendBtn">送出問題</button>
+            </form>
+          </section>
+
+          <aside class="side-card">
+            <h3>問診進度</h3>
+            <div class="metric"><span>學生提問</span><strong id="turnCount">0</strong></div>
+            <div class="metric"><span>已取得資訊</span><strong id="factCount">0</strong></div>
+            <p class="hint">正式版可把這個進度提示隱藏；POC 為方便展示而保留。</p>
+            <button id="finishBtn" class="finish">結束問診並評分</button>
+          </aside>
+        </div>
+
+        <section id="resultCard" class="result-card hidden">
+          <div class="result-head">
+            <div>
+              <div class="eyebrow">Mock Evaluation</div>
+              <h2>問診回饋</h2>
+            </div>
+            <div id="scoreCircle" class="score-circle">--</div>
+          </div>
+          <div id="feedback"></div>
+          <div id="rubricTable" class="rubric-table"></div>
+        </section>
+      </section>
+
+      <section id="teacher" class="panel">
+        <div class="teacher-grid">
+          <article class="info-card">
+            <div class="eyebrow">Case Script</div>
+            <h2>病例不是一大段 Prompt</h2>
+            <p>每個病例資訊都有 trigger 與 reveal rule。學生問到相關方向時才允許病人回答，避免 AI 主動洩漏整份病例。</p>
+            <pre id="casePreview"></pre>
+          </article>
+          <article class="info-card">
+            <div class="eyebrow">Rubric</div>
+            <h2>結構化評分規準</h2>
+            <div id="teacherRubric"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="about" class="panel">
+        <article class="info-card wide">
+          <div class="eyebrow">Architecture</div>
+          <h2>這個 POC 的刻意取捨</h2>
+          <div class="architecture">
+            <div>Browser UI<br><small>學生 / 教師</small></div><b>→</b>
+            <div>Vercel Functions<br><small>/api/chat · /api/evaluate</small></div><b>→</b>
+            <div>Mock Provider<br><small>之後換 OpenAI API</small></div>
+          </div>
+          <p>目前完整對話保存在瀏覽器 localStorage，方便零設定展示。正式版再把 session 寫入 PostgreSQL（例如 Neon）並加入登入、課程、學生與病例版本管理。</p>
+          <p class="warning">此 POC 用於教學系統設計展示，不提供真實病患的診斷或醫療建議。</p>
+        </article>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
