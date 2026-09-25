@@ -67,7 +67,8 @@ A local SQLite file is not treated as durable persistence on Vercel. With no `DA
 
 Production persistence includes:
 
-- public student self-registration → `pending` → teacher/admin approval
+- public student self-registration → `pending` → assigned teacher/admin approval
+- public teacher self-registration → `pending` → admin-only approval
 - `admin / teacher / student` roles
 - teacher → assigned-student resource scope
 - HttpOnly opaque session cookie

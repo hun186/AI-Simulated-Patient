@@ -124,7 +124,8 @@ export default async function handler(req,res){
   if(target.id===actor.id && action==='suspend') return res.status(400).json({error:'You cannot suspend your own account'});
 
   if(action==='approve' || action==='reject'){
-    if(target.role!==ROLE_STUDENT || target.account_status!=='pending') return res.status(409).json({error:'Account is not pending'});
+    if(![ROLE_STUDENT,ROLE_TEACHER].includes(target.role) || target.account_status!=='pending') return res.status(409).json({error:'Account is not pending'});
+    if(target.role===ROLE_TEACHER && actor.role!==ROLE_ADMIN) return res.status(403).json({error:'Only administrators may review teacher applications'});
     if(action==='approve'){
       await query(
         "update app_users set account_status='active',is_active=true,updated_at=now() where id=$1 and account_status='pending'",
@@ -139,13 +140,13 @@ export default async function handler(req,res){
       }
       await recordAuthEvent({
         req,action:'account.approve',success:true,reason:'pending_approved',
-        actorUserId:actor.id,targetUserId:target.id,identifier:target.email
+        actorUserId:actor.id,targetUserId:target.id,identifier:target.email,metadata:{role:target.role}
       });
       return res.status(200).json({ok:true,accountStatus:'active'});
     }
     await recordAuthEvent({
       req,action:'account.reject',success:true,reason:'pending_rejected',
-      actorUserId:actor.id,targetUserId:target.id,identifier:target.email
+      actorUserId:actor.id,targetUserId:target.id,identifier:target.email,metadata:{role:target.role}
     });
     await query("delete from app_users where id=$1 and account_status='pending'",[target.id]);
     return res.status(200).json({ok:true,removed:true});

@@ -82,9 +82,18 @@ function showBootstrap(message='',migration=false){
   $('bootstrapNameRow').classList.toggle('hidden',migration);
   $('bootstrapError').textContent=message;
 }
-function showRegister(){
+function showRegister(role='student'){
+  const teacher=role==='teacher';
   $('authGate').classList.remove('hidden');$('appRoot').classList.add('hidden');
   $('loginForm').classList.add('hidden');$('bootstrapForm').classList.add('hidden');$('registerForm').classList.remove('hidden');
+  $('registerRole').value=teacher?'teacher':'student';
+  $('registerEyebrow').textContent=teacher?'Teacher Registration':'Student Registration';
+  $('registerTitle').textContent=teacher?'申請教師帳號':'申請學生帳號';
+  $('registerHelp').textContent=teacher
+    ?'密碼由你自行設定；系統管理員不會看到你的原始密碼。教師申請只能由系統管理員核准，核准前無法登入。'
+    :'密碼由你自行設定；教師與系統管理員不會看到你的原始密碼。申請送出後需先核准才能登入。';
+  $('registerTeacherRow').classList.toggle('hidden',teacher);
+  if(teacher)$('registerTeacherEmail').value='';
   $('registerMessage').textContent='';
   $('registerMessage').className='auth-message';
 }
@@ -94,7 +103,8 @@ async function registerAccount(event){
   const email=$('registerEmail').value.trim();
   const password=$('registerPassword').value;
   const confirmPassword=$('registerPasswordConfirm').value;
-  const requestedTeacherEmail=$('registerTeacherEmail').value.trim();
+  const role=$('registerRole').value==='teacher'?'teacher':'student';
+  const requestedTeacherEmail=role==='student'?$('registerTeacherEmail').value.trim():'';
 
   const showError=message=>{
     $('registerMessage').textContent=message;
@@ -111,7 +121,7 @@ async function registerAccount(event){
   }
 
   try{
-    const d=await post('/api/auth/register',{displayName,email,password,requestedTeacherEmail});
+    const d=await post('/api/auth/register',{displayName,email,password,role,requestedTeacherEmail});
     $('registerForm').reset();
     $('registerMessage').textContent=d.message||'申請已送出，請等待核准。';
     $('registerMessage').className='auth-message auth-success';
@@ -303,5 +313,5 @@ async function saveBuilder(e){e.preventDefault();const facts=[...$('builderFacts
   renderCases();
 }
 $('caseBuilder').classList.add('hidden');$('caseBuilderForm').reset();alert('病例已建立，可立即切回學生端選用。');}
-$('loginForm').onsubmit=login;$('registerForm').onsubmit=registerAccount;$('showRegisterBtn').onclick=showRegister;$('backToLoginBtn').onclick=()=>showLogin();$('bootstrapForm').onsubmit=bootstrap;$('assignStudentBtn').onclick=assignStudentToTeacher;$('logoutBtn').onclick=logout;$('changePasswordBtn').onclick=()=>$('passwordDialog').showModal();$('changePasswordForm').onsubmit=changeOwnPassword;$('cancelPasswordBtn').onclick=()=>$('passwordDialog').close();$('userForm').onsubmit=createManagedUser;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
+$('loginForm').onsubmit=login;$('registerForm').onsubmit=registerAccount;$('showRegisterBtn').onclick=()=>showRegister('student');$('showTeacherRegisterBtn').onclick=()=>showRegister('teacher');$('backToLoginBtn').onclick=()=>showLogin();$('bootstrapForm').onsubmit=bootstrap;$('assignStudentBtn').onclick=assignStudentToTeacher;$('logoutBtn').onclick=logout;$('changePasswordBtn').onclick=()=>$('passwordDialog').showModal();$('changePasswordForm').onsubmit=changeOwnPassword;$('cancelPasswordBtn').onclick=()=>$('passwordDialog').close();$('userForm').onsubmit=createManagedUser;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
 init();

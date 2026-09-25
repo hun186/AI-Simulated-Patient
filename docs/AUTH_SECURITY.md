@@ -36,21 +36,21 @@ A teacher's account list and completed-interview list are filtered by this relat
 
 A student interview session remains strictly owner-scoped even for a teacher. Teachers inspect completed work through the read-only teacher record endpoint rather than impersonating a student's interactive session.
 
-### 3. Student self-registration uses pending approval
+### 3. Student and teacher self-registration use pending approval
 
-Students may request their own account from the login screen. They choose their own password, which is immediately processed by the server's scrypt password-hashing path; teachers and administrators never receive the plaintext password.
+Students and teachers may request their own account from the login screen. They choose their own password, which is immediately processed by the server's scrypt password-hashing path; reviewers never receive the plaintext password.
 
 The public registration response is intentionally generic whether an email is new or already exists, reducing account-enumeration value.
 
-Public student registration is disabled until at least one active administrator exists, preventing a pre-bootstrap registration from interfering with first-admin initialization.
+Public registration is disabled until at least one active administrator exists, preventing a pre-bootstrap registration from interfering with first-admin initialization.
 
-New student accounts are created as `pending` with `is_active=false`, so they cannot authenticate before approval.
+New student and teacher accounts are created as `pending` with `is_active=false`, so they cannot authenticate before approval.
 
 A student may optionally provide the known email address of a teacher. If it matches an active teacher, the pending student is resource-scoped to that teacher through `teacher_student_assignments`; otherwise the request is visible only to an administrator until assignment.
 
-Teachers may approve or reject only pending students already in their assignment scope. Administrators may review all pending accounts. Approval changes only account state (`pending → active`) and does not change or expose the student's password. Rejection deletes the never-activated pending account so the student can submit a fresh request later.
+Teachers may approve or reject only pending students already in their assignment scope. Pending teacher applications are not included in a teacher's account list and can be approved or rejected only by an administrator. Administrators may review all pending student and teacher accounts. Approval changes only account state (`pending → active`) and does not change or expose the applicant's password. Rejection deletes the never-activated pending account so the applicant can submit a fresh request later.
 
-Staff-created accounts remain available for testing and exceptional assistance, but self-registration is the preferred student onboarding path.
+Staff-created accounts remain available for testing and exceptional assistance, but self-registration is the preferred onboarding path for both students and teachers.
 
 ### 4. Opaque DB-backed cookies instead of bearer tokens
 
