@@ -24,7 +24,7 @@ export default async function handler(req,res){
     await appendMessage(sessionId,'student',message);
     await appendMessage(sessionId,'patient',result.reply);
     await setRevealedFacts(sessionId,result.revealedFactIds);
-    return res.status(200).json(result);
+    return res.status(200).json({reply:result.reply,provider:result.provider});
   }catch(error){
     if(error.message==='CASE_NOT_FOUND') return res.status(404).json({error:'Case not found'});
     console.error(error); return res.status(500).json({error:'Unexpected error'});
