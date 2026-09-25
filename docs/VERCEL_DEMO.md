@@ -6,8 +6,10 @@ Vercel is a public demonstration target. It is intentionally separate from the W
 
 - Node.js is pinned to `22.x`.
 - Framework preset is explicitly `Other` via `"framework": null`.
-- No framework build command is required; root static files and `/api/**/*.js` Vercel Functions are deployed directly.
-- SQLite-only files are excluded from Vercel Function bundles.
+- No framework build command is required; the root static UI is deployed directly.
+- Dependency installation is skipped because the Vercel PoC uses no external runtime packages.
+- `.vercelignore` allowlists only the static UI, deterministic mock libraries, and one `api/demo.js` function.
+- Production Auth, SQLite, sessions, audit, registration, and teacher-account APIs are not uploaded to the Vercel PoC deployment.
 - Without `DATABASE_URL`, `/api/runtime` reports `persistence: "browser"` and `demoAuth: true`.
 
 ## Mock Login

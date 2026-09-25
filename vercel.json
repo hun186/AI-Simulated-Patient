@@ -4,11 +4,6 @@
   "buildCommand": null,
   "cleanUrls": true,
   "trailingSlash": false,
-  "functions": {
-    "api/**/*.js": {
-      "excludeFiles": "{lib/db-sqlite.js,db/sqlite-schema.sql,data/**,scripts/**,**/*.test.mjs}"
-    }
-  },
   "headers": [
     {
       "source": "/(.*)",
@@ -46,5 +41,36 @@
     }
   ],
   "outputDirectory": null,
-  "devCommand": null
+  "devCommand": null,
+  "installCommand": "",
+  "rewrites": [
+    {
+      "source": "/api/runtime",
+      "destination": "/api/demo?route=runtime"
+    },
+    {
+      "source": "/api/health",
+      "destination": "/api/demo?route=health"
+    },
+    {
+      "source": "/api/cases",
+      "destination": "/api/demo?route=cases"
+    },
+    {
+      "source": "/api/chat",
+      "destination": "/api/demo?route=chat"
+    },
+    {
+      "source": "/api/coach",
+      "destination": "/api/demo?route=coach"
+    },
+    {
+      "source": "/api/evaluate",
+      "destination": "/api/demo?route=evaluate"
+    },
+    {
+      "source": "/api/teacher/cases",
+      "destination": "/api/demo?route=teacher-cases"
+    }
+  ]
 }
