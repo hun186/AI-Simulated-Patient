@@ -14,7 +14,8 @@ create table if not exists app_users (
   updated_at timestamptz not null default now()
 );
 alter table app_users add column if not exists account_status text not null default 'active';
-update app_users set account_status=case when is_active then 'active' else 'suspended' end where account_status is null;
+update app_users set account_status='suspended' where is_active=false;
+update app_users set account_status='active' where is_active=true and account_status is null;
 alter table app_users drop constraint if exists app_users_role_check;
 alter table app_users add constraint app_users_role_check check (role in ('admin','teacher','student'));
 alter table app_users drop constraint if exists app_users_account_status_check;
