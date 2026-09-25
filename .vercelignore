@@ -1,0 +1,19 @@
+# Vercel is a browser-local PoC surface. Allow only the static UI and demo-only API.
+/*
+!/.vercelignore
+!/vercel.json
+!/package.json
+!/index.html
+!/styles.css
+!/formal.css
+!/formal-app.js
+!/api
+/api/*
+!/api/demo.js
+!/lib
+/lib/*
+!/lib/cases.js
+!/lib/mock-patient.js
+!/lib/mock-coach.js
+!/lib/mock-evaluator.js
+!/lib/assessment-utils.js
