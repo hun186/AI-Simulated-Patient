@@ -43,12 +43,15 @@ create table if not exists interview_sessions (
   student_user_id uuid not null references app_users(id),
   mode text not null check (mode in ('training','exam')),
   coach_enabled boolean not null default false,
+  coach_used boolean not null default false,
   revealed_fact_ids jsonb not null default '[]'::jsonb,
   status text not null default 'active' check (status in ('active','completed','abandoned')),
   started_at timestamptz not null default now(),
   ended_at timestamptz,
   updated_at timestamptz not null default now()
 );
+alter table interview_sessions add column if not exists coach_used boolean not null default false;
+
 create index if not exists interview_sessions_student_idx on interview_sessions(student_user_id,started_at desc);
 create index if not exists interview_sessions_case_idx on interview_sessions(case_id,started_at desc);
 
