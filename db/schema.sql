@@ -40,6 +40,7 @@ create table if not exists interview_sessions (
   id uuid primary key,
   case_id text not null references cases(id),
   case_version integer not null,
+  case_snapshot jsonb not null,
   student_user_id uuid not null references app_users(id),
   mode text not null check (mode in ('training','exam')),
   coach_enabled boolean not null default false,
@@ -51,6 +52,12 @@ create table if not exists interview_sessions (
   updated_at timestamptz not null default now()
 );
 alter table interview_sessions add column if not exists coach_used boolean not null default false;
+alter table interview_sessions add column if not exists case_snapshot jsonb;
+update interview_sessions s
+set case_snapshot=c.definition_json
+from cases c
+where s.case_id=c.id and s.case_snapshot is null;
+alter table interview_sessions alter column case_snapshot set not null;
 
 create index if not exists interview_sessions_student_idx on interview_sessions(student_user_id,started_at desc);
 create index if not exists interview_sessions_case_idx on interview_sessions(case_id,started_at desc);
