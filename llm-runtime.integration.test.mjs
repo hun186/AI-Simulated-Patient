@@ -98,10 +98,10 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     const evalRows=await query('select * from evaluations where session_id=$1',[sessionId]);
     const usageRows=await query('select agent_type,success,error_code,total_tokens,usage_status from llm_usage_events where session_id=$1 order by id',[sessionId]);
 
+    await deleteRoute(admin,coachRoute.id);
     const createNoCoachRes=response();
     await sessionsHandler(request({caseId:'aphasia_001',mode:'training',coachEnabled:false},auth),createNoCoachRes);
     const sessionNoCoach=createNoCoachRes.body.session.id;
-    await deleteRoute(admin,coachRoute.id);
     await query("update interview_sessions set coach_enabled=true where id=$1",[sessionNoCoach]);
     const coachMissingRes=response();
     await coachHandler(request({sessionId:sessionNoCoach},auth),coachMissingRes);
