@@ -236,6 +236,13 @@ function syncAiPresetFields(){
   const showBase=state.user?.role==='admin'&&['ollama','custom'].includes(preset);
   $('aiBaseUrlRow').classList.toggle('hidden',!showBase);
   $('aiApiKey').required=['openai','deepseek'].includes(preset);
+  const placeholders={
+    openai:'例如：gpt-5-mini',
+    deepseek:'例如：deepseek-flash 或 deepseek-v4-pro',
+    ollama:'例如：qwen3:latest',
+    custom:'Provider 的 model id'
+  };
+  $('aiDefaultModel').placeholder=placeholders[preset]||'模型名稱';
 }
 function manageableAiConnection(connection){
   return state.user?.role==='admin'||(connection.scopeType==='teacher'&&connection.ownerUserId===state.user?.id);
