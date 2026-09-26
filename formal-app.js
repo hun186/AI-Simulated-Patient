@@ -1,5 +1,5 @@
 const SKEY='aisp-formal-session-v1',RKEY='aisp-formal-records-v1',CKEY='aisp-formal-custom-cases-v1',DKEY='aisp-vercel-demo-user-v1';
-const state={serverMode:false,demoAuth:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[],aiSettings:null,usageDashboard:null};
+const state={serverMode:false,demoAuth:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,sessionRuntime:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[],aiSettings:null,usageDashboard:null};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const uid=()=> 'session_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
@@ -15,15 +15,24 @@ async function start(){
   if(state.serverMode){
     const d=await post('/api/sessions',{caseId:state.caseId,mode:state.mode,coachEnabled:state.coachEnabled});
     state.sessionId=d.session.id;
+    state.sessionRuntime=d.session.runtime||null;
     state.transcript=[{role:'patient',content:d.session.opening,at:new Date().toISOString()}];
   }else{
     state.sessionId=uid();
+    state.sessionRuntime={patient:{providerKind:'mock',preset:'mock',model:'deterministic-mock'}};
     state.transcript=[{role:'patient',content:state.caseData.opening,at:new Date().toISOString()}];
   }
   save();renderAll();
 }
 function renderAll(){renderHeader();renderMode();renderChat();renderCoach();}
-function renderHeader(){$('caseSelect').value=state.caseId;$('modeSelect').value=state.mode;$('coachToggle').value=state.coachEnabled?'on':'off';$('studentName').value=state.studentName;$('caseTitle').textContent=state.caseData.studentLabel||'臨床問診案例';$('caseBrief').textContent=state.caseData.studentBrief||state.caseData.publicBrief||'';$('difficultyBadge').textContent=state.caseData.difficulty||'自訂';$('patientSummary').textContent=(state.caseData.patient?.name||'模擬病人')+'，'+(state.caseData.patient?.age||'--')+' 歲';}
+function providerLabel(route){
+  if(!route)return 'Provider 未設定';
+  const preset=String(route.preset||route.providerKind||'').toLowerCase();
+  const names={openai:'OpenAI',deepseek:'DeepSeek',ollama:'Ollama',custom:'Custom',mock:'Mock'};
+  const provider=names[preset]||route.preset||route.providerKind||'Provider';
+  return provider+' · '+(route.model||'未指定模型');
+}
+function renderHeader(){$('caseSelect').value=state.caseId;$('modeSelect').value=state.mode;$('coachToggle').value=state.coachEnabled?'on':'off';$('studentName').value=state.studentName;$('caseTitle').textContent=state.caseData.studentLabel||'臨床問診案例';$('caseBrief').textContent=state.caseData.studentBrief||state.caseData.publicBrief||'';$('difficultyBadge').textContent=state.caseData.difficulty||'自訂';$('patientSummary').textContent=(state.caseData.patient?.name||'模擬病人')+'，'+(state.caseData.patient?.age||'--')+' 歲';$('sessionProviderBadge').textContent=providerLabel(state.sessionRuntime?.patient);}
 function renderMode(){const training=state.mode==='training';const coachOn=training&&state.coachEnabled;$('modeBanner').className='mode-banner '+(training?'training':'exam');$('modeBadge').textContent=training?'TRAINING':'EXAM';$('modeTitle').textContent=training?'訓練學習模式':'考試評量模式';$('modeDescription').textContent=training?(coachOn?'AI Coach 已開啟：每輪提供問句品質與非洩題方向提示。':'AI Coach 已關閉：純自主練習，不顯示即時提示或涵蓋進度；結束後仍會產生完整總評。'):'不提供即時提示、不顯示評量進度；結束後才產生完整評量與總評。';$('coachToggle').disabled=!training;$('coachControl').classList.toggle('disabled',!training);$('coachCard').classList.toggle('hidden',!coachOn);$('trainingProgressMetric').classList.toggle('hidden',!coachOn);$('coachOffNotice').classList.toggle('hidden',!training||coachOn);$('examProgressHidden').classList.toggle('hidden',training);}
 function renderChat(){const c=$('chat');c.innerHTML=state.transcript.map(m=>'<div class="message '+(m.role==='student'?'student':'patient')+'"><div class="bubble"><div class="role">'+(m.role==='student'?'學生':'模擬病人')+'</div><div>'+esc(m.content)+'</div></div></div>').join('');c.scrollTop=c.scrollHeight;$('turnCount').textContent=state.transcript.filter(m=>m.role==='student').length;}
 function renderCoach(d=state.coach){if(state.mode!=='training'||!state.coachEnabled)return;$('coachEmpty').classList.toggle('hidden',!!d);$('coachContent').classList.toggle('hidden',!d);if(!d){$('trainingProgress').textContent='0/?';return}$('trainingProgress').textContent=d.progress.covered+'/'+d.progress.total;$('coachQuality').textContent=d.lastQuestion?.level==='good'?'問句品質良好':'可再精進';$('coachQuality').className=d.lastQuestion?.level==='good'?'quality-good':'quality-needs';$('coachComment').textContent=d.lastQuestion?.comment||'';$('coachHint').textContent=d.nextHint;$('coachReflection').textContent=d.reflectionPrompt;}

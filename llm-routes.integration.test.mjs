@@ -131,6 +131,8 @@ test('LLM routes support teacher-owned built-in overrides without cross-teacher 
       globalResolved,t1Resolved,t2Resolved,t1AfterDelete,globalAfterChange,
       teacherSystemError,teacherOtherCaseError,teacherOtherConnectionError,
       teacherSnapshot,studentSnapshot,teacherSnapshotAfter,teacherVisible,missingProviderError,
+      teacherSessionRuntime:teacherSession.runtime,studentSessionRuntime:studentSession.runtime,
+      runtimeContainsSecret:/apiKey|encrypted|ciphertext|secret/i.test(JSON.stringify(teacherSession.runtime)),
       snapshotContainsSecret:/apiKey|encrypted|ciphertext|secret/i.test(JSON.stringify(teacherSnapshot))
     }));
   `;
@@ -161,6 +163,13 @@ test('LLM routes support teacher-owned built-in overrides without cross-teacher 
 
     assert.equal(data.teacherSnapshot.patient.connectionId,data.teacherBuiltinT1.connectionId);
     assert.equal(data.studentSnapshot.patient.connectionId,data.globalCaseRoute.connectionId);
+    assert.deepEqual(data.teacherSessionRuntime.patient,{
+      providerKind:'openai',preset:'openai',model:'gpt-teacher'
+    });
+    assert.deepEqual(data.studentSessionRuntime.patient,{
+      providerKind:'openai_compatible',preset:'deepseek',model:'deepseek-flash'
+    });
+    assert.equal(data.runtimeContainsSecret,false);
     assert.equal(data.snapshotContainsSecret,false);
 
     assert.equal(data.t1AfterDelete.patient.connectionId,data.globalCaseRoute.connectionId);

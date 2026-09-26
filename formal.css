@@ -32,3 +32,5 @@
 .quota-form{display:grid;gap:10px}.quota-form label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:800;color:#536079}.quota-form input[type="number"]{border:1px solid #dbe2ee;border-radius:10px;padding:10px}.quota-enabled{flex-direction:row!important;align-items:center}.quota-form.disabled{opacity:.55;pointer-events:none}
 @media(max-width:900px){.usage-toolbar{align-items:stretch;flex-direction:column}.usage-toolbar label{min-width:0}.usage-stats,.usage-grid{grid-template-columns:1fr 1fr}.usage-breakdown-row{grid-template-columns:1fr 60px 80px}}
 @media(max-width:620px){.usage-stats,.usage-grid{grid-template-columns:1fr}}
+
+.chat-head-main{display:flex;align-items:center;justify-content:space-between;gap:12px}.session-provider-badge{display:inline-flex;align-items:center;white-space:nowrap;padding:5px 9px;border-radius:999px;background:#eef2f8;color:#4d5b73;font-size:11px;font-weight:800;border:1px solid #dce3ee}@media(max-width:700px){.chat-head-main{align-items:flex-start;flex-direction:column}.session-provider-badge{white-space:normal}}
