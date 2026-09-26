@@ -37,11 +37,9 @@
 
 - 觸發：對 `main` 的 push，以及所有 pull request。
 - Runtime：GitHub Actions Ubuntu runner + Node.js 22。
-- 安裝：目前 workflow 使用 `npm install`。
+- 安裝：使用 `npm ci`，依 committed `package-lock.json` 做可重現安裝。
 - Syntax check：檢查 `formal-app.js`、`scripts/dev-server.mjs`、`api/*.js`、`api/auth/*.js`、`api/teacher/*.js`、`lib/*.js`。
 - Test：執行 `npm test`。
-
-本機文件推薦的可重現安裝仍可使用 `npm ci`；CI 是否由 `npm install` 改為 `npm ci` 屬於 workflow 變更，應另外評估與提交，不在本次文件校正中修改。
 
 ## 驗證矩陣
 
