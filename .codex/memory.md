@@ -8,7 +8,7 @@
 - 目前產品基線：SQLite-first 的 AI 模擬病人教育原型；production auth/RBAC、native LLM providers、usage pricing/quota 已存在。
 - Vercel 必須維持 deterministic browser demo 隔離，不可把 production DB/auth/LLM code 或 credentials 納入 bundle。
 - 修改 session/LLM 時維持 case/route snapshot、server-side ownership/RBAC、production no-mock-fallback 與 evaluator-before-completion 不變量。
-- Canonical 整體驗證是 `npm test`；沒有已定義的 build/lint/format/typecheck script。
+- Canonical 整體驗證是 `npm test`；hosted CI 定義於 `.github/workflows/ci.yml`，目前使用 Node 22、syntax checks 與 `npm test`。
 
 ## Recent Outcomes
 
@@ -21,7 +21,7 @@
 
 ## Open Handoffs
 
-- 人工確認：repository maintainer／support policy 與目前 hosted main 的 CI 定義未由 checkout 證實。
+- 人工確認：repository maintainer／support policy 仍未由 repository 明確定義；hosted CI 已由 `.github/workflows/ci.yml` 證實。
 - 沒有已開始未完成的產品實作；Phase 1/2 plan checklist 需以 progress、程式與 tests 判讀，不應重新當 backlog 執行。
 
 ## Archive Index

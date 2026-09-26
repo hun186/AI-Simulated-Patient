@@ -59,5 +59,5 @@
 - PostgreSQL/Neon：由 `DATABASE_URL` 與 `@neondatabase/serverless` adapter 使用；SQLite 才是一般主機目前預設。
 - LLM endpoints：只由 server adapters 呼叫；credential 不進 browser、transcript 或 API response。
 - Vercel：只上傳 allowlist 的 demo handler／mock code 與靜態資產，不能視為 SQLite durable production。
-- CI：目前 checkout 未含 `.github/workflows/`；歷史 progress 文件記載先前 hosted checks 通過，但目前 main 的持續 CI 定義待確認。
+- CI：`.github/workflows/ci.yml` 是目前 hosted CI 定義；對 `main` push 與 pull request 執行 Node 22、依賴安裝、JavaScript syntax checks 與 `npm test`。
 - 維護責任與正式 release／support policy：repository 未明確定義，待 maintainer 確認。
