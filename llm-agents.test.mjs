@@ -127,7 +127,7 @@ test('agent refuses missing or mock production route instead of silently generat
 });
 
 
-test('DeepSeek Patient and Coach default to non-thinking mode unless route config overrides it',async()=>{
+test('DeepSeek Patient, Coach, and Evaluator default to stable non-thinking mode unless route config overrides it',async()=>{
   const calls=[];
   const fetchImpl=async(_url,options)=>{
     calls.push(JSON.parse(options.body));
@@ -141,15 +141,38 @@ test('DeepSeek Patient and Coach default to non-thinking mode unless route confi
   const route={connection,connectionId:'c1',providerKind:'openai_compatible',preset:'deepseek',model:'deepseek-flash',config:{}};
   const session={student_user_id:'u1',case_snapshot:JSON.stringify({patient:{name:'P'},facts:[],rubric:[]})};
 
-  const {runPatientAgent,runCoachAgent}=await import('./lib/llm/agents.js');
+  const evaluation={
+    totalScore:0,maxScore:0,percentage:0,items:[],
+    overall:{comment:'No evidence.',strengths:[],improvements:[],recommendations:[],nextPracticeFocus:'Ask more questions.'}
+  };
+  const evaluatorFetch=async(_url,options)=>{
+    calls.push(JSON.parse(options.body));
+    return {
+      ok:true,status:200,headers:{get:()=>null},
+      async json(){return {id:'ds-eval',model:'deepseek-flash',choices:[{message:{content:JSON.stringify(evaluation)}}],usage:{prompt_tokens:10,completion_tokens:10,total_tokens:20}};}
+    };
+  };
+
+  const {runPatientAgent,runCoachAgent,runEvaluatorAgent}=await import('./lib/llm/agents.js');
   await runPatientAgent({session,message:'hi',transcript:[],route,fetchImpl});
   await runCoachAgent({session,transcript:[],route,fetchImpl});
+  await runEvaluatorAgent({session,transcript:[],route,fetchImpl:evaluatorFetch});
 
   assert.deepEqual(calls[0].thinking,{type:'disabled'});
   assert.deepEqual(calls[1].thinking,{type:'disabled'});
+  assert.deepEqual(calls[2].thinking,{type:'disabled'});
+  assert.equal(calls[2].response_format.type,'json_object');
+  assert.equal(calls[2].max_tokens,8192);
 
   calls.length=0;
   const override={...route,config:{thinkingMode:'enabled'}};
   await runPatientAgent({session,message:'hi',transcript:[],route:override,fetchImpl});
   assert.deepEqual(calls[0].thinking,{type:'enabled'});
+});
+
+test('Evaluator prompt includes a concrete JSON example for compatible JSON-output providers',()=>{
+  const evaluator=buildEvaluatorPrompt({session,transcript});
+  assert.match(evaluator,/Example JSON shape/);
+  assert.match(evaluator,/"totalScore":0/);
+  assert.match(evaluator,/"status":"missed"/);
 });
