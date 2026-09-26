@@ -21,9 +21,15 @@ test('dashboard surfaces persisted cost and unpriced usage separately',()=>{
   const app=readFileSync('formal-app.js','utf8');
 
   assert.match(html,/id="usageCost"/);
+  assert.match(html,/id="usageCostTwd"/);
+  assert.match(html,/id="usageFxSummary"/);
+  assert.match(html,/id="usageFxRate"/);
   assert.match(html,/id="usageUnpriced"/);
   assert.match(html,/id="usagePartial"/);
   assert.match(app,/estimatedCostMicrousd/);
+  assert.match(app,/estimatedCostMicrontd/);
+  assert.match(app,/function microntdToTwd/);
+  assert.match(app,/action:'setFxRate'/);
   assert.match(app,/unpricedCalls/);
   assert.match(app,/partialPricingCalls/);
   assert.match(app,/usageRows\('日期',data\.byDate,'date'\)/);
