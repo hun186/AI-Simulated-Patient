@@ -1,12 +1,12 @@
 # Development Workflows
 
-> 類型：Current state。命令以 `package.json`、lockfile、README、程式與測試交叉查證；最後查證 2026-09-26。
+> 類型：Current state。命令以 `package.json`、lockfile、README、程式、測試與 hosted CI 定義交叉查證；最後查證 2026-09-26。
 
 ## 環境前提
 
 | 項目 | 要求／現況 | 查證來源 |
 | --- | --- | --- |
-| Runtime | Node.js 22.x | `package.json` engines、`package-lock.json` |
+| Runtime | Node.js 22.x | `package.json` engines、`package-lock.json`、`.github/workflows/ci.yml` |
 | Package manager | npm；lockfile v3 | `package-lock.json` |
 | 本機服務 | 預設 SQLite 不需資料庫服務；PostgreSQL 與真實 LLM 僅在選用時需要 | `lib/db.js`, README |
 | 平台 | Windows、Linux 有部署文件；Vercel 僅隔離 demo | `docs/*PRODUCTION.md`, `docs/VERCEL_DEMO.md` |
@@ -31,6 +31,18 @@
 | SQLite backup | `npm run db:backup` | 會在 `data/backups/` 寫檔；只適用 SQLite，非一般驗證 |
 | Build／lint／format／typecheck | 目前沒有 canonical command | `package.json` 未定義，不得猜測 |
 
+## Hosted CI
+
+`.github/workflows/ci.yml` 是目前的 canonical hosted CI：
+
+- 觸發：對 `main` 的 push，以及所有 pull request。
+- Runtime：GitHub Actions Ubuntu runner + Node.js 22。
+- 安裝：目前 workflow 使用 `npm install`。
+- Syntax check：檢查 `formal-app.js`、`scripts/dev-server.mjs`、`api/*.js`、`api/auth/*.js`、`api/teacher/*.js`、`lib/*.js`。
+- Test：執行 `npm test`。
+
+本機文件推薦的可重現安裝仍可使用 `npm ci`；CI 是否由 `npm install` 改為 `npm ci` 屬於 workflow 變更，應另外評估與提交，不在本次文件校正中修改。
+
 ## 驗證矩陣
 
 | 變更類型 | 最小必要檢查 | 擴大條件 |
@@ -48,4 +60,3 @@
 - SQLite integration tests 使用 `mkdtemp` 的獨立 DB 並清理；不要將測試指向 production `SQLITE_PATH`。
 - Provider adapter tests 使用 injected `fetchImpl`；完整 `npm test` 不應需要網路或真實 API key。
 - `npm run dev` 與 backup 會修改 `data/`，不是無副作用驗證；Vercel deployment、正式 migration 與真實 provider test 也不可當一般本機測試。
-- CI 現況：checkout 沒有 `.github/workflows/`；不可把歷史 progress 的 hosted pass 當作目前 commit 自動驗證。
