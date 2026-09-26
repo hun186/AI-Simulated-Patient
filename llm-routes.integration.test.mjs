@@ -35,13 +35,11 @@ test('LLM route precedence and session snapshots are scoped and immutable',()=>{
       patient:{name:'Patient',age:50,gender:'',persona:'test'},opening:'hello',facts:[],rubric:[]
     });
     await query(
-      `insert into cases (id,version,internal_title,student_label,difficulty,student_brief,definition_json,status,created_by)
-       values ($1,1,$1,$1,'test','',$2::jsonb,'published',$3)`,
+      "insert into cases (id,version,internal_title,student_label,difficulty,student_brief,definition_json,status,created_by) values ($1,1,$1,$1,'test','',$2::jsonb,'published',$3)",
       ['t1_case',definition('t1_case'),t1.id]
     );
     await query(
-      `insert into cases (id,version,internal_title,student_label,difficulty,student_brief,definition_json,status,created_by)
-       values ($1,1,$1,$1,'test','',$2::jsonb,'published',$3)`,
+      "insert into cases (id,version,internal_title,student_label,difficulty,student_brief,definition_json,status,created_by) values ($1,1,$1,$1,'test','',$2::jsonb,'published',$3)",
       ['t2_case',definition('t2_case'),t2.id]
     );
 
