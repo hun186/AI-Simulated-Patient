@@ -111,4 +111,3 @@ CREATE TABLE IF NOT EXISTS evaluations (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
-PRAGMA user_version = 1;

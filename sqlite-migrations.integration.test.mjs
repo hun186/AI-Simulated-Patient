@@ -56,6 +56,7 @@ test('existing schema version 1 database migrates to version 4 without losing da
   try{
     const legacy=new Database(dbPath);
     legacy.exec(readFileSync(resolve('db/sqlite-schema.sql'),'utf8'));
+    legacy.pragma('user_version = 1');
     legacy.prepare(
       "insert into app_users (id,email,display_name,role,password_salt,password_hash,is_active,account_status) values (?,?,?,?,?,?,?,?)"
     ).run('legacy-admin','legacy@example.com','Legacy Admin','admin','salt','hash',1,'active');
@@ -70,6 +71,48 @@ test('existing schema version 1 database migrates to version 4 without losing da
       assert.equal(state.tables.has(table),true,table+' missing');
     }
     assert.equal(state.columns.has('llm_route_snapshot'),true);
+  }finally{
+    rmSync(dir,{recursive:true,force:true});
+  }
+});
+
+test('migrated SQLite database can reopen without replaying migration 002',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'aisp-migrate-reopen-'));
+  const dbPath=join(dir,'aisp.sqlite');
+  try{
+    const first=openThroughApplication(dbPath);
+    assert.equal(first.schemaVersion,4);
+    const second=openThroughApplication(dbPath);
+    assert.equal(second.schemaVersion,4);
+  }finally{
+    rmSync(dir,{recursive:true,force:true});
+  }
+});
+
+test('database whose user_version was reset to 1 is reconciled from applied migration artifacts',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'aisp-migrate-reconcile-'));
+  const dbPath=join(dir,'aisp.sqlite');
+  try{
+    const first=openThroughApplication(dbPath);
+    assert.equal(first.schemaVersion,4);
+
+    const damaged=new Database(dbPath);
+    damaged.pragma('user_version = 1');
+    assert.equal(damaged.pragma('user_version',{simple:true}),1);
+    damaged.close();
+
+    const recovered=openThroughApplication(dbPath);
+    assert.equal(recovered.schemaVersion,4);
+    const check=new Database(dbPath,{readonly:true});
+    try{
+      assert.equal(check.pragma('user_version',{simple:true}),4);
+      assert.equal(
+        check.prepare("select count(*) as count from sqlite_master where type='table' and name='llm_provider_connections'").get().count,
+        1
+      );
+    }finally{
+      check.close();
+    }
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }
