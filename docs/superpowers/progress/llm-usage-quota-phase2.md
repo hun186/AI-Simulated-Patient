@@ -10,8 +10,8 @@ Branch: `feat/llm-usage-quota-phase2`
 | 1. Pricing/quota schema + SQLite migration v4 | COMPLETE |
 | 2. Cost estimator | COMPLETE |
 | 3. Hard quota enforcement | COMPLETE |
-| 4. Usage/quota API + RBAC | IMPLEMENTED_CI_PENDING |
-| 5. Usage/cost dashboard UI | NOT_STARTED |
+| 4. Usage/quota API + RBAC | COMPLETE |
+| 5. Usage/cost dashboard UI | IMPLEMENTED_CI_PENDING |
 | 6. Final regression / hosted verification | NOT_STARTED |
 
 ## Task 1
@@ -78,3 +78,19 @@ Implemented:
 
 Task 3 hosted evidence: `aee3cdf70f67b5acbb2f37a34676103efff34413`, Actions `36224395870` PASS.
 Task 4 CI: PENDING after push.
+
+## Task 5
+
+Implemented:
+- Teacher Console subtab `用量與配額` for production Teacher/Admin only.
+- Aggregate calls/tokens/persisted estimated cost/unpriced-call count.
+- Breakdown by provider, model, and agent role.
+- Optional per-user selection within server-authorized visible users.
+- Quota viewer/editor for daily/monthly tokens and cost limits.
+- Admin may edit all visible users; Teacher quota editor is enabled only for assigned students, not self.
+- Cost display converts persisted micro-USD to USD; unpriced calls remain visibly separate.
+- Browser/Vercel demo cannot enter the production usage API path.
+- Added `llm-usage-ui.contract.test.mjs`.
+
+Task 4 hosted evidence: `13c21e32146e435aefc88a82b64dceae67026658`, Actions `36224789787` PASS, Vercel PASS.
+Task 5 CI: PENDING after push.
