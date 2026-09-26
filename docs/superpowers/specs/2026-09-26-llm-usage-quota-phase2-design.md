@@ -35,7 +35,11 @@ Each `llm_usage_events` row receives:
 - `pricing_status`: `priced | unpriced | partial`
 - `pricing_rule_id`
 
+OpenAI seeded pricing distinguishes ordinary input, cached input, cache writes, output/reasoning, short versus long context, and the actual service tier returned by the Responses API. Requests above 272K input tokens use the long-context rule where applicable. Standard is the base rate; Flex/Batch is modeled at 0.5x and Fast/Priority at 2x when that service tier is explicitly used.
+
 Cost is calculated from the provider request-start timestamp and persisted, so a long request crossing a pricing boundary keeps the rate in effect when it began, and historical cost remains stable when the catalog changes.
+
+The system also snapshots an effective-dated USD/TWD reference rate and an estimated TWD cost per usage event. The initial built-in reference is 31.780 TWD/USD from the Taiwan central-bank interbank closing rate dated 2026-09-24. Admin may add newer rates; historical TWD estimates are not recomputed. Cost quotas remain in USD.
 
 ## Quota model
 
