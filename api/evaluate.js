@@ -4,6 +4,7 @@ import { requireUser,requireCsrf } from '../lib/server-auth.js';
 import { getOwnedSession,getTranscript,completeSession } from '../lib/server-sessions.js';
 import { runEvaluatorAgent } from '../lib/llm/agents.js';
 import { recordLlmUsage } from '../lib/llm/usage.js';
+import { enforceLlmQuota } from '../lib/llm/quota.js';
 import { isProductionEnv } from '../lib/request-security.js';
 
 function parseJson(value,fallback={}){
@@ -12,6 +13,7 @@ function parseJson(value,fallback={}){
   return value&&typeof value==='object'?value:fallback;
 }
 function providerFailure(res,error){
+  if(error?.code==='AI_USAGE_QUOTA_EXCEEDED') return res.status(429).json({error:error.code,dimension:error.dimension});
   if(error?.code==='AI_PROVIDER_NOT_CONFIGURED') return res.status(503).json({error:'AI_EVALUATOR_PROVIDER_NOT_CONFIGURED'});
   if(error?.code==='timeout') return res.status(504).json({error:'AI_PROVIDER_TIMEOUT'});
   if(error?.code) return res.status(502).json({error:'AI_PROVIDER_FAILURE',code:error.code});
@@ -44,6 +46,7 @@ export default async function handler(req,res){
       return res.status(200).json(result);
     }
 
+    try{await enforceLlmQuota({userId:user.id});}catch(error){const mapped=providerFailure(res,error);if(mapped)return mapped;throw error;}
     const started=Date.now();
     try{
       const result=await runEvaluatorAgent({session,transcript:serverTranscript,route});
