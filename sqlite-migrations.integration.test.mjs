@@ -28,31 +28,33 @@ function inspect(dbPath){
     const tables=new Set(db.prepare("select name from sqlite_master where type='table'").all().map(row=>row.name));
     const columns=new Set(db.prepare("pragma table_info(interview_sessions)").all().map(row=>row.name));
     const routeColumns=new Set(db.prepare("pragma table_info(llm_agent_routes)").all().map(row=>row.name));
+    const pricingColumns=new Set(db.prepare("pragma table_info(llm_pricing_rules)").all().map(row=>row.name));
     const user=db.prepare("select id,email from app_users where id='legacy-admin'").get()||null;
-    return {tables,columns,routeColumns,user};
+    return {tables,columns,routeColumns,pricingColumns,user};
   }finally{
     db.close();
   }
 }
 
-test('fresh SQLite database advances to schema version 5 with LLM provider foundation',()=>{
+test('fresh SQLite database advances to schema version 6 with LLM provider foundation',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-migrate-fresh-'));
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const info=openThroughApplication(dbPath);
     const state=inspect(dbPath);
-    assert.equal(info.schemaVersion,5);
+    assert.equal(info.schemaVersion,6);
     for(const table of ['llm_provider_connections','llm_agent_routes','llm_usage_events']){
       assert.equal(state.tables.has(table),true,table+' missing');
     }
     assert.equal(state.columns.has('llm_route_snapshot'),true);
     assert.equal(state.routeColumns.has('owner_user_id'),true);
+    assert.equal(state.pricingColumns.has('time_band'),true);
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }
 });
 
-test('existing schema version 1 database migrates to version 5 without losing data',()=>{
+test('existing schema version 1 database migrates to version 6 without losing data',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-migrate-v1-'));
   const dbPath=join(dir,'aisp.sqlite');
   try{
@@ -67,13 +69,14 @@ test('existing schema version 1 database migrates to version 5 without losing da
 
     const info=openThroughApplication(dbPath);
     const state=inspect(dbPath);
-    assert.equal(info.schemaVersion,5);
+    assert.equal(info.schemaVersion,6);
     assert.deepEqual(state.user,{id:'legacy-admin',email:'legacy@example.com'});
     for(const table of ['llm_provider_connections','llm_agent_routes','llm_usage_events']){
       assert.equal(state.tables.has(table),true,table+' missing');
     }
     assert.equal(state.columns.has('llm_route_snapshot'),true);
     assert.equal(state.routeColumns.has('owner_user_id'),true);
+    assert.equal(state.pricingColumns.has('time_band'),true);
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }
@@ -84,9 +87,9 @@ test('migrated SQLite database can reopen without replaying migration 002',()=>{
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const first=openThroughApplication(dbPath);
-    assert.equal(first.schemaVersion,5);
+    assert.equal(first.schemaVersion,6);
     const second=openThroughApplication(dbPath);
-    assert.equal(second.schemaVersion,5);
+    assert.equal(second.schemaVersion,6);
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }
@@ -97,7 +100,7 @@ test('database whose user_version was reset to 1 is reconciled from applied migr
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const first=openThroughApplication(dbPath);
-    assert.equal(first.schemaVersion,5);
+    assert.equal(first.schemaVersion,6);
 
     const damaged=new Database(dbPath);
     damaged.pragma('user_version = 1');
@@ -105,10 +108,10 @@ test('database whose user_version was reset to 1 is reconciled from applied migr
     damaged.close();
 
     const recovered=openThroughApplication(dbPath);
-    assert.equal(recovered.schemaVersion,5);
+    assert.equal(recovered.schemaVersion,6);
     const check=new Database(dbPath,{readonly:true});
     try{
-      assert.equal(check.pragma('user_version',{simple:true}),5);
+      assert.equal(check.pragma('user_version',{simple:true}),6);
       assert.equal(
         check.prepare("select count(*) as count from sqlite_master where type='table' and name='llm_provider_connections'").get().count,
         1
@@ -150,12 +153,50 @@ test('schema version 4 teacher routes are backfilled with route owner during v5 
     legacy.close();
 
     const info=openThroughApplication(dbPath);
-    assert.equal(info.schemaVersion,5);
+    assert.equal(info.schemaVersion,6);
 
     const upgraded=new Database(dbPath,{readonly:true});
     try{
       const route=upgraded.prepare("select owner_user_id from llm_agent_routes where id='route-v4'").get();
       assert.equal(route.owner_user_id,'teacher-v4');
+    }finally{
+      upgraded.close();
+    }
+  }finally{
+    rmSync(dir,{recursive:true,force:true});
+  }
+});
+
+
+test('schema version 5 pricing rules migrate to v6 time bands without losing custom rules',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'aisp-migrate-v5-pricing-band-'));
+  const dbPath=join(dir,'aisp.sqlite');
+  try{
+    const legacy=new Database(dbPath);
+    legacy.exec(readFileSync(resolve('db/sqlite-schema.sql'),'utf8'));
+    for(const name of [
+      '002_llm_provider_foundation.sql',
+      '003_llm_usage_status.sql',
+      '004_llm_usage_cost_quota.sql',
+      '005_teacher_case_route_owner.sql'
+    ]){
+      legacy.exec(readFileSync(resolve('db/migrations',name),'utf8'));
+    }
+    legacy.pragma('user_version = 5');
+    legacy.prepare(
+      "insert into llm_pricing_rules (id,preset,model_pattern,input_microusd_per_million,cached_input_microusd_per_million,output_microusd_per_million,reasoning_microusd_per_million,effective_at,is_active) values (?,?,?,?,?,?,?,?,?)"
+    ).run('custom-v5','openai','gpt-custom',100,50,200,200,'2026-01-01T00:00:00Z',1);
+    legacy.close();
+
+    const info=openThroughApplication(dbPath);
+    assert.equal(info.schemaVersion,6);
+
+    const upgraded=new Database(dbPath,{readonly:true});
+    try{
+      const custom=upgraded.prepare("select time_band from llm_pricing_rules where id='custom-v5'").get();
+      assert.equal(custom.time_band,'always');
+      const seeded=upgraded.prepare("select count(*) as count from llm_pricing_rules where id like 'builtin-deepseek-%'").get();
+      assert.equal(seeded.count,6);
     }finally{
       upgraded.close();
     }
