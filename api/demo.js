@@ -1,4 +1,4 @@
-import { getCase,getPublicCase } from '../lib/cases.js';
+import { getAllCases,getPublicCases } from '../lib/cases.js';
 import { mockPatientReply } from '../lib/mock-patient.js';
 import { mockCoach } from '../lib/mock-coach.js';
 import { mockEvaluate } from '../lib/mock-evaluator.js';
@@ -13,8 +13,7 @@ function requireMethod(req,res,method){
   res.status(405).json({error:'Method not allowed'});
   return false;
 }
-function teacherCase(){
-  const item=getCase('aphasia_001');
+function teacherCase(item){
   return {
     id:item.id,internalTitle:item.title,studentLabel:item.studentLabel,difficulty:item.difficulty,
     learningGoals:item.learningGoals||[],
@@ -39,11 +38,11 @@ export default async function handler(req,res){
   }
   if(route==='cases'){
     if(!requireMethod(req,res,'GET')) return;
-    return res.status(200).json({mode:'demo',cases:[getPublicCase('aphasia_001')]});
+    return res.status(200).json({mode:'demo',cases:getPublicCases()});
   }
   if(route==='teacher-cases'){
     if(!requireMethod(req,res,'GET')) return;
-    return res.status(200).json({mode:'demo',cases:[teacherCase()]});
+    return res.status(200).json({mode:'demo',cases:getAllCases().map(teacherCase)});
   }
   if(route==='chat'){
     if(!requireMethod(req,res,'POST')) return;
