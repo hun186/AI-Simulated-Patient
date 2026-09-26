@@ -468,7 +468,8 @@ async function manageUser(userId,action){
   try{await post('/api/teacher/users',payload);await renderUsers();}
   catch{alert('帳號操作失敗或權限不足。');}
 }
-function microusdToUsd(value){return '
+function microusdToUsd(value){return '$'+(Number(value||0)/1000000).toFixed(6);}
+function microntdToTwd(value){return 'NT$'+(Number(value||0)/1000000).toLocaleString('zh-TW',{minimumFractionDigits:4,maximumFractionDigits:6});}
 function quotaUsdToMicrousd(value){
   const text=String(value??'').trim();
   if(!text)return null;
@@ -521,7 +522,11 @@ async function renderUsageDashboard(){
     $('usageCostTwd').textContent=microntdToTwd(totals.costTwd);
     const fx=data.fxRate||null;
     $('usageFxSummary').textContent=fx
-      ?('USD/TWD：1 USD ≈ NT
+      ?('USD/TWD：1 USD ≈ NT$'+Number(fx.rate).toFixed(3)+' · '+(fx.source||'參考匯率')+' · '+new Date(fx.effectiveAt).toLocaleDateString('zh-TW'))
+      :'USD/TWD：尚未設定參考匯率';
+    $('usageFxAdmin').classList.toggle('hidden',state.user?.role!=='admin');
+    if(state.user?.role==='admin'&&fx)$('usageFxRate').value=Number(fx.rate).toFixed(3);
+    $('usageUnpriced').textContent=totals.unpriced.toLocaleString('zh-TW');
     $('usagePartial').textContent=totals.partial.toLocaleString('zh-TW');
     $('usageBreakdown').innerHTML=
       usageRows('日期',data.byDate,'date')+
