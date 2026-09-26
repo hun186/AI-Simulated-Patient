@@ -181,3 +181,110 @@ test('recordLlmUsage snapshots DeepSeek pricing using the provider request start
     assert.match(rows[1].created_at,/2026-09-28T04:30:00/);
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+
+test('built-in OpenAI pricing selects short versus long context and applies service tiers',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'aisp-pricing-openai-'));
+  const dbPath=join(dir,'aisp.sqlite');
+  try{
+    const script=`
+      const {resolvePricingRule,estimateUsageCost}=await import('./lib/llm/pricing.js');
+      const shortRule=await resolvePricingRule({
+        preset:'openai',model:'gpt-6-sol',at:'2026-09-27T12:00:00Z',inputTokens:272000
+      });
+      const longRule=await resolvePricingRule({
+        preset:'openai',model:'gpt-6-sol',at:'2026-09-27T12:00:00Z',inputTokens:272001
+      });
+      const usage={
+        inputTokens:1000000,cachedInputTokens:200000,cacheWriteTokens:100000,
+        outputTokens:100000,reasoningTokens:0,totalTokens:1100000
+      };
+      console.log(JSON.stringify({
+        shortRule,longRule,
+        standard:estimateUsageCost({usage,usageStatus:'reported',rule:shortRule,serviceTier:'default'}),
+        flex:estimateUsageCost({usage,usageStatus:'reported',rule:shortRule,serviceTier:'flex'}),
+        fast:estimateUsageCost({usage,usageStatus:'reported',rule:shortRule,serviceTier:'priority'})
+      }));
+    `;
+    const result=run(script,dbPath);
+    assert.equal(result.status,0,result.stderr);
+    const data=JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1));
+
+    assert.equal(data.shortRule.contextBand,'short');
+    assert.equal(data.shortRule.inputMicrousdPerMillion,2000000);
+    assert.equal(data.shortRule.cachedInputMicrousdPerMillion,200000);
+    assert.equal(data.shortRule.cacheWriteMicrousdPerMillion,2500000);
+    assert.equal(data.shortRule.outputMicrousdPerMillion,10000000);
+
+    assert.equal(data.longRule.contextBand,'long');
+    assert.equal(data.longRule.inputMicrousdPerMillion,4000000);
+    assert.equal(data.longRule.cachedInputMicrousdPerMillion,400000);
+    assert.equal(data.longRule.cacheWriteMicrousdPerMillion,5000000);
+    assert.equal(data.longRule.outputMicrousdPerMillion,15000000);
+
+    assert.equal(data.standard.estimatedCostMicrousd,2690000);
+    assert.equal(data.flex.estimatedCostMicrousd,1345000);
+    assert.equal(data.fast.estimatedCostMicrousd,5380000);
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('OpenAI aliases and current model catalog resolve to seeded rates',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'aisp-pricing-openai-catalog-'));
+  const dbPath=join(dir,'aisp.sqlite');
+  try{
+    const script=`
+      const {resolvePricingRule}=await import('./lib/llm/pricing.js');
+      const models=['gpt-6-astra','gpt-6-sol','gpt-6-luna','gpt-5.6-sol','gpt-5.6','gpt-5.6-terra','gpt-5.6-luna','chat-latest'];
+      const rules={};
+      for(const model of models){
+        rules[model]=await resolvePricingRule({preset:'openai',model,at:'2026-09-27T12:00:00Z',inputTokens:1000});
+      }
+      console.log(JSON.stringify(rules));
+    `;
+    const result=run(script,dbPath);
+    assert.equal(result.status,0,result.stderr);
+    const rules=JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1));
+    assert.equal(rules['gpt-6-astra'].inputMicrousdPerMillion,10000000);
+    assert.equal(rules['gpt-6-sol'].inputMicrousdPerMillion,2000000);
+    assert.equal(rules['gpt-6-luna'].inputMicrousdPerMillion,100000);
+    assert.equal(rules['gpt-5.6-sol'].inputMicrousdPerMillion,4000000);
+    assert.equal(rules['gpt-5.6'].inputMicrousdPerMillion,4000000);
+    assert.equal(rules['gpt-5.6-terra'].outputMicrousdPerMillion,12000000);
+    assert.equal(rules['gpt-5.6-luna'].outputMicrousdPerMillion,1200000);
+    assert.equal(rules['chat-latest'].outputMicrousdPerMillion,30000000);
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('usage snapshots USD and TWD costs with the effective FX reference rate',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'aisp-pricing-twd-'));
+  const dbPath=join(dir,'aisp.sqlite');
+  try{
+    const script=`
+      const {query}=await import('./lib/db.js');
+      const {recordLlmUsage}=await import('./lib/llm/usage.js');
+      await recordLlmUsage({
+        userId:null,sessionId:null,caseId:null,agentType:'patient',
+        route:{connectionId:null,providerKind:'openai',preset:'openai',model:'gpt-6-sol'},
+        result:{
+          model:'gpt-6-sol',preset:'openai',serviceTier:'default',usageStatus:'reported',
+          usage:{inputTokens:1000000,cachedInputTokens:200000,cacheWriteTokens:100000,outputTokens:100000,reasoningTokens:0,totalTokens:1100000},
+          latencyMs:5
+        },
+        occurredAt:'2026-09-27T12:00:00Z'
+      });
+      const rows=await query(
+        'select estimated_cost_microusd,estimated_cost_microntd,fx_rate_microunits_per_usd,fx_rate_id,service_tier,cache_write_tokens from llm_usage_events order by id'
+      );
+      console.log(JSON.stringify(rows));
+    `;
+    const result=run(script,dbPath);
+    assert.equal(result.status,0,result.stderr);
+    const row=JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1))[0];
+    assert.equal(row.estimated_cost_microusd,2690000);
+    assert.equal(row.fx_rate_microunits_per_usd,31780000);
+    assert.equal(row.estimated_cost_microntd,85488200);
+    assert.equal(row.fx_rate_id,'builtin-cbc-usd-twd-20260924');
+    assert.equal(row.service_tier,'default');
+    assert.equal(row.cache_write_tokens,100000);
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
