@@ -26,14 +26,16 @@ Prices are stored in USD micro-dollars (1 USD = 1,000,000 micro-USD) per one mil
 - output
 - reasoning
 
-A pricing rule is keyed by provider preset + model pattern and has an effective timestamp. Admin overrides may be added without mutating old usage rows.
+A pricing rule is keyed by provider preset + model pattern, may be scoped to a pricing time band (`always | peak | off_peak`), and has an effective timestamp. Admin overrides may be added without mutating old usage rows.
+
+DeepSeek has built-in effective-dated pricing rules for `deepseek-flash`, the legacy `deepseek-v4-flash*` aliases, and `deepseek-v4-pro`. Peak/off-peak selection uses Beijing time at provider request start: Monday-Friday 09:00-12:00 and 14:00-18:00 are peak; all other times are off-peak. The catalog uses DeepSeek's published USD rates directly, so no FX conversion is required.
 
 Each `llm_usage_events` row receives:
 - `estimated_cost_microusd`
 - `pricing_status`: `priced | unpriced | partial`
 - `pricing_rule_id`
 
-Cost is calculated at write time and persisted, so historical cost is stable when the catalog changes.
+Cost is calculated from the provider request-start timestamp and persisted, so a long request crossing a pricing boundary keeps the rate in effect when it began, and historical cost remains stable when the catalog changes.
 
 ## Quota model
 
