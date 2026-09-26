@@ -1,4 +1,4 @@
-PRAGMA foreign_keys = ON;
+-- SQLite version-1 bootstrap schema. Ordered upgrades live in db/migrations/.\nPRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS app_users (
   id TEXT PRIMARY KEY,

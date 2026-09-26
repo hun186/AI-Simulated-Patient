@@ -124,3 +124,86 @@ create table if not exists evaluations (
   result_json jsonb not null,
   created_at timestamptz not null default now()
 );
+
+
+-- LLM provider foundation (SQLite migration version 2 equivalent).
+create table if not exists llm_provider_connections (
+  id uuid primary key,
+  scope_type text not null check (scope_type in ('system','teacher')),
+  owner_user_id uuid references app_users(id) on delete cascade,
+  name text not null,
+  provider_kind text not null check (provider_kind in ('openai','openai_compatible')),
+  preset text not null check (preset in ('openai','deepseek','ollama','custom')),
+  base_url text not null,
+  default_model text not null,
+  encrypted_api_key text,
+  api_key_iv text,
+  api_key_tag text,
+  api_key_last4 text not null default '',
+  is_active boolean not null default true,
+  created_by uuid references app_users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (
+    (scope_type='system' and owner_user_id is null)
+    or
+    (scope_type='teacher' and owner_user_id is not null)
+  )
+);
+create index if not exists llm_provider_connections_owner_idx
+  on llm_provider_connections(owner_user_id,updated_at desc);
+
+create table if not exists llm_agent_routes (
+  id uuid primary key,
+  scope_type text not null check (scope_type in ('system','case')),
+  scope_id text,
+  agent_type text not null check (agent_type in ('patient','coach','evaluator')),
+  connection_id uuid not null references llm_provider_connections(id) on delete cascade,
+  model text not null,
+  config_json jsonb not null default '{}'::jsonb,
+  created_by uuid references app_users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (
+    (scope_type='system' and scope_id is null)
+    or
+    (scope_type='case' and scope_id is not null)
+  )
+);
+create unique index if not exists llm_agent_routes_scope_agent_uidx
+  on llm_agent_routes(scope_type,coalesce(scope_id,''),agent_type);
+create index if not exists llm_agent_routes_connection_idx on llm_agent_routes(connection_id);
+
+alter table interview_sessions add column if not exists llm_route_snapshot jsonb not null default '{}'::jsonb;
+
+create table if not exists llm_usage_events (
+  id bigserial primary key,
+  user_id uuid references app_users(id) on delete set null,
+  session_id uuid references interview_sessions(id) on delete set null,
+  case_id text references cases(id) on delete set null,
+  agent_type text not null check (agent_type in ('patient','coach','evaluator')),
+  connection_id uuid references llm_provider_connections(id) on delete set null,
+  provider_kind text not null,
+  preset text not null,
+  model text not null,
+  input_tokens bigint not null default 0,
+  cached_input_tokens bigint not null default 0,
+  output_tokens bigint not null default 0,
+  reasoning_tokens bigint not null default 0,
+  total_tokens bigint not null default 0,
+  latency_ms integer not null default 0,
+  success boolean not null,
+  error_code text,
+  provider_request_id text,
+  created_at timestamptz not null default now()
+);
+create index if not exists llm_usage_events_user_created_idx
+  on llm_usage_events(user_id,created_at desc);
+create index if not exists llm_usage_events_session_idx
+  on llm_usage_events(session_id,created_at asc);
+create index if not exists llm_usage_events_connection_idx
+  on llm_usage_events(connection_id,created_at desc);
+
+
+-- LLM usage reporting state (SQLite migration version 3 equivalent).
+alter table llm_usage_events add column if not exists usage_status text not null default 'reported';

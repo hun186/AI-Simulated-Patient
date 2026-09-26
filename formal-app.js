@@ -1,5 +1,5 @@
 const SKEY='aisp-formal-session-v1',RKEY='aisp-formal-records-v1',CKEY='aisp-formal-custom-cases-v1',DKEY='aisp-vercel-demo-user-v1';
-const state={serverMode:false,demoAuth:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[]};
+const state={serverMode:false,demoAuth:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[],aiSettings:null};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const uid=()=> 'session_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
@@ -64,7 +64,7 @@ async function loadApplication(){
   state.caseData=state.cases[0];
   state.caseId=state.caseData?.id||'aphasia_001';
   $('caseSelect').innerHTML=state.cases.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.studentLabel||'臨床問診案例')+(c.source==='custom'?'（教師建立）':'')+'</option>').join('');
-  const staff=state.demoAuth?['teacher','admin'].includes(state.user?.role):(!state.serverMode||['teacher','admin'].includes(state.user?.role));document.querySelector('[data-tab="teacher"]').classList.toggle('hidden',!staff);document.querySelector('[data-view="users"]').classList.toggle('hidden',!state.serverMode||!staff);document.querySelector('[data-view="audit"]').classList.toggle('hidden',!state.serverMode||state.user?.role!=='admin');$('studentName').disabled=state.serverMode||state.demoAuth;
+  const staff=state.demoAuth?['teacher','admin'].includes(state.user?.role):(!state.serverMode||['teacher','admin'].includes(state.user?.role));document.querySelector('[data-tab="teacher"]').classList.toggle('hidden',!staff);document.querySelector('[data-view="users"]').classList.toggle('hidden',!state.serverMode||!staff);document.querySelector('[data-view="ai"]').classList.toggle('hidden',!state.serverMode||!staff);document.querySelector('[data-view="audit"]').classList.toggle('hidden',!state.serverMode||state.user?.role!=='admin');$('studentName').disabled=state.serverMode||state.demoAuth;
   $('runtimeStatus').textContent=state.serverMode
     ?'Server DB · '+(state.user?.displayName||'')+' · '+(state.user?.role||'')
     :state.demoAuth
@@ -224,6 +224,144 @@ async function setCoachEnabled(enabled){
   save();renderMode();renderCoach();
 }
 $('finishBtn').onclick=finish;$('resetBtn').onclick=start;$('caseSelect').onchange=e=>switchCase(e.target.value);$('modeSelect').onchange=e=>switchMode(e.target.value);$('coachToggle').onchange=e=>setCoachEnabled(e.target.value==='on');$('studentName').oninput=e=>{if(state.serverMode)return;state.studentName=e.target.value;save();};$('closeRecordBtn').onclick=()=>$('recordDetail').classList.add('hidden');
+const AI_AGENT_LABELS={patient:'Patient',coach:'Coach',evaluator:'Evaluator'};
+function aiPresetOptions(){
+  const items=state.user?.role==='admin'
+    ?[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama','Ollama'],['custom','OpenAI-compatible / Custom']]
+    :[['openai','OpenAI'],['deepseek','DeepSeek']];
+  return items.map(([value,label])=>'<option value="'+value+'">'+label+'</option>').join('');
+}
+function syncAiPresetFields(){
+  const preset=$('aiPreset').value;
+  const showBase=state.user?.role==='admin'&&['ollama','custom'].includes(preset);
+  $('aiBaseUrlRow').classList.toggle('hidden',!showBase);
+  $('aiApiKey').required=['openai','deepseek'].includes(preset);
+}
+function manageableAiConnection(connection){
+  return state.user?.role==='admin'||(connection.scopeType==='teacher'&&connection.ownerUserId===state.user?.id);
+}
+async function renderAiSettings(){
+  if(!state.serverMode||!['teacher','admin'].includes(state.user?.role))return;
+  if(!state.teacherCases.length)await loadTeacherCases();
+  try{
+    const response=await fetch('/api/teacher/ai-settings');
+    if(!response.ok)throw new Error('ai-settings');
+    const data=await response.json();
+    state.aiSettings=data;
+    $('aiPreset').innerHTML=aiPresetOptions();
+    syncAiPresetFields();
+    $('aiRestrictionNote').textContent=state.user?.role==='admin'
+      ?'Admin 可建立系統級 OpenAI、DeepSeek、Ollama 與自訂 OpenAI-compatible 連線。'
+      :'Teacher 僅能建立自己的 OpenAI / DeepSeek 連線；Ollama 與自訂私有端點由 Admin 管理。';
+
+    $('aiConnectionList').innerHTML=(data.connections||[]).map(connection=>{
+      const canManage=manageableAiConnection(connection);
+      const key=connection.apiKeyLast4?'••••'+esc(connection.apiKeyLast4):'無 API Key';
+      return '<div class="ai-provider-row"><div class="ai-provider-meta"><strong>'+esc(connection.name)+'</strong><small>'+
+        esc(connection.preset)+' · '+esc(connection.defaultModel)+' · '+(connection.isActive?'啟用':'停用')+
+        ' · <span class="ai-key-mask">'+key+'</span></small></div><div class="ai-provider-actions">'+
+        (canManage?'<button class="small-btn" data-ai-edit="'+connection.id+'">編輯</button><button class="small-btn" data-ai-toggle="'+connection.id+'">'+(connection.isActive?'停用':'啟用')+'</button><button class="small-btn" data-ai-test="'+connection.id+'">測試連線</button><button class="small-btn danger-btn" data-ai-delete="'+connection.id+'">刪除</button>':'<span class="readonly-pill">系統提供</span>')+
+        '</div></div>';
+    }).join('')||'<p class="empty">尚未設定 AI Provider 連線。</p>';
+
+    $('aiConnectionList').querySelectorAll('[data-ai-edit]').forEach(button=>button.onclick=()=>editAiConnection(button.dataset.aiEdit));
+    $('aiConnectionList').querySelectorAll('[data-ai-toggle]').forEach(button=>button.onclick=()=>toggleAiConnection(button.dataset.aiToggle));
+    $('aiConnectionList').querySelectorAll('[data-ai-test]').forEach(button=>button.onclick=()=>testAiConnection(button.dataset.aiTest));
+    $('aiConnectionList').querySelectorAll('[data-ai-delete]').forEach(button=>button.onclick=()=>deleteAiConnection(button.dataset.aiDelete));
+
+    const teacher=state.user?.role==='teacher';
+    $('aiCaseRow').classList.toggle('hidden',!teacher);
+    if(teacher){
+      const ownedCases=(state.teacherCases||[]).filter(c=>c.createdBy===state.user?.id);
+      $('aiCaseSelect').innerHTML=ownedCases.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.internalTitle||c.title||c.studentLabel||c.id)+'</option>').join('');
+      if(!ownedCases.length){
+        $('aiRouteGrid').innerHTML='<p class="empty">你目前沒有可設定 AI route 的自建病例。</p>';
+        return;
+      }
+    }
+
+    const usable=(data.connections||[]).filter(connection=>connection.isActive&&(state.user?.role==='admin'?connection.scopeType==='system':connection.scopeType==='teacher'&&connection.ownerUserId===state.user?.id));
+    $('aiRouteGrid').innerHTML=['patient','coach','evaluator'].map(agent=>{
+      const caseId=teacher?$('aiCaseSelect').value:null;
+      const route=(data.routes||[]).find(r=>r.agentType===agent&&(teacher?(r.scopeType==='case'&&r.scopeId===caseId):r.scopeType==='system'));
+      const options=usable.map(c=>'<option value="'+c.id+'" '+(route?.connectionId===c.id?'selected':'')+'>'+esc(c.name)+' · '+esc(c.defaultModel)+'</option>').join('');
+      return '<section class="ai-route-card" data-agent="'+agent+'"><header><strong>'+AI_AGENT_LABELS[agent]+'</strong><small>'+(route?'已設定':'未設定')+'</small></header>'+
+        '<label>Provider / Model<select class="ai-route-connection"><option value="">未設定</option>'+options+'</select></label>'+
+        '<div class="ai-route-actions"><button class="secondary small-btn" type="button" data-ai-route-save="'+agent+'">儲存路由</button>'+
+        (route?'<button class="small-btn danger-btn" type="button" data-ai-route-delete="'+route.id+'">移除</button>':'')+'</div></section>';
+    }).join('');
+    $('aiRouteGrid').querySelectorAll('[data-ai-route-save]').forEach(button=>button.onclick=()=>saveAiRoute(button.dataset.aiRouteSave));
+    $('aiRouteGrid').querySelectorAll('[data-ai-route-delete]').forEach(button=>button.onclick=()=>deleteAiRoute(button.dataset.aiRouteDelete));
+  }catch{
+    $('aiConnectionList').innerHTML='<p class="empty">AI 設定讀取失敗。</p>';
+    $('aiRouteGrid').innerHTML='';
+  }
+}
+async function createAiConnection(event){
+  event.preventDefault();
+  const preset=$('aiPreset').value;
+  const payload={
+    action:'createConnection',name:$('aiConnectionName').value.trim(),preset,
+    defaultModel:$('aiDefaultModel').value.trim(),apiKey:$('aiApiKey').value
+  };
+  if(state.user?.role==='admin'&&['ollama','custom'].includes(preset))payload.baseUrl=$('aiBaseUrl').value.trim();
+  try{
+    await post('/api/teacher/ai-settings',payload);
+    $('aiConnectionForm').reset();$('aiApiKey').value='';await renderAiSettings();
+  }catch(error){alert('AI Provider 建立失敗：'+(error.message||'請檢查設定與權限。'));}
+}
+async function editAiConnection(connectionId){
+  const connection=(state.aiSettings?.connections||[]).find(c=>c.id===connectionId);
+  if(!connection)return;
+  const name=prompt('連線名稱',connection.name);
+  if(name===null)return;
+  const model=prompt('預設模型',connection.defaultModel);
+  if(model===null)return;
+  const apiKey=prompt('新的 API Key（留空表示保留原本金鑰）','');
+  const payload={action:'updateConnection',connectionId,name:name.trim(),preset:connection.preset,defaultModel:model.trim(),isActive:connection.isActive};
+  if(connection.baseUrl)payload.baseUrl=connection.baseUrl;
+  if(apiKey)payload.apiKey=apiKey;
+  try{await post('/api/teacher/ai-settings',payload);await renderAiSettings();}
+  catch(error){alert('AI Provider 更新失敗：'+(error.message||'請檢查設定與權限。'));}
+}
+async function toggleAiConnection(connectionId){
+  const connection=(state.aiSettings?.connections||[]).find(c=>c.id===connectionId);
+  if(!connection)return;
+  const payload={
+    action:'updateConnection',connectionId,name:connection.name,preset:connection.preset,
+    defaultModel:connection.defaultModel,isActive:!connection.isActive
+  };
+  if(connection.baseUrl)payload.baseUrl=connection.baseUrl;
+  try{await post('/api/teacher/ai-settings',payload);await renderAiSettings();}
+  catch(error){alert('AI Provider 狀態更新失敗：'+(error.message||'請檢查權限。'));}
+}
+async function testAiConnection(connectionId){
+  try{
+    const data=await post('/api/teacher/ai-settings',{action:'testConnection',connectionId});
+    alert(data.result?.ok?'連線測試成功。':'連線測試失敗。');
+  }catch(error){alert('連線測試失敗：'+(error.details?.result?.errorCode||error.message));}
+}
+async function deleteAiConnection(connectionId){
+  if(!confirm('刪除此 AI Provider 連線？使用此連線的路由也會一併移除。'))return;
+  try{await post('/api/teacher/ai-settings',{action:'deleteConnection',connectionId});await renderAiSettings();}
+  catch{alert('刪除失敗或權限不足。');}
+}
+async function saveAiRoute(agentType){
+  const card=document.querySelector('[data-agent="'+agentType+'"]');
+  const connectionId=card?.querySelector('.ai-route-connection')?.value;
+  if(!connectionId)return alert('請先選擇 Provider 連線。');
+  const connection=(state.aiSettings?.connections||[]).find(c=>c.id===connectionId);
+  const payload={agentType,connectionId,model:connection?.defaultModel||''};
+  if(state.user?.role==='admin')payload.action='setSystemRoute';
+  else{payload.action='setCaseRoute';payload.caseId=$('aiCaseSelect').value;}
+  try{await post('/api/teacher/ai-settings',payload);await renderAiSettings();}
+  catch(error){alert('路由儲存失敗：'+(error.message||'請確認病例與 Provider 權限。'));}
+}
+async function deleteAiRoute(routeId){
+  try{await post('/api/teacher/ai-settings',{action:'deleteRoute',routeId});await renderAiSettings();}
+  catch{alert('路由移除失敗或權限不足。');}
+}
+
 async function renderUsers(){
   if(!state.serverMode||!['teacher','admin'].includes(state.user?.role))return;
   try{
@@ -318,10 +456,11 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelect
 document.querySelectorAll('.teacher-subtab').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.teacher-subtab,.teacher-view').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
-  const map={cases:'teacherCases',records:'teacherRecords',users:'teacherUsers',audit:'teacherAudit'};
+  const map={cases:'teacherCases',records:'teacherRecords',users:'teacherUsers',ai:'teacherAiSettings',audit:'teacherAudit'};
   $(map[b.dataset.view]).classList.add('active');
   if(b.dataset.view==='records')renderRecords();
   if(b.dataset.view==='users')renderUsers();
+  if(b.dataset.view==='ai')renderAiSettings();
   if(b.dataset.view==='audit')renderSecurityAudit();
 });
 
@@ -345,5 +484,5 @@ async function saveBuilder(e){e.preventDefault();const facts=[...$('builderFacts
   renderCases();
 }
 $('caseBuilder').classList.add('hidden');$('caseBuilderForm').reset();alert('病例已建立，可立即切回學生端選用。');}
-document.querySelectorAll('[data-demo-role]').forEach(button=>button.onclick=()=>demoLogin(button.dataset.demoRole));$('loginForm').onsubmit=login;$('registerForm').onsubmit=registerAccount;$('showRegisterBtn').onclick=()=>showRegister('student');$('showTeacherRegisterBtn').onclick=()=>showRegister('teacher');$('backToLoginBtn').onclick=()=>showLogin();$('bootstrapForm').onsubmit=bootstrap;$('assignStudentBtn').onclick=assignStudentToTeacher;$('logoutBtn').onclick=logout;$('changePasswordBtn').onclick=()=>$('passwordDialog').showModal();$('changePasswordForm').onsubmit=changeOwnPassword;$('cancelPasswordBtn').onclick=()=>$('passwordDialog').close();$('userForm').onsubmit=createManagedUser;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
+document.querySelectorAll('[data-demo-role]').forEach(button=>button.onclick=()=>demoLogin(button.dataset.demoRole));$('loginForm').onsubmit=login;$('registerForm').onsubmit=registerAccount;$('showRegisterBtn').onclick=()=>showRegister('student');$('showTeacherRegisterBtn').onclick=()=>showRegister('teacher');$('backToLoginBtn').onclick=()=>showLogin();$('bootstrapForm').onsubmit=bootstrap;$('assignStudentBtn').onclick=assignStudentToTeacher;$('logoutBtn').onclick=logout;$('changePasswordBtn').onclick=()=>$('passwordDialog').showModal();$('changePasswordForm').onsubmit=changeOwnPassword;$('cancelPasswordBtn').onclick=()=>$('passwordDialog').close();$('userForm').onsubmit=createManagedUser;$('aiConnectionForm').onsubmit=createAiConnection;$('aiPreset').onchange=syncAiPresetFields;$('aiCaseSelect').onchange=renderAiSettings;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
 init();

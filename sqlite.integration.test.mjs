@@ -32,7 +32,7 @@ test('SQLite backend auto-creates schema and supports PostgreSQL-style query fac
     assert.equal(payload.counts[0].count,1);
     assert.equal(payload.info.driver,'sqlite');
     assert.equal(payload.info.wal,true);
-    assert.equal(payload.info.schemaVersion,1);
+    assert.equal(payload.info.schemaVersion,3);
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }

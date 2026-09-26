@@ -3,5 +3,6 @@
 .env.local
 .DS_Store
 node_modules
+# Runtime data includes SQLite/WAL/backups and the local development LLM master key.
 data/*
 !data/.gitkeep

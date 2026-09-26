@@ -1,7 +1,22 @@
 import { mockPatientReply } from '../lib/mock-patient.js';
 import { isDatabaseEnabled } from '../lib/db.js';
 import { requireUser,requireCsrf } from '../lib/server-auth.js';
-import { getOwnedSession,appendMessage,setRevealedFacts } from '../lib/server-sessions.js';
+import { getOwnedSession,getTranscript,appendMessage,setRevealedFacts } from '../lib/server-sessions.js';
+import { runPatientAgent } from '../lib/llm/agents.js';
+import { recordLlmUsage } from '../lib/llm/usage.js';
+import { isProductionEnv } from '../lib/request-security.js';
+
+function parseJson(value,fallback={}){
+  if(value==null) return fallback;
+  if(typeof value==='string'){try{return JSON.parse(value);}catch{return fallback;}}
+  return value&&typeof value==='object'?value:fallback;
+}
+function providerFailure(res,error){
+  if(error?.code==='AI_PROVIDER_NOT_CONFIGURED') return res.status(503).json({error:error.code});
+  if(error?.code==='timeout') return res.status(504).json({error:'AI_PROVIDER_TIMEOUT'});
+  if(error?.code) return res.status(502).json({error:'AI_PROVIDER_FAILURE',code:error.code});
+  return null;
+}
 
 export default async function handler(req,res){
   if(req.method!=='POST') return res.status(405).json({error:'Method not allowed'});
@@ -15,13 +30,38 @@ export default async function handler(req,res){
     if(!sessionId) return res.status(400).json({error:'sessionId is required'});
     const session=await getOwnedSession(sessionId,user);
     if(!session || session.status!=='active') return res.status(404).json({error:'Active session not found'});
-    const revealed=Array.isArray(session.revealed_fact_ids)?session.revealed_fact_ids:[];
-    const caseSnapshot=typeof session.case_snapshot==='string'?JSON.parse(session.case_snapshot):session.case_snapshot;
-    const result=mockPatientReply({caseId:session.case_id,caseDefinition:caseSnapshot,message,revealedFactIds:revealed});
-    await appendMessage(sessionId,'student',message);
-    await appendMessage(sessionId,'patient',result.reply);
-    await setRevealedFacts(sessionId,result.revealedFactIds);
-    return res.status(200).json({reply:result.reply,provider:result.provider});
+    const revealed=Array.isArray(session.revealed_fact_ids)?session.revealed_fact_ids:parseJson(session.revealed_fact_ids,[]);
+    const caseSnapshot=parseJson(session.case_snapshot,{});
+    const routes=parseJson(session.llm_route_snapshot,{});
+    const route=routes.patient||null;
+
+    if(!isProductionEnv() && route?.preset==='mock'){
+      const result=mockPatientReply({caseId:session.case_id,caseDefinition:caseSnapshot,message,revealedFactIds:revealed});
+      await appendMessage(sessionId,'student',message);
+      await appendMessage(sessionId,'patient',result.reply);
+      await setRevealedFacts(sessionId,result.revealedFactIds);
+      return res.status(200).json({reply:result.reply,provider:result.provider});
+    }
+
+    const transcript=await getTranscript(sessionId);
+    const started=Date.now();
+    try{
+      const result=await runPatientAgent({session,message,transcript,route});
+      await recordLlmUsage({
+        userId:user.id,sessionId,caseId:session.case_id,agentType:'patient',route,result
+      });
+      await appendMessage(sessionId,'student',message);
+      await appendMessage(sessionId,'patient',result.reply);
+      return res.status(200).json({reply:result.reply,provider:result.preset,model:result.model});
+    }catch(error){
+      await recordLlmUsage({
+        userId:user.id,sessionId,caseId:session.case_id,agentType:'patient',route,error,
+        latencyMs:Date.now()-started
+      });
+      const mapped=providerFailure(res,error);
+      if(mapped) return mapped;
+      throw error;
+    }
   }catch(error){
     if(error.message==='CASE_NOT_FOUND') return res.status(404).json({error:'Case not found'});
     console.error(error);return res.status(500).json({error:'Unexpected error'});
