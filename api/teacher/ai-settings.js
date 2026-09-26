@@ -6,12 +6,13 @@ import {
 } from '../../lib/llm/connections.js';
 import { testLlmConnection } from '../../lib/llm/provider-gateway.js';
 import { recordAuthEvent } from '../../lib/auth-audit.js';
+import { setSystemRoute,setCaseRoute,deleteRoute,listVisibleRoutes } from '../../lib/llm/routes.js';
 
 function statusFor(error){
-  if(error?.code==='CONNECTION_NOT_FOUND') return 404;
-  if(error?.code==='FORBIDDEN' || error?.code==='FORBIDDEN_PRESET') return 403;
+  if(error?.code==='CONNECTION_NOT_FOUND' || error?.code==='ROUTE_NOT_FOUND' || error?.code==='CASE_NOT_FOUND') return 404;
+  if(['FORBIDDEN','FORBIDDEN_PRESET','FORBIDDEN_CONNECTION','FORBIDDEN_CASE'].includes(error?.code)) return 403;
   if([
-    'INVALID_PRESET','INVALID_BASE_URL','BASE_URL_REQUIRED','API_KEY_REQUIRED','NAME_REQUIRED','MODEL_REQUIRED'
+    'INVALID_PRESET','INVALID_BASE_URL','BASE_URL_REQUIRED','API_KEY_REQUIRED','NAME_REQUIRED','MODEL_REQUIRED','INVALID_AGENT_TYPE'
   ].includes(error?.code)) return 400;
   return 500;
 }
@@ -24,6 +25,7 @@ export default async function handler(req,res){
   if(req.method==='GET'){
     return res.status(200).json({
       connections:await listVisibleConnections(actor),
+      routes:await listVisibleRoutes(actor),
       actorRole:actor.role
     });
   }
@@ -54,6 +56,30 @@ export default async function handler(req,res){
       await recordAuthEvent({
         req,action:'llm.connection.delete',success:true,reason:'deleted',
         actorUserId:actor.id,metadata:{connectionId:body.connectionId}
+      });
+      return res.status(200).json({ok:true});
+    }
+    if(action==='setSystemRoute'){
+      const route=await setSystemRoute(actor,body);
+      await recordAuthEvent({
+        req,action:'llm.route.set',success:true,reason:'system',
+        actorUserId:actor.id,metadata:{routeId:route.id,agentType:route.agentType,connectionId:route.connectionId}
+      });
+      return res.status(200).json({route});
+    }
+    if(action==='setCaseRoute'){
+      const route=await setCaseRoute(actor,body);
+      await recordAuthEvent({
+        req,action:'llm.route.set',success:true,reason:'case',
+        actorUserId:actor.id,metadata:{routeId:route.id,caseId:route.scopeId,agentType:route.agentType,connectionId:route.connectionId}
+      });
+      return res.status(200).json({route});
+    }
+    if(action==='deleteRoute'){
+      await deleteRoute(actor,body.routeId);
+      await recordAuthEvent({
+        req,action:'llm.route.delete',success:true,reason:'deleted',
+        actorUserId:actor.id,metadata:{routeId:body.routeId}
       });
       return res.status(200).json({ok:true});
     }
