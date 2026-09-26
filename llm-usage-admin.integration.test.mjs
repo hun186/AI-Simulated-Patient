@@ -89,6 +89,7 @@ test('usage/quota API enforces Admin and Teacher scope',()=>{
     assert.equal(data.adminSetOther.quota.dailyTokenLimit,0);
     assert.equal(data.adminPricing.status,201);
     assert.equal(data.adminPricing.rule.modelPattern,'gpt-test');
+    assert.equal(data.adminPricing.rule.timeBand,'always');
     assert.equal(data.teacherSummary.status,200);
     assert.equal(Number(data.teacherSummary.body.totals[0].tokens),21);
     assert.equal(Number(data.teacherSummary.body.totals[0].estimatedCostMicrousd),25);
