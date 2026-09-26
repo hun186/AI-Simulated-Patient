@@ -233,6 +233,7 @@ create table if not exists llm_pricing_rules (
   id uuid primary key,
   preset text not null check (preset in ('openai','deepseek','ollama','custom')),
   model_pattern text not null,
+  time_band text not null default 'always' check (time_band in ('always','peak','off_peak')),
   input_microusd_per_million bigint check (input_microusd_per_million is null or input_microusd_per_million >= 0),
   cached_input_microusd_per_million bigint check (cached_input_microusd_per_million is null or cached_input_microusd_per_million >= 0),
   output_microusd_per_million bigint check (output_microusd_per_million is null or output_microusd_per_million >= 0),
@@ -243,8 +244,35 @@ create table if not exists llm_pricing_rules (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table llm_pricing_rules add column if not exists time_band text not null default 'always';
+
+do $
+begin
+  if not exists (
+    select 1 from pg_constraint where conname='llm_pricing_rules_time_band_check'
+  ) then
+    alter table llm_pricing_rules
+      add constraint llm_pricing_rules_time_band_check
+      check (time_band in ('always','peak','off_peak'));
+  end if;
+end $;
+
 create index if not exists llm_pricing_rules_lookup_idx
   on llm_pricing_rules(preset,model_pattern,is_active,effective_at desc);
+create index if not exists llm_pricing_rules_time_lookup_idx
+  on llm_pricing_rules(preset,model_pattern,time_band,is_active,effective_at desc);
+
+insert into llm_pricing_rules
+  (id,preset,model_pattern,time_band,input_microusd_per_million,cached_input_microusd_per_million,
+   output_microusd_per_million,reasoning_microusd_per_million,effective_at,is_active)
+values
+  ('00000000-0000-4000-8000-000000000601','deepseek','deepseek-flash','peak',300000,6000,1200000,1200000,'2026-09-10T04:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000602','deepseek','deepseek-flash','off_peak',150000,3000,600000,600000,'2026-09-10T04:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000603','deepseek','deepseek-v4-flash*','peak',300000,6000,1200000,1200000,'2026-09-10T04:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000604','deepseek','deepseek-v4-flash*','off_peak',150000,3000,600000,600000,'2026-09-10T04:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000605','deepseek','deepseek-v4-pro','peak',1320000,44000,3960000,3960000,'2026-08-16T16:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000606','deepseek','deepseek-v4-pro','off_peak',660000,22000,1980000,1980000,'2026-08-16T16:00:00Z',true)
+on conflict (id) do nothing;
 
 create table if not exists llm_user_quotas (
   user_id uuid primary key references app_users(id) on delete cascade,
@@ -279,3 +307,79 @@ begin
       check (pricing_status in ('priced','unpriced','partial'));
   end if;
 end $;
+
+
+-- Provider-aware pricing dimensions and TWD FX snapshots (SQLite migration version 6 equivalent).
+alter table llm_pricing_rules add column if not exists context_band text not null default 'any';
+alter table llm_pricing_rules add column if not exists cache_write_microusd_per_million bigint;
+alter table llm_usage_events add column if not exists cache_write_tokens bigint not null default 0;
+alter table llm_usage_events add column if not exists service_tier text;
+alter table llm_usage_events add column if not exists estimated_cost_microntd bigint;
+alter table llm_usage_events add column if not exists fx_rate_microunits_per_usd bigint;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname='llm_pricing_rules_context_band_check') then
+    alter table llm_pricing_rules add constraint llm_pricing_rules_context_band_check
+      check (context_band in ('any','short','long'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname='llm_pricing_rules_cache_write_nonnegative') then
+    alter table llm_pricing_rules add constraint llm_pricing_rules_cache_write_nonnegative
+      check (cache_write_microusd_per_million is null or cache_write_microusd_per_million >= 0);
+  end if;
+  if not exists (select 1 from pg_constraint where conname='llm_usage_events_cache_write_nonnegative') then
+    alter table llm_usage_events add constraint llm_usage_events_cache_write_nonnegative
+      check (cache_write_tokens >= 0);
+  end if;
+  if not exists (select 1 from pg_constraint where conname='llm_usage_events_twd_cost_nonnegative') then
+    alter table llm_usage_events add constraint llm_usage_events_twd_cost_nonnegative
+      check (estimated_cost_microntd is null or estimated_cost_microntd >= 0);
+  end if;
+end $$;
+
+create table if not exists llm_fx_rates (
+  id uuid primary key,
+  base_currency text not null,
+  quote_currency text not null,
+  rate_microunits_per_unit bigint not null check (rate_microunits_per_unit > 0),
+  source text not null default '',
+  effective_at timestamptz not null,
+  is_active boolean not null default true,
+  created_by uuid references app_users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create index if not exists llm_fx_rates_lookup_idx
+  on llm_fx_rates(base_currency,quote_currency,is_active,effective_at desc);
+alter table llm_usage_events add column if not exists fx_rate_id uuid references llm_fx_rates(id) on delete set null;
+
+insert into llm_fx_rates
+  (id,base_currency,quote_currency,rate_microunits_per_unit,source,effective_at,is_active)
+values
+  ('00000000-0000-4000-8000-000000000690','USD','TWD',31780000,'CBC interbank closing rate 2026-09-24','2026-09-24T00:00:00Z',true)
+on conflict (id) do nothing;
+
+create index if not exists llm_pricing_rules_context_lookup_idx
+  on llm_pricing_rules(preset,model_pattern,time_band,context_band,is_active,effective_at desc);
+
+-- OpenAI Standard text pricing. Runtime applies Flex/Batch 0.5x and Fast/Priority 2x
+-- from the actual service_tier and selects long context above 272K input tokens.
+insert into llm_pricing_rules
+  (id,preset,model_pattern,time_band,context_band,input_microusd_per_million,cached_input_microusd_per_million,
+   cache_write_microusd_per_million,output_microusd_per_million,reasoning_microusd_per_million,effective_at,is_active)
+values
+  ('00000000-0000-4000-8000-000000000610','openai','gpt-6-astra*','always','short',10000000,1000000,12500000,50000000,50000000,'2026-09-03T00:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000611','openai','gpt-6-astra*','always','long',20000000,2000000,25000000,75000000,75000000,'2026-09-03T00:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000612','openai','gpt-6-sol*','always','short',2000000,200000,2500000,10000000,10000000,'2026-09-22T00:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000613','openai','gpt-6-sol*','always','long',4000000,400000,5000000,15000000,15000000,'2026-09-22T00:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000614','openai','gpt-6-luna*','always','short',100000,10000,125000,500000,500000,'2026-09-22T00:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000615','openai','gpt-6-luna*','always','long',200000,20000,250000,750000,750000,'2026-09-22T00:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000616','openai','gpt-5.6-sol*','always','short',4000000,400000,5000000,20000000,20000000,'2026-08-21T00:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000617','openai','gpt-5.6-sol*','always','long',8000000,800000,10000000,30000000,30000000,'2026-08-21T00:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000618','openai','gpt-5.6','always','short',4000000,400000,5000000,20000000,20000000,'2026-08-21T00:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000619','openai','gpt-5.6','always','long',8000000,800000,10000000,30000000,30000000,'2026-08-21T00:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000620','openai','gpt-5.6-terra*','always','short',2000000,200000,2500000,12000000,12000000,'2026-07-30T00:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000621','openai','gpt-5.6-terra*','always','long',4000000,400000,5000000,18000000,18000000,'2026-07-30T00:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000622','openai','gpt-5.6-luna*','always','short',200000,20000,250000,1200000,1200000,'2026-07-30T00:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000623','openai','gpt-5.6-luna*','always','long',400000,40000,500000,1800000,1800000,'2026-07-30T00:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000624','openai','chat-latest','always','any',5000000,500000,null,30000000,30000000,'2026-09-27T00:00:00Z',true)
+on conflict (id) do nothing;

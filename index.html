@@ -63,11 +63,13 @@
   <div class="usage-toolbar card">
     <div><div class="eyebrow">LLM Usage & Quotas</div><h3>用量與配額</h3><p>成本為呼叫當下依 pricing rule 寫入的估算值；未定價的呼叫會另外標示。</p></div>
     <label>查看對象<select id="usageUserSelect"><option value="">全部可見使用者</option></select></label>
+    <div class="fx-reference"><span id="usageFxSummary">USD/TWD 參考匯率：讀取中…</span><div id="usageFxAdmin" class="fx-admin hidden"><input id="usageFxRate" type="number" min="0.000001" step="0.001" placeholder="31.780"><button id="usageFxSaveBtn" type="button" class="secondary">更新匯率</button></div></div>
   </div>
   <div class="usage-stats">
     <div class="stat-card"><span>呼叫次數</span><strong id="usageCalls">0</strong></div>
     <div class="stat-card"><span>Tokens</span><strong id="usageTokens">0</strong></div>
-    <div class="stat-card"><span>估算成本</span><strong id="usageCost">$0.000000</strong></div>
+    <div class="stat-card"><span>估算成本（USD）</span><strong id="usageCost">$0.000000</strong></div>
+    <div class="stat-card"><span>估算成本（TWD）</span><strong id="usageCostTwd">NT$0.0000</strong></div>
     <div class="stat-card"><span>未定價呼叫</span><strong id="usageUnpriced">0</strong></div>
     <div class="stat-card"><span>部分定價呼叫</span><strong id="usagePartial">0</strong></div>
   </div>

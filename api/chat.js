@@ -63,7 +63,8 @@ export default async function handler(req,res){
     try{
       const result=await runPatientAgent({session,message,transcript,route});
       await recordLlmUsage({
-        userId:user.id,sessionId,caseId:session.case_id,agentType:'patient',route,result
+        userId:user.id,sessionId,caseId:session.case_id,agentType:'patient',route,result,
+        occurredAt:new Date(started).toISOString()
       });
       await appendMessage(sessionId,'student',message);
       await appendMessage(sessionId,'patient',result.reply);
@@ -71,7 +72,7 @@ export default async function handler(req,res){
     }catch(error){
       await recordLlmUsage({
         userId:user.id,sessionId,caseId:session.case_id,agentType:'patient',route,error,
-        latencyMs:Date.now()-started
+        latencyMs:Date.now()-started,occurredAt:new Date(started).toISOString()
       });
       const mapped=providerFailure(res,error);
       if(mapped) return mapped;

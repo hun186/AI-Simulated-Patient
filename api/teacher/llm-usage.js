@@ -4,13 +4,14 @@ import { ROLE_ADMIN,ROLE_TEACHER } from '../../lib/authz.js';
 import { recordAuthEvent } from '../../lib/auth-audit.js';
 import {
   listVisibleUsageUsers,getQuota,setQuota,usageSummary,
-  listPricingRules,createPricingRule,setPricingRuleActive
+  listPricingRules,createPricingRule,setPricingRuleActive,
+  getLatestUsdTwdRate,createUsdTwdRate
 } from '../../lib/llm/usage-admin.js';
 
 function statusFor(error){
   if(error?.code==='FORBIDDEN') return 403;
   if(['USER_NOT_FOUND','PRICING_RULE_NOT_FOUND'].includes(error?.code)) return 404;
-  if(['INVALID_LIMIT','INVALID_PRESET','MODEL_PATTERN_REQUIRED'].includes(error?.code)) return 400;
+  if(['INVALID_LIMIT','INVALID_PRESET','INVALID_TIME_BAND','INVALID_CONTEXT_BAND','INVALID_FX_RATE','MODEL_PATTERN_REQUIRED'].includes(error?.code)) return 400;
   return 500;
 }
 
@@ -29,6 +30,9 @@ export default async function handler(req,res){
       }
       if(action==='pricing'){
         return res.status(200).json({rules:await listPricingRules(actor)});
+      }
+      if(action==='fx'){
+        return res.status(200).json({fxRate:await getLatestUsdTwdRate(actor)});
       }
       const userId=req.query?.userId?String(req.query.userId):null;
       const from=req.query?.from?String(req.query.from):null;
@@ -57,6 +61,14 @@ export default async function handler(req,res){
         actorUserId:actor.id,metadata:{pricingRuleId:rule.id,modelPattern:rule.modelPattern}
       });
       return res.status(201).json({rule});
+    }
+    if(action==='setFxRate'){
+      const fxRate=await createUsdTwdRate(actor,body);
+      await recordAuthEvent({
+        req,action:'llm.fx.set',success:true,reason:'USD/TWD',
+        actorUserId:actor.id,metadata:{fxRateId:fxRate.id,rate:fxRate.rate,source:fxRate.source}
+      });
+      return res.status(201).json({fxRate});
     }
     if(action==='setPricingRuleActive'){
       const rule=await setPricingRuleActive(actor,String(body.pricingRuleId||''),Boolean(body.isActive));

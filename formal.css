@@ -34,3 +34,5 @@
 @media(max-width:620px){.usage-stats,.usage-grid{grid-template-columns:1fr}}
 
 .chat-head-main{display:flex;align-items:center;justify-content:space-between;gap:12px}.session-provider-badge{display:inline-flex;align-items:center;white-space:nowrap;padding:5px 9px;border-radius:999px;background:#eef2f8;color:#4d5b73;font-size:11px;font-weight:800;border:1px solid #dce3ee}@media(max-width:700px){.chat-head-main{align-items:flex-start;flex-direction:column}.session-provider-badge{white-space:normal}}
+
+.fx-reference{display:flex;flex-direction:column;gap:6px;min-width:250px;font-size:11px;color:#68738c}.fx-admin{display:flex;gap:6px;align-items:center}.fx-admin input{width:110px;border:1px solid #dbe2ee;border-radius:9px;padding:7px 8px}.fx-admin button{padding:7px 9px;font-size:11px}.usage-breakdown-row span:last-child{white-space:nowrap}

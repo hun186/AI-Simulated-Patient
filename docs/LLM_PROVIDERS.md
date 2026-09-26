@@ -46,7 +46,7 @@ Admin connections are system-scoped. Teacher connections are owned by the Teache
 
 Patient, Coach, and Evaluator routes are independent.
 
-Admin configures system routes. Teacher configures case-specific routes only for cases they own and only with their own Teacher-scoped connections. Server-side RBAC is authoritative even if browser state is manipulated.
+Admin configures system routes. Teacher configures owner-scoped case routes for system built-in cases and their own cases, using only their own Teacher-scoped connections. Server-side RBAC is authoritative even if browser state is manipulated.
 
 When an interview session starts, the selected route ID, connection ID, provider kind, preset, model, and route config are snapshotted into the session. Provider secrets are not copied into the session snapshot.
 
@@ -76,7 +76,11 @@ Every real provider call writes an `llm_usage_events` event with:
 
 `usage_status` distinguishes `reported`, `unreported`, and `estimated` token data so a missing provider usage object is not presented as an exact zero-token measurement.
 
-Phase 1 intentionally does not calculate monetary cost or implement quotas.
+Production usage accounting snapshots estimated cost when a pricing rule is available. DeepSeek pricing includes built-in peak/off-peak rules in USD, selected from the Beijing-time request-start timestamp; cached input, uncached input, and output/reasoning dimensions are priced separately.
+
+OpenAI pricing snapshots distinguish ordinary input, cached input, cache writes, and output/reasoning. GPT-6 and GPT-5.6 seeded rules distinguish short versus long context at the provider's 272K input-token threshold, and the recorded service tier is used for Standard, Flex, or Fast/Priority pricing.
+
+Each priced usage event also snapshots the effective USD/TWD reference rate and an estimated TWD cost. The initial reference is the Taiwan central-bank interbank closing rate for 2026-09-24 (31.780 TWD/USD); Admin may add newer effective-dated reference rates. Historical USD and TWD estimates remain unchanged when pricing or FX rules are updated. Hard cost quotas remain denominated in USD to match provider billing.
 
 ## Security notes
 

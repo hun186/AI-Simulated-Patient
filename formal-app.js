@@ -469,6 +469,7 @@ async function manageUser(userId,action){
   catch{alert('帳號操作失敗或權限不足。');}
 }
 function microusdToUsd(value){return '$'+(Number(value||0)/1000000).toFixed(6);}
+function microntdToTwd(value){return 'NT$'+(Number(value||0)/1000000).toLocaleString('zh-TW',{minimumFractionDigits:4,maximumFractionDigits:6});}
 function quotaUsdToMicrousd(value){
   const text=String(value??'').trim();
   if(!text)return null;
@@ -488,7 +489,7 @@ function canEditUsageQuota(user){
 }
 function usageRows(title,rows,labelKey){
   return '<section class="usage-breakdown-group"><h4>'+title+'</h4>'+
-    ((rows||[]).length?(rows||[]).map(row=>'<div class="usage-breakdown-row"><strong>'+esc(row[labelKey]||'--')+'</strong><span>'+Number(row.calls||0)+' 次</span><span>'+Number(row.tokens||0).toLocaleString('zh-TW')+' tk</span><span>'+microusdToUsd(row.estimatedCostMicrousd)+'</span></div>').join(''):'<p class="empty">尚無資料。</p>')+
+    ((rows||[]).length?(rows||[]).map(row=>'<div class="usage-breakdown-row"><strong>'+esc(row[labelKey]||'--')+'</strong><span>'+Number(row.calls||0)+' 次</span><span>'+Number(row.tokens||0).toLocaleString('zh-TW')+' tk</span><span>'+microusdToUsd(row.estimatedCostMicrousd)+' / '+microntdToTwd(row.estimatedCostMicrontd)+'</span></div>').join(''):'<p class="empty">尚無資料。</p>')+
     '</section>';
 }
 async function renderUsageDashboard(){
@@ -511,12 +512,20 @@ async function renderUsageDashboard(){
       calls:a.calls+Number(row.calls||0),
       tokens:a.tokens+Number(row.tokens||0),
       cost:a.cost+Number(row.estimatedCostMicrousd||0),
+      costTwd:a.costTwd+Number(row.estimatedCostMicrontd||0),
       unpriced:a.unpriced+Number(row.unpricedCalls||0),
       partial:a.partial+Number(row.partialPricingCalls||0)
-    }),{calls:0,tokens:0,cost:0,unpriced:0,partial:0});
+    }),{calls:0,tokens:0,cost:0,costTwd:0,unpriced:0,partial:0});
     $('usageCalls').textContent=totals.calls.toLocaleString('zh-TW');
     $('usageTokens').textContent=totals.tokens.toLocaleString('zh-TW');
     $('usageCost').textContent=microusdToUsd(totals.cost);
+    $('usageCostTwd').textContent=microntdToTwd(totals.costTwd);
+    const fx=data.fxRate||null;
+    $('usageFxSummary').textContent=fx
+      ?('USD/TWD：1 USD ≈ NT$'+Number(fx.rate).toFixed(3)+' · '+(fx.source||'參考匯率')+' · '+new Date(fx.effectiveAt).toLocaleDateString('zh-TW'))
+      :'USD/TWD：尚未設定參考匯率';
+    $('usageFxAdmin').classList.toggle('hidden',state.user?.role!=='admin');
+    if(state.user?.role==='admin'&&fx)$('usageFxRate').value=Number(fx.rate).toFixed(3);
     $('usageUnpriced').textContent=totals.unpriced.toLocaleString('zh-TW');
     $('usagePartial').textContent=totals.partial.toLocaleString('zh-TW');
     $('usageBreakdown').innerHTML=
@@ -529,6 +538,16 @@ async function renderUsageDashboard(){
   }catch{
     $('usageBreakdown').innerHTML='<p class="empty">用量資料讀取失敗。</p>';
   }
+}
+async function saveUsdTwdRate(){
+  if(state.user?.role!=='admin')return;
+  const rate=Number($('usageFxRate').value);
+  if(!Number.isFinite(rate)||rate<=0)return alert('請輸入有效的 USD/TWD 匯率。');
+  try{
+    await post('/api/teacher/llm-usage',{action:'setFxRate',rate,source:'Admin reference rate'});
+    await renderUsageDashboard();
+    alert('USD/TWD 參考匯率已更新；新 usage 將快照此匯率。');
+  }catch(error){alert('匯率更新失敗：'+(error.message||'請稍後再試。'));}
 }
 async function renderSelectedQuota(){
   const userId=$('usageUserSelect').value;
@@ -621,5 +640,5 @@ async function saveBuilder(e){e.preventDefault();const facts=[...$('builderFacts
   renderCases();
 }
 $('caseBuilder').classList.add('hidden');$('caseBuilderForm').reset();alert('病例已建立，可立即切回學生端選用。');}
-document.querySelectorAll('[data-demo-role]').forEach(button=>button.onclick=()=>demoLogin(button.dataset.demoRole));$('loginForm').onsubmit=login;$('registerForm').onsubmit=registerAccount;$('showRegisterBtn').onclick=()=>showRegister('student');$('showTeacherRegisterBtn').onclick=()=>showRegister('teacher');$('backToLoginBtn').onclick=()=>showLogin();$('bootstrapForm').onsubmit=bootstrap;$('assignStudentBtn').onclick=assignStudentToTeacher;$('logoutBtn').onclick=logout;$('changePasswordBtn').onclick=()=>$('passwordDialog').showModal();$('changePasswordForm').onsubmit=changeOwnPassword;$('cancelPasswordBtn').onclick=()=>$('passwordDialog').close();$('userForm').onsubmit=createManagedUser;$('quotaForm').onsubmit=saveUsageQuota;$('usageUserSelect').onchange=renderUsageDashboard;$('aiConnectionForm').onsubmit=createAiConnection;$('aiPreset').onchange=syncAiPresetFields;$('aiCaseSelect').onchange=renderAiSettings;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
+document.querySelectorAll('[data-demo-role]').forEach(button=>button.onclick=()=>demoLogin(button.dataset.demoRole));$('loginForm').onsubmit=login;$('registerForm').onsubmit=registerAccount;$('showRegisterBtn').onclick=()=>showRegister('student');$('showTeacherRegisterBtn').onclick=()=>showRegister('teacher');$('backToLoginBtn').onclick=()=>showLogin();$('bootstrapForm').onsubmit=bootstrap;$('assignStudentBtn').onclick=assignStudentToTeacher;$('logoutBtn').onclick=logout;$('changePasswordBtn').onclick=()=>$('passwordDialog').showModal();$('changePasswordForm').onsubmit=changeOwnPassword;$('cancelPasswordBtn').onclick=()=>$('passwordDialog').close();$('userForm').onsubmit=createManagedUser;$('quotaForm').onsubmit=saveUsageQuota;$('usageUserSelect').onchange=renderUsageDashboard;$('usageFxSaveBtn').onclick=saveUsdTwdRate;$('aiConnectionForm').onsubmit=createAiConnection;$('aiPreset').onchange=syncAiPresetFields;$('aiCaseSelect').onchange=renderAiSettings;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
 init();

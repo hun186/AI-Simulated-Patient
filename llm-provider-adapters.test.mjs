@@ -25,11 +25,12 @@ test('OpenAI preset uses Responses API and normalizes text and usage',async()=>{
         output_text:'patient answer',
         usage:{
           input_tokens:120,
-          input_tokens_details:{cached_tokens:30},
+          input_tokens_details:{cached_tokens:30,cache_write_tokens:10},
           output_tokens:20,
           output_tokens_details:{reasoning_tokens:5},
           total_tokens:140
-        }
+        },
+        service_tier:'default'
       },
       headers:{'x-request-id':'req_header'}
     });
@@ -50,14 +51,16 @@ test('OpenAI preset uses Responses API and normalizes text and usage',async()=>{
   assert.equal(calls[0].body.model,'gpt-test');
   assert.equal(calls[0].body.max_output_tokens,111);
   assert.equal(calls[0].body.safety_identifier,'opaque-user');
+  assert.equal(calls[0].body.service_tier,'default');
   assert.deepEqual(calls[0].body.input,[{role:'user',content:'hello'}]);
   assert.equal(result.text,'patient answer');
   assert.equal(result.provider,'openai');
   assert.equal(result.preset,'openai');
   assert.equal(result.model,'gpt-test');
   assert.deepEqual(result.usage,{
-    inputTokens:120,cachedInputTokens:30,outputTokens:20,reasoningTokens:5,totalTokens:140
+    inputTokens:120,cachedInputTokens:30,cacheWriteTokens:10,outputTokens:20,reasoningTokens:5,totalTokens:140
   });
+  assert.equal(result.serviceTier,'default');
   assert.equal(result.providerRequestId,'resp_123');
 });
 
