@@ -63,14 +63,15 @@ export default async function handler(req,res){
     try{
       const result=await runEvaluatorAgent({session,transcript:serverTranscript,route});
       await recordLlmUsage({
-        userId:user.id,sessionId,caseId:session.case_id,agentType:'evaluator',route,result
+        userId:user.id,sessionId,caseId:session.case_id,agentType:'evaluator',route,result,
+        occurredAt:new Date(started).toISOString()
       });
       await completeSession(sessionId,result.evaluation);
       return res.status(200).json(result.evaluation);
     }catch(error){
       await recordLlmUsage({
         userId:user.id,sessionId,caseId:session.case_id,agentType:'evaluator',route,error,
-        latencyMs:Date.now()-started
+        latencyMs:Date.now()-started,occurredAt:new Date(started).toISOString()
       });
       const mapped=providerFailure(res,error);
       if(mapped) return mapped;
