@@ -27,30 +27,32 @@ function inspect(dbPath){
   try{
     const tables=new Set(db.prepare("select name from sqlite_master where type='table'").all().map(row=>row.name));
     const columns=new Set(db.prepare("pragma table_info(interview_sessions)").all().map(row=>row.name));
+    const routeColumns=new Set(db.prepare("pragma table_info(llm_agent_routes)").all().map(row=>row.name));
     const user=db.prepare("select id,email from app_users where id='legacy-admin'").get()||null;
-    return {tables,columns,user};
+    return {tables,columns,routeColumns,user};
   }finally{
     db.close();
   }
 }
 
-test('fresh SQLite database advances to schema version 4 with LLM provider foundation',()=>{
+test('fresh SQLite database advances to schema version 5 with LLM provider foundation',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-migrate-fresh-'));
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const info=openThroughApplication(dbPath);
     const state=inspect(dbPath);
-    assert.equal(info.schemaVersion,4);
+    assert.equal(info.schemaVersion,5);
     for(const table of ['llm_provider_connections','llm_agent_routes','llm_usage_events']){
       assert.equal(state.tables.has(table),true,table+' missing');
     }
     assert.equal(state.columns.has('llm_route_snapshot'),true);
+    assert.equal(state.routeColumns.has('owner_user_id'),true);
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }
 });
 
-test('existing schema version 1 database migrates to version 4 without losing data',()=>{
+test('existing schema version 1 database migrates to version 5 without losing data',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-migrate-v1-'));
   const dbPath=join(dir,'aisp.sqlite');
   try{
@@ -65,12 +67,13 @@ test('existing schema version 1 database migrates to version 4 without losing da
 
     const info=openThroughApplication(dbPath);
     const state=inspect(dbPath);
-    assert.equal(info.schemaVersion,4);
+    assert.equal(info.schemaVersion,5);
     assert.deepEqual(state.user,{id:'legacy-admin',email:'legacy@example.com'});
     for(const table of ['llm_provider_connections','llm_agent_routes','llm_usage_events']){
       assert.equal(state.tables.has(table),true,table+' missing');
     }
     assert.equal(state.columns.has('llm_route_snapshot'),true);
+    assert.equal(state.routeColumns.has('owner_user_id'),true);
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }
@@ -81,9 +84,9 @@ test('migrated SQLite database can reopen without replaying migration 002',()=>{
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const first=openThroughApplication(dbPath);
-    assert.equal(first.schemaVersion,4);
+    assert.equal(first.schemaVersion,5);
     const second=openThroughApplication(dbPath);
-    assert.equal(second.schemaVersion,4);
+    assert.equal(second.schemaVersion,5);
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }
@@ -94,7 +97,7 @@ test('database whose user_version was reset to 1 is reconciled from applied migr
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const first=openThroughApplication(dbPath);
-    assert.equal(first.schemaVersion,4);
+    assert.equal(first.schemaVersion,5);
 
     const damaged=new Database(dbPath);
     damaged.pragma('user_version = 1');
@@ -102,10 +105,10 @@ test('database whose user_version was reset to 1 is reconciled from applied migr
     damaged.close();
 
     const recovered=openThroughApplication(dbPath);
-    assert.equal(recovered.schemaVersion,4);
+    assert.equal(recovered.schemaVersion,5);
     const check=new Database(dbPath,{readonly:true});
     try{
-      assert.equal(check.pragma('user_version',{simple:true}),4);
+      assert.equal(check.pragma('user_version',{simple:true}),5);
       assert.equal(
         check.prepare("select count(*) as count from sqlite_master where type='table' and name='llm_provider_connections'").get().count,
         1
