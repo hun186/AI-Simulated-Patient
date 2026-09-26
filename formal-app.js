@@ -236,6 +236,13 @@ function syncAiPresetFields(){
   const showBase=state.user?.role==='admin'&&['ollama','custom'].includes(preset);
   $('aiBaseUrlRow').classList.toggle('hidden',!showBase);
   $('aiApiKey').required=['openai','deepseek'].includes(preset);
+  const placeholders={
+    openai:'例如：gpt-5-mini',
+    deepseek:'例如：deepseek-flash 或 deepseek-v4-pro',
+    ollama:'例如：qwen3:latest',
+    custom:'Provider 的 model id'
+  };
+  $('aiDefaultModel').placeholder=placeholders[preset]||'模型名稱';
 }
 function manageableAiConnection(connection){
   return state.user?.role==='admin'||(connection.scopeType==='teacher'&&connection.ownerUserId===state.user?.id);
@@ -335,11 +342,24 @@ async function toggleAiConnection(connectionId){
   try{await post('/api/teacher/ai-settings',payload);await renderAiSettings();}
   catch(error){alert('AI Provider 狀態更新失敗：'+(error.message||'請檢查權限。'));}
 }
+const AI_TEST_ERROR_LABELS={
+  authentication_failed:'認證失敗，請檢查 API Key。',
+  invalid_request:'Provider 拒絕請求；請檢查模型名稱或請求參數。',
+  insufficient_balance:'API 帳戶餘額不足。',
+  model_not_found:'模型不存在或模型名稱已失效。',
+  rate_limited:'Provider 目前達到速率限制。',
+  endpoint_unreachable:'Provider 目前無法連線。',
+  timeout:'連線逾時。',
+  invalid_response:'Provider 回傳內容無法解析。'
+};
 async function testAiConnection(connectionId){
   try{
     const data=await post('/api/teacher/ai-settings',{action:'testConnection',connectionId});
     alert(data.result?.ok?'連線測試成功。':'連線測試失敗。');
-  }catch(error){alert('連線測試失敗：'+(error.details?.result?.errorCode||error.message));}
+  }catch(error){
+    const code=error.details?.result?.errorCode||error.message;
+    alert('連線測試失敗：'+(AI_TEST_ERROR_LABELS[code]||code));
+  }
 }
 async function deleteAiConnection(connectionId){
   if(!confirm('刪除此 AI Provider 連線？使用此連線的路由也會一併移除。'))return;

@@ -140,9 +140,12 @@ test('provider failures map to sanitized internal error codes',async()=>{
     messages:[{role:'user',content:'hi'}]
   };
   const cases=[
+    [400,'invalid_request'],
     [401,'authentication_failed'],
+    [402,'insufficient_balance'],
     [403,'authentication_failed'],
     [404,'model_not_found'],
+    [422,'invalid_request'],
     [429,'rate_limited'],
     [500,'endpoint_unreachable']
   ];
@@ -186,6 +189,28 @@ test('provider timeout is normalized without leaking internals',async()=>{
     ()=>generateLlm(request,{fetchImpl}),
     error=>error.code==='timeout' && !error.message.includes('sensitive')
   );
+});
+
+test('DeepSeek connection probe disables default thinking so a tiny probe reaches final content',async()=>{
+  const calls=[];
+  const {testLlmConnection}=await gateway();
+  const fetchImpl=async(url,options)=>{
+    calls.push({url,body:JSON.parse(options.body)});
+    return fakeResponse({json:{
+      id:'ds_probe',model:'deepseek-flash',
+      choices:[{message:{content:'OK'}}],
+      usage:{prompt_tokens:4,completion_tokens:1,total_tokens:5}
+    }});
+  };
+  const result=await testLlmConnection({
+    providerKind:'openai_compatible',preset:'deepseek',baseUrl:'https://api.deepseek.com',
+    apiKey:'ds-test',defaultModel:'deepseek-flash'
+  },{fetchImpl});
+  assert.equal(result.ok,true);
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].url,'https://api.deepseek.com/chat/completions');
+  assert.deepEqual(calls[0].body.thinking,{type:'disabled'});
+  assert.equal(calls[0].body.max_tokens,32);
 });
 
 test('testLlmConnection returns a sanitized success summary',async()=>{
