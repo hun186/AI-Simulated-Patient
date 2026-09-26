@@ -1,67 +1,51 @@
 # Development Workflows
 
-> 類型：Current state。保存可重現的安裝、執行與驗證方式。Codex 不得執行尚未查證的占位命令。
+> 類型：Current state。命令以 `package.json`、lockfile、README、程式與測試交叉查證；最後查證 2026-09-26。
 
 ## 環境前提
 
-| 項目 | 要求 | 查證來源 |
+| 項目 | 要求／現況 | 查證來源 |
 | --- | --- | --- |
-| 作業系統 | 待初始化 | 待初始化 |
-| Runtime 版本 | 待初始化 | 待初始化 |
-| 套件管理器 | 待初始化 | 待初始化 |
-| 必要本機服務 | 待初始化 | 待初始化 |
-| 必要環境變數 | 只列變數名稱與用途，不列值；待初始化 | 待初始化 |
+| Runtime | Node.js 22.x | `package.json` engines、`package-lock.json` |
+| Package manager | npm；lockfile v3 | `package-lock.json` |
+| 本機服務 | 預設 SQLite 不需資料庫服務；PostgreSQL 與真實 LLM 僅在選用時需要 | `lib/db.js`, README |
+| 平台 | Windows、Linux 有部署文件；Vercel 僅隔離 demo | `docs/*PRODUCTION.md`, `docs/VERCEL_DEMO.md` |
+
+## 環境變數（只列名稱）
+
+- Runtime／DB：`PORT`、`APP_ENV`、`NODE_ENV`、`DB_DRIVER`、`SQLITE_PATH`、`DATABASE_URL`、`VERCEL`、`VERCEL_ENV`。
+- Auth：`ADMIN_SETUP_KEY`、`AUTH_ALLOWED_ORIGINS`、`AUTH_SESSION_TTL_SECONDS`、`AUTH_THROTTLE_FAILURE_LIMIT`、`AUTH_THROTTLE_WINDOW_SECONDS`、`AUTH_THROTTLE_BLOCK_SECONDS`、`AUTH_REGISTER_EMAIL_LIMIT`、`AUTH_REGISTER_IP_LIMIT`。
+- LLM：`LLM_SECRET_MASTER_KEY`、`LLM_SECRET_KEY_PATH`、`LLM_PROVIDER`。Production DB mode 的 master key 與 first-admin bootstrap key 需由部署者安全配置；不得寫入 Git。
 
 ## Canonical Commands
 
-初始化時應從 manifest、CI、Makefile、task runner、官方 README 或實際測試取得命令。無法證實時保留「待確認」，不要憑生態慣例猜測。
+所有命令從 repository root 執行。
 
-| 用途 | 命令 | 工作目錄 | 狀態／最後查證 |
-| --- | --- | --- | --- |
-| 安裝／同步依賴 | 待確認，禁止執行 | repository root | Unverified |
-| 啟動開發環境 | 待確認，禁止執行 | repository root | Unverified |
-| Build | 待確認，禁止執行 | repository root | Unverified |
-| Format | 待確認，禁止執行 | repository root | Unverified |
-| Lint | 待確認，禁止執行 | repository root | Unverified |
-| Type check | 待確認，禁止執行 | repository root | Unverified |
-| 最小 smoke test | 待確認，禁止執行 | repository root | Unverified |
-| 完整 test suite | 待確認，禁止執行 | repository root | Unverified |
+| 用途 | 命令 | 狀態／副作用 |
+| --- | --- | --- |
+| 可重現安裝 | `npm ci` | lockfile 定義；會寫 `node_modules/`，bootstrap 未重跑 |
+| 開發啟動 | `npm run dev` | 建立／開啟 SQLite 與本機 LLM key，為長時間程序；bootstrap 未啟動 |
+| 完整測試／最小整體驗證 | `npm test` | `node --test`；使用 temp SQLite 與 injected provider fakes |
+| 指定測試 | `node --test <file>.test.mjs` | 最靠近變更範圍的驗證 |
+| 語法檢查 | `node --check <file.js-or-mjs>` | 適用修改過的 JS/MJS |
+| SQLite backup | `npm run db:backup` | 會在 `data/backups/` 寫檔；只適用 SQLite，非一般驗證 |
+| Build／lint／format／typecheck | 目前沒有 canonical command | `package.json` 未定義，不得猜測 |
 
 ## 驗證矩陣
 
-| 變更類型 | 最小必要檢查 | 需要擴大驗證的條件 |
+| 變更類型 | 最小必要檢查 | 擴大條件 |
 | --- | --- | --- |
-| 純文件 | 連結／格式／範例一致性；待初始化 | 文件含可執行命令或契約 |
-| 小型單模組邏輯 | 相關單元測試；待初始化 | 影響共用介面或資料流 |
-| API／CLI／schema／檔案格式 | 契約測試＋相容性檢查；待初始化 | 對外 consumer 不在此 repo |
-| 資料轉換／migration | fixture 驗證＋失敗／回復路徑；待初始化 | 可能改寫正式資料 |
-| UI | 靜態／component／E2E／視覺檢查；待初始化 | layout、互動或 browser 相容性改變 |
-| 部署／基礎設施 | config validation＋安全的 smoke test；待初始化 | 會觸及外部環境或不可逆資源 |
+| 純文件／Codex memory | `git diff --check`、連結／路徑／命令與來源交叉核對、敏感字串檢查 | 記載 executable contract 時跑相應 test；bootstrap 跑全套 |
+| Domain／mock | 對應 `mock.test.mjs` 或 LLM unit test | 共用評量、prompt 或 gateway 改變時跑 `npm test` |
+| API／auth／RBAC | 相應 integration test | 共用 auth、session、DB facade 改變時跑全套 |
+| Schema／migration | `sqlite-migrations.integration.test.mjs`、相關 phase schema test | PostgreSQL DDL 或既有資料升級改變時跑全套並人工 review DDL |
+| UI | 對應 `*-ui.contract.test.mjs`／`llm-settings-ui.contract.test.mjs` | 可感知 layout 改變時另做 browser screenshot |
+| Vercel | `vercel-demo.test.mjs`、`vercel-isolation.test.mjs` | allowlist、rewrite 或 handler 改變時跑全套 |
 
-## 測試資料與外部服務
+## 測試與資料安全
 
-- 最小 fixture：`待初始化`
-- 測試是否允許網路：`待確認`
-- 外部服務替代方式：`待確認；mock 必須明確揭露，不得冒充正式成功`
-- 測試產物位置與清理方式：`待初始化`
-
-## 常見失敗與替代驗證
-
-若是可重現且尚未解決的限制，詳細記在 `known_issues.md`；本節只保留驗證時該怎麼做。
-
-| 限制 | 首選驗證 | 安全替代 | 不足之處 |
-| --- | --- | --- | --- |
-| 目前未確認 | 待初始化 | 待初始化 | 待初始化 |
-
-## 完成前檢查
-
-- 使用的是此 repo 已確認的 runtime 與 package manager。
-- 先跑最相關檢查，再依風險擴大；不為小改動無條件重裝全部依賴。
-- 不把資料庫、雲端、寄信、發布、刪除或 migration 當成無副作用測試。
-- 所有未執行或失敗的檢查都在最終回報中明確區分。
-
-## 維護規則
-
-- 命令變更時原地更新表格，附上可查證來源與最後驗證時間。
-- 臨時 debug 命令、完整 log 與一次性 workaround 不留在本檔。
-- 真正成為長期限制的問題移到 `known_issues.md`；有長期取捨的流程改變移到 `decisions.md`。
+- 測試 runner 是 Node built-in test runner；測試檔位於 root，無另外的 test config。
+- SQLite integration tests 使用 `mkdtemp` 的獨立 DB 並清理；不要將測試指向 production `SQLITE_PATH`。
+- Provider adapter tests 使用 injected `fetchImpl`；完整 `npm test` 不應需要網路或真實 API key。
+- `npm run dev` 與 backup 會修改 `data/`，不是無副作用驗證；Vercel deployment、正式 migration 與真實 provider test 也不可當一般本機測試。
+- CI 現況：checkout 沒有 `.github/workflows/`；不可把歷史 progress 的 hosted pass 當作目前 commit 自動驗證。

@@ -1,48 +1,24 @@
 # Known Issues
 
-> 類型：Verified open problems。只保存已證實、尚未解決，而且可能影響後續開發或使用的問題。
+> 類型：Verified open problems。只保存已重現、未解決且可能再次影響工作的問題。
 
 ## Open Issues
 
-| ID | 嚴重度 | 問題 | 影響範圍 | Workaround | 證據 | 狀態 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 目前無已確認問題 | — | — | — | — | — | — |
+目前沒有由本次 bootstrap 或 repository current-state 證實的產品／驗證問題。
 
-## Issue Details
+下列是限制或待確認事項，不是已重現 defect：
 
-新增重要問題時使用穩定 ID，例如 `KI-001`，並包含：
-
-- 首次確認日期與環境。
-- 最小重現方式或證據位置。
-- 預期與實際行為。
-- 影響、嚴重度與受影響範圍。
-- 已知 workaround 及其不足。
-- 修復條件、追蹤連結或相關 backlog ID。
-- 狀態：`Open | Mitigated | Blocked | Resolved`。
+- SQLite 的單 host／concurrent-write 邊界是已接受架構限制；需要多 host 時使用 PostgreSQL/Neon，見 `ADR-0001`。
+- Vercel browser demo 不提供 production persistence/auth/LLM 是刻意隔離，見 `ADR-0002`。
+- Checkout 目前沒有 `.github/workflows/`；是否另有 hosted CI 設定待 maintainer 確認，不能據此宣稱 CI 故障。
+- Project 未定義 build、lint、format 或 typecheck script；這是 workflow 現況，不自行建立 issue。
 
 ## Recently Resolved
 
-| ID | 解決摘要 | 驗證 | 日期 | 相關變更／決策 |
-| --- | --- | --- | --- | --- |
-| 目前無已確認項目 | — | — | — | — |
+目前沒有需要從 bootstrap 搬入的近期項目；過往 phase 修正由 Git 與 `docs/superpowers/progress/` 追溯。
 
-## 記錄準則
+## 收錄規則
 
-適合記錄：
-
-- 可重現的產品 bug、資料限制或相容性缺陷。
-- 持續影響驗證的環境／工具限制。
-- 第三方服務已確認且會再次影響工作的限制。
-
-不適合記錄：
-
-- 單次網路抖動、打錯命令、尚未重現的猜測。
-- 已立即修好且不影響未來工作的瑣碎問題。
-- 沒有證據的風險清單；風險若形成設計取捨應放 `decisions.md`。
-- 只屬於願望或改善方向的項目；已接受後放 `backlog.md`。
-
-## 維護規則
-
-- 解決後保留近期摘要與驗證，不讓同一問題被重複診斷。
-- Recently Resolved 超過約 20 筆時，將較舊條目移到 `.codex/archive/known-issues-YYYY.md` 並更新索引。
-- Workaround 不得掩蓋真實失敗或降低安全邊界而未說明風險。
+- 新增項目需包含穩定 ID（`KI-001` 起）、日期／環境、最小重現、預期與實際、影響、workaround、修復條件及狀態。
+- 不收錄未重現風險、一次性環境失敗、願望清單、已接受設計限制或已立即修好的瑣碎問題。
+- 解決後移至 Recently Resolved 並保留實際驗證；累積過多再移至 `.codex/archive/`。

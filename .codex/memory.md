@@ -1,54 +1,34 @@
 # Project Memory
 
-> 類型：Recent durable context。不是聊天紀錄或完整 changelog；只保存能讓後續任務少走彎路的近期成果。
+> 類型：Recent durable context。只保留後續任務會用到的近期成果，不取代 current-state 專門文件。
 
 ## Current Focus
 
-- 初始化狀態：`UNINITIALIZED`
-- 目前工作焦點：`待初始化`
-- 最近確認可工作的路徑：`待初始化`
-- 需要延續的相容性／限制：`待初始化`
-
-Current Focus 最多保留 5～8 個短項目。專案長期身份放 `project.md`，完整架構放 `architecture.md`，不得在此重複整份內容。
+- 初始化狀態：`INITIALIZED`；2026-09-26 依 commit `f04bc8c` 的實際程式、測試、manifest/lockfile、schema/migrations、README 與 docs 完成 bootstrap。
+- 目前產品基線：SQLite-first 的 AI 模擬病人教育原型；production auth/RBAC、native LLM providers、usage pricing/quota 已存在。
+- Vercel 必須維持 deterministic browser demo 隔離，不可把 production DB/auth/LLM code 或 credentials 納入 bundle。
+- 修改 session/LLM 時維持 case/route snapshot、server-side ownership/RBAC、production no-mock-fallback 與 evaluator-before-completion 不變量。
+- Canonical 整體驗證是 `npm test`；沒有已定義的 build/lint/format/typecheck script。
 
 ## Recent Outcomes
 
-目前尚無已記錄成果。初始化完成後，用 `.codex/templates/memory-entry.template.md` 的格式新增；最多保留最近 10 筆有持久參考價值的項目。
+### 2026-09-26 — Codex project bootstrap
+
+- 結果：將根 `AGENTS.md` Quickstart 與 `.codex/*.md` 從 template placeholders 初始化為 repository current state；沒有修改產品程式碼、測試、schema、dependency、config 或 README。
+- README gate：`ADEQUATE`；其用途、SQLite/browser/PostgreSQL/Vercel 邊界、auth、訪談模式、LLM、啟動／測試／backup 命令均能由 current code/config/tests 證實，因此保留原文。
+- 主要資料流：browser UI → local/Vercel HTTP handlers → auth/session/domain/LLM services → SQLite(default) 或 PostgreSQL；Vercel demo 另走 `api/demo.js` + deterministic mocks + browser localStorage。
+- 驗證：`npm test` 通過 53/53；另以 `git diff --check`、scope 與敏感資訊檢查確認文件變更。不要把舊 phase progress 的 hosted SHA 當作目前 head。
 
 ## Open Handoffs
 
-只列已開始但尚未完成、或下一個任務必須知道的交接。單純構想放 `backlog.md`，未證實問題放「待確認」而非假裝已知。
-
-- 目前無已確認項目。
+- 人工確認：repository maintainer／support policy 與目前 hosted main 的 CI 定義未由 checkout 證實。
+- 沒有已開始未完成的產品實作；Phase 1/2 plan checklist 需以 progress、程式與 tests 判讀，不應重新當 backlog 執行。
 
 ## Archive Index
 
-- 詳細索引見 `.codex/archive/README.md`。
-- 一般任務不讀 archive，除非 Current Focus／Recent Outcomes 明確引用或使用者要求追溯。
+- 詳細索引見 `.codex/archive/README.md`；一般任務不讀 archive，除非 current 文件或使用者要求追溯。
 
-## 記錄準則
+## 維護準則
 
-值得記錄：
-
-- 任務的可觀察結果與重要範圍。
-- 實際通過的驗證，或具體未驗證原因。
-- 後續修改會用到的相容性、不變條件或教訓。
-- 尚未完成但已存在的交接。
-
-不要記錄：
-
-- 完整命令輸出、聊天逐字稿與每一步操作。
-- 可直接從 Git diff 得知的瑣碎檔名清單。
-- 已失效的猜測、一次性 typo、無後續價值的失敗命令。
-- 尚未接受的改善靈感。
-- 秘密、個資、真實連線資料或敏感 payload。
-
-## 濃縮規則
-
-符合任一條件時濃縮：超過 10 筆 Recent Outcomes、約 200 行、24 KB，或內容出現明顯重複／失效。
-
-1. 更新 Current Focus 為目前仍有效的摘要。
-2. 近期 5～10 筆留在 active memory。
-3. 將仍有追溯價值的較舊條目移到 `.codex/archive/memory-YYYY-MM.md`；不要複製整份 active memory。
-4. 更新 `.codex/archive/README.md`。
-5. 可由 Git 歷史充分回答且沒有持久價值的細節直接移除。
+- 最多保留 10 筆有持久參考價值的 outcomes；專案身份、架構、契約、決策、issue、backlog 分流至對應文件。
+- 不記錄完整命令輸出、聊天逐字稿、秘密／個資、一次性失敗或可直接由 diff 得知的瑣碎清單。
