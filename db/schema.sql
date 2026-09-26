@@ -157,6 +157,7 @@ create table if not exists llm_agent_routes (
   id uuid primary key,
   scope_type text not null check (scope_type in ('system','case')),
   scope_id text,
+  owner_user_id uuid references app_users(id) on delete cascade,
   agent_type text not null check (agent_type in ('patient','coach','evaluator')),
   connection_id uuid not null references llm_provider_connections(id) on delete cascade,
   model text not null,
@@ -170,9 +171,27 @@ create table if not exists llm_agent_routes (
     (scope_type='case' and scope_id is not null)
   )
 );
-create unique index if not exists llm_agent_routes_scope_agent_uidx
-  on llm_agent_routes(scope_type,coalesce(scope_id,''),agent_type);
+alter table llm_agent_routes add column if not exists owner_user_id uuid references app_users(id) on delete cascade;
+
+update llm_agent_routes r
+set owner_user_id=r.created_by
+from llm_provider_connections c
+where r.scope_type='case'
+  and r.created_by is not null
+  and c.id=r.connection_id
+  and c.scope_type='teacher'
+  and c.owner_user_id=r.created_by
+  and r.owner_user_id is null;
+
+drop index if exists llm_agent_routes_scope_agent_uidx;
+create unique index if not exists llm_agent_routes_global_scope_agent_uidx
+  on llm_agent_routes(scope_type,coalesce(scope_id,''),agent_type)
+  where owner_user_id is null;
+create unique index if not exists llm_agent_routes_owner_scope_agent_uidx
+  on llm_agent_routes(scope_type,scope_id,owner_user_id,agent_type)
+  where owner_user_id is not null;
 create index if not exists llm_agent_routes_connection_idx on llm_agent_routes(connection_id);
+create index if not exists llm_agent_routes_owner_idx on llm_agent_routes(owner_user_id,updated_at desc);
 
 alter table interview_sessions add column if not exists llm_route_snapshot jsonb not null default '{}'::jsonb;
 

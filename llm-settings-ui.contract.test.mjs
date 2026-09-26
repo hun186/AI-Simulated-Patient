@@ -42,9 +42,11 @@ test('Patient Coach and Evaluator have separate configurable route selectors',()
   assert.match(app,/payload\.action='setCaseRoute';payload\.caseId=\$\('aiCaseSelect'\)\.value/);
 });
 
-test('Teacher AI route picker includes only cases owned by the signed-in Teacher',()=>{
+test('Teacher AI route picker includes built-in cases plus cases owned by the signed-in Teacher',()=>{
   const app=readFileSync('formal-app.js','utf8');
   const cases=readFileSync('lib/server-cases.js','utf8');
   assert.match(cases,/createdBy:row\.created_by\|\|null/);
-  assert.match(app,/filter\(c=>c\.createdBy===state\.user\?\.id\)/);
+  assert.match(app,/filter\(c=>!c\.createdBy\|\|c\.createdBy===state\.user\?\.id\)/);
+  assert.match(app,/系統內建/);
+  assert.match(app,/r\.ownerUserId===state\.user\?\.id/);
 });

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join,resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-test('LLM route precedence and session snapshots are scoped and immutable',()=>{
+test('LLM routes support teacher-owned built-in overrides without cross-teacher collisions',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-llm-routes-'));
   const dbPath=join(dir,'aisp.sqlite');
   const keyPath=join(dir,'llm-secret.key');
@@ -19,7 +19,7 @@ test('LLM route precedence and session snapshots are scoped and immutable',()=>{
     const {createUser}=await import('./lib/server-auth.js');
     const {createConnection}=await import('./lib/llm/connections.js');
     const {
-      setSystemRoute,setCaseRoute,deleteRoute,resolveAgentRoutes,snapshotAgentRoutes
+      setSystemRoute,setCaseRoute,deleteRoute,resolveAgentRoutes,listVisibleRoutes
     }=await import('./lib/llm/routes.js');
     const {ensureBuiltinCase}=await import('./lib/server-cases.js');
     const {createInterviewSession,getOwnedSession}=await import('./lib/server-sessions.js');
@@ -47,60 +47,75 @@ test('LLM route precedence and session snapshots are scoped and immutable',()=>{
       name:'System A',preset:'openai',defaultModel:'gpt-a',apiKey:'sk-system-a-1111'
     });
     const sysB=await createConnection(admin,{
-      name:'System B',preset:'deepseek',defaultModel:'deepseek-b',apiKey:'ds-system-b-2222'
+      name:'System B',preset:'deepseek',defaultModel:'deepseek-flash',apiKey:'ds-system-b-2222'
     });
     const t1Conn=await createConnection(t1,{
       name:'Teacher 1',preset:'openai',defaultModel:'gpt-teacher',apiKey:'sk-teacher-3333'
     });
     const t2Conn=await createConnection(t2,{
-      name:'Teacher 2',preset:'deepseek',defaultModel:'deepseek-teacher2',apiKey:'ds-t2-4444'
+      name:'Teacher 2',preset:'deepseek',defaultModel:'deepseek-flash',apiKey:'ds-t2-4444'
     });
 
     const systemRoute=await setSystemRoute(admin,{
       agentType:'patient',connectionId:sysA.id,model:'gpt-a',config:{temperature:0.4}
     });
-    const inherited=await resolveAgentRoutes({caseId:'aphasia_001'});
-
-    const caseRoute=await setCaseRoute(admin,{
-      caseId:'aphasia_001',agentType:'patient',connectionId:sysB.id,model:'deepseek-b',config:{temperature:0.2}
+    const globalCaseRoute=await setCaseRoute(admin,{
+      caseId:'aphasia_001',agentType:'patient',connectionId:sysB.id,model:'deepseek-flash',config:{temperature:0.2}
     });
-    const overridden=await resolveAgentRoutes({caseId:'aphasia_001'});
 
+    const teacherBuiltinT1=await setCaseRoute(t1,{
+      caseId:'aphasia_001',agentType:'patient',connectionId:t1Conn.id,model:'gpt-teacher',config:{temperature:0.5}
+    });
+    const teacherBuiltinT2=await setCaseRoute(t2,{
+      caseId:'aphasia_001',agentType:'patient',connectionId:t2Conn.id,model:'deepseek-flash',config:{temperature:0.3}
+    });
     const teacherOwnRoute=await setCaseRoute(t1,{
-      caseId:'t1_case',agentType:'patient',connectionId:t1Conn.id,model:'gpt-teacher',config:{temperature:0.5}
+      caseId:'t1_case',agentType:'coach',connectionId:t1Conn.id,model:'gpt-teacher'
     });
+
+    const globalResolved=await resolveAgentRoutes({caseId:'aphasia_001'});
+    const t1Resolved=await resolveAgentRoutes({caseId:'aphasia_001',routeOwnerUserId:t1.id});
+    const t2Resolved=await resolveAgentRoutes({caseId:'aphasia_001',routeOwnerUserId:t2.id});
 
     let teacherSystemError='';
     try{await setSystemRoute(t1,{agentType:'coach',connectionId:t1Conn.id,model:'gpt-teacher'});}
     catch(error){teacherSystemError=error.code||error.message;}
-
-    let teacherBuiltinError='';
-    try{await setCaseRoute(t1,{caseId:'aphasia_001',agentType:'coach',connectionId:t1Conn.id,model:'gpt-teacher'});}
-    catch(error){teacherBuiltinError=error.code||error.message;}
 
     let teacherOtherCaseError='';
     try{await setCaseRoute(t1,{caseId:'t2_case',agentType:'coach',connectionId:t1Conn.id,model:'gpt-teacher'});}
     catch(error){teacherOtherCaseError=error.code||error.message;}
 
     let teacherOtherConnectionError='';
-    try{await setCaseRoute(t1,{caseId:'t1_case',agentType:'coach',connectionId:t2Conn.id,model:'deepseek-teacher2'});}
+    try{await setCaseRoute(t1,{caseId:'aphasia_001',agentType:'coach',connectionId:t2Conn.id,model:'deepseek-flash'});}
     catch(error){teacherOtherConnectionError=error.code||error.message;}
 
-    const session=await createInterviewSession({
+    const teacherSession=await createInterviewSession({
+      user:t1,caseId:'aphasia_001',mode:'training',coachEnabled:false
+    });
+    const teacherStored=await getOwnedSession(teacherSession.id,t1);
+    const teacherSnapshot=typeof teacherStored.llm_route_snapshot==='string'
+      ?JSON.parse(teacherStored.llm_route_snapshot):teacherStored.llm_route_snapshot;
+
+    const studentSession=await createInterviewSession({
       user:student,caseId:'aphasia_001',mode:'training',coachEnabled:false
     });
-    const storedBefore=await getOwnedSession(session.id,student);
-    const snapshotBefore=typeof storedBefore.llm_route_snapshot==='string'
-      ?JSON.parse(storedBefore.llm_route_snapshot):storedBefore.llm_route_snapshot;
+    const studentStored=await getOwnedSession(studentSession.id,student);
+    const studentSnapshot=typeof studentStored.llm_route_snapshot==='string'
+      ?JSON.parse(studentStored.llm_route_snapshot):studentStored.llm_route_snapshot;
 
-    await deleteRoute(admin,caseRoute.id);
+    const teacherVisible=await listVisibleRoutes(t1);
+
+    await deleteRoute(t1,teacherBuiltinT1.id);
+    const t1AfterDelete=await resolveAgentRoutes({caseId:'aphasia_001',routeOwnerUserId:t1.id});
+
+    await deleteRoute(admin,globalCaseRoute.id);
     await setSystemRoute(admin,{
       agentType:'patient',connectionId:sysA.id,model:'gpt-a-new-default',config:{temperature:0.9}
     });
-    const resolvedAfterChange=await resolveAgentRoutes({caseId:'aphasia_001'});
-    const storedAfter=await getOwnedSession(session.id,student);
-    const snapshotAfter=typeof storedAfter.llm_route_snapshot==='string'
-      ?JSON.parse(storedAfter.llm_route_snapshot):storedAfter.llm_route_snapshot;
+    const globalAfterChange=await resolveAgentRoutes({caseId:'aphasia_001'});
+    const teacherStoredAfter=await getOwnedSession(teacherSession.id,t1);
+    const teacherSnapshotAfter=typeof teacherStoredAfter.llm_route_snapshot==='string'
+      ?JSON.parse(teacherStoredAfter.llm_route_snapshot):teacherStoredAfter.llm_route_snapshot;
 
     await deleteRoute(admin,systemRoute.id);
     process.env.APP_ENV='production';
@@ -112,10 +127,11 @@ test('LLM route precedence and session snapshots are scoped and immutable',()=>{
     }catch(error){missingProviderError=error.code||error.message;}
 
     console.log(JSON.stringify({
-      systemRoute,inherited,caseRoute,overridden,teacherOwnRoute,
-      teacherSystemError,teacherBuiltinError,teacherOtherCaseError,teacherOtherConnectionError,
-      snapshotBefore,snapshotAfter,resolvedAfterChange,missingProviderError,
-      snapshotContainsSecret:/apiKey|encrypted|ciphertext|secret/i.test(JSON.stringify(snapshotBefore))
+      systemRoute,globalCaseRoute,teacherBuiltinT1,teacherBuiltinT2,teacherOwnRoute,
+      globalResolved,t1Resolved,t2Resolved,t1AfterDelete,globalAfterChange,
+      teacherSystemError,teacherOtherCaseError,teacherOtherConnectionError,
+      teacherSnapshot,studentSnapshot,teacherSnapshotAfter,teacherVisible,missingProviderError,
+      snapshotContainsSecret:/apiKey|encrypted|ciphertext|secret/i.test(JSON.stringify(teacherSnapshot))
     }));
   `;
 
@@ -130,39 +146,35 @@ test('LLM route precedence and session snapshots are scoped and immutable',()=>{
     assert.equal(result.status,0,result.stderr);
     const data=JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1));
 
-    assert.equal(data.inherited.patient.connectionId,data.systemRoute.connectionId);
-    assert.equal(data.inherited.patient.model,'gpt-a');
-    assert.equal(data.overridden.patient.connectionId,data.caseRoute.connectionId);
-    assert.equal(data.overridden.patient.model,'deepseek-b');
+    assert.equal(data.globalResolved.patient.connectionId,data.globalCaseRoute.connectionId);
+    assert.equal(data.t1Resolved.patient.connectionId,data.teacherBuiltinT1.connectionId);
+    assert.equal(data.t2Resolved.patient.connectionId,data.teacherBuiltinT2.connectionId);
+    assert.equal(data.teacherBuiltinT1.ownerUserId,data.teacherBuiltinT1.createdBy);
+    assert.equal(data.teacherBuiltinT2.ownerUserId,data.teacherBuiltinT2.createdBy);
+    assert.notEqual(data.teacherBuiltinT1.ownerUserId,data.teacherBuiltinT2.ownerUserId);
 
     assert.equal(data.teacherOwnRoute.scopeType,'case');
     assert.equal(data.teacherOwnRoute.scopeId,'t1_case');
     assert.equal(data.teacherSystemError,'FORBIDDEN');
-    assert.equal(data.teacherBuiltinError,'FORBIDDEN_CASE');
     assert.equal(data.teacherOtherCaseError,'FORBIDDEN_CASE');
     assert.equal(data.teacherOtherConnectionError,'FORBIDDEN_CONNECTION');
 
-    assert.equal(data.snapshotBefore.patient.connectionId,data.caseRoute.connectionId);
-    assert.equal(data.snapshotBefore.patient.model,'deepseek-b');
+    assert.equal(data.teacherSnapshot.patient.connectionId,data.teacherBuiltinT1.connectionId);
+    assert.equal(data.studentSnapshot.patient.connectionId,data.globalCaseRoute.connectionId);
     assert.equal(data.snapshotContainsSecret,false);
 
-    assert.deepEqual(data.snapshotAfter,data.snapshotBefore);
-    assert.equal(data.resolvedAfterChange.patient.connectionId,data.systemRoute.connectionId);
-    assert.equal(data.resolvedAfterChange.patient.model,'gpt-a-new-default');
+    assert.equal(data.t1AfterDelete.patient.connectionId,data.globalCaseRoute.connectionId);
+    assert.deepEqual(data.teacherSnapshotAfter,data.teacherSnapshot);
+    assert.equal(data.globalAfterChange.patient.connectionId,data.systemRoute.connectionId);
+    assert.equal(data.globalAfterChange.patient.model,'gpt-a-new-default');
+
+    const visibleIds=new Set(data.teacherVisible.map(route=>route.id));
+    assert.equal(visibleIds.has(data.teacherBuiltinT1.id),true);
+    assert.equal(visibleIds.has(data.teacherBuiltinT2.id),false);
+    assert.equal(visibleIds.has(data.systemRoute.id),true);
 
     assert.equal(data.missingProviderError,'AI_PROVIDER_NOT_CONFIGURED');
-
-    const serialized=JSON.stringify(snapshotAgentShape(data.snapshotBefore));
-    assert.equal(/apiKey|encrypted|ciphertext|secret/i.test(serialized),false);
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }
 });
-
-function snapshotAgentShape(snapshot){
-  return {
-    patient:snapshot.patient,
-    coach:snapshot.coach,
-    evaluator:snapshot.evaluator
-  };
-}

@@ -22,14 +22,14 @@ function openThroughApplication(dbPath){
   });
 }
 
-test('fresh SQLite database advances to schema version 4 with pricing and quota tables',()=>{
+test('fresh SQLite database advances to schema version 5 with pricing and quota tables',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-phase2-schema-'));
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const result=openThroughApplication(dbPath);
     assert.equal(result.status,0,result.stderr);
     const data=JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1));
-    assert.equal(data.info.schemaVersion,4);
+    assert.equal(data.info.schemaVersion,5);
     assert.equal(data.quota.daily_token_limit,0);
     assert.equal(data.quota.monthly_token_limit,null);
     assert.equal(data.quota.monthly_cost_limit_microusd,2500000);
