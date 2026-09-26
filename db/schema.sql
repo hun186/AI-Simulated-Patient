@@ -242,3 +242,21 @@ create table if not exists llm_user_quotas (
 alter table llm_usage_events add column if not exists estimated_cost_microusd bigint;
 alter table llm_usage_events add column if not exists pricing_status text not null default 'unpriced';
 alter table llm_usage_events add column if not exists pricing_rule_id uuid references llm_pricing_rules(id) on delete set null;
+
+do $
+begin
+  if not exists (
+    select 1 from pg_constraint where conname='llm_usage_events_estimated_cost_nonnegative'
+  ) then
+    alter table llm_usage_events
+      add constraint llm_usage_events_estimated_cost_nonnegative
+      check (estimated_cost_microusd is null or estimated_cost_microusd >= 0);
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname='llm_usage_events_pricing_status_check'
+  ) then
+    alter table llm_usage_events
+      add constraint llm_usage_events_pricing_status_check
+      check (pricing_status in ('priced','unpriced','partial'));
+  end if;
+end $;

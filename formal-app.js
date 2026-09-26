@@ -480,12 +480,14 @@ async function renderUsageDashboard(){
       calls:a.calls+Number(row.calls||0),
       tokens:a.tokens+Number(row.tokens||0),
       cost:a.cost+Number(row.estimatedCostMicrousd||0),
-      unpriced:a.unpriced+Number(row.unpricedCalls||0)
-    }),{calls:0,tokens:0,cost:0,unpriced:0});
+      unpriced:a.unpriced+Number(row.unpricedCalls||0),
+      partial:a.partial+Number(row.partialPricingCalls||0)
+    }),{calls:0,tokens:0,cost:0,unpriced:0,partial:0});
     $('usageCalls').textContent=totals.calls.toLocaleString('zh-TW');
     $('usageTokens').textContent=totals.tokens.toLocaleString('zh-TW');
     $('usageCost').textContent=microusdToUsd(totals.cost);
     $('usageUnpriced').textContent=totals.unpriced.toLocaleString('zh-TW');
+    $('usagePartial').textContent=totals.partial.toLocaleString('zh-TW');
     $('usageBreakdown').innerHTML=
       usageRows('日期',data.byDate,'date')+
       usageRows('Provider',data.byProvider,'preset')+

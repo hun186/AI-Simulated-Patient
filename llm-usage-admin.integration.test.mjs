@@ -57,6 +57,7 @@ test('usage/quota API enforces Admin and Teacher scope',()=>{
     await handler(request('POST',{action:'createPricingRule',preset:'openai',modelPattern:'gpt-test',inputMicrousdPerMillion:1000000,outputMicrousdPerMillion:2000000,effectiveAt:'2026-01-01T00:00:00Z'},adminAuth),adminPricing);
 
     await query("insert into llm_usage_events (user_id,agent_type,provider_kind,preset,model,input_tokens,output_tokens,total_tokens,latency_ms,success,usage_status,estimated_cost_microusd,pricing_status,created_at) values ($1,'patient','openai','openai','gpt-test',10,5,15,2,true,'reported',20,'priced',$2)",[assigned.id,'2026-09-26T04:00:00.000Z']);
+    await query("insert into llm_usage_events (user_id,agent_type,provider_kind,preset,model,input_tokens,output_tokens,total_tokens,latency_ms,success,usage_status,estimated_cost_microusd,pricing_status,created_at) values ($1,'coach','openai','openai','gpt-test',4,2,6,2,true,'reported',5,'partial',$2)",[assigned.id,'2026-09-26T05:00:00.000Z']);
     const teacherSummary=response();
     await handler(request('GET',null,teacherAuth,{action:'summary',userId:assigned.id,from:'2026-09-26T00:00:00.000Z',to:'2026-09-27T00:00:00.000Z'}),teacherSummary);
 
@@ -89,9 +90,10 @@ test('usage/quota API enforces Admin and Teacher scope',()=>{
     assert.equal(data.adminPricing.status,201);
     assert.equal(data.adminPricing.rule.modelPattern,'gpt-test');
     assert.equal(data.teacherSummary.status,200);
-    assert.equal(Number(data.teacherSummary.body.totals[0].tokens),15);
-    assert.equal(Number(data.teacherSummary.body.totals[0].estimatedCostMicrousd),20);
+    assert.equal(Number(data.teacherSummary.body.totals[0].tokens),21);
+    assert.equal(Number(data.teacherSummary.body.totals[0].estimatedCostMicrousd),25);
+    assert.equal(Number(data.teacherSummary.body.totals[0].partialPricingCalls),1);
     assert.equal(data.teacherSummary.body.byDate[0].date,'2026-09-26');
-    assert.equal(Number(data.teacherSummary.body.byDate[0].tokens),15);
+    assert.equal(Number(data.teacherSummary.body.byDate[0].tokens),21);
   }finally{rmSync(dir,{recursive:true,force:true});}
 });

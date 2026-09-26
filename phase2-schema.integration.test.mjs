@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
-import { mkdtempSync,rmSync } from 'node:fs';
+import { mkdtempSync,rmSync,readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join,resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -42,4 +42,12 @@ test('fresh SQLite database advances to schema version 4 with pricing and quota 
     for(const name of ['estimated_cost_microusd','pricing_status','pricing_rule_id'])assert.equal(usageCols.has(name),true,name);
     db.close();
   }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('PostgreSQL schema preserves Phase 2 usage cost/status constraints',()=>{
+  const schema=readFileSync('db/schema.sql','utf8');
+  assert.match(schema,/llm_usage_events_estimated_cost_nonnegative/);
+  assert.match(schema,/check \(estimated_cost_microusd is null or estimated_cost_microusd >= 0\)/);
+  assert.match(schema,/llm_usage_events_pricing_status_check/);
+  assert.match(schema,/check \(pricing_status in \('priced','unpriced','partial'\)\)/);
 });
