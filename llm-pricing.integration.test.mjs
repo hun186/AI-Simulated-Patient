@@ -280,9 +280,11 @@ test('usage snapshots USD and TWD costs with the effective FX reference rate',()
     const result=run(script,dbPath);
     assert.equal(result.status,0,result.stderr);
     const row=JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1))[0];
-    assert.equal(row.estimated_cost_microusd,2690000);
+    // 1M input crosses the 272K threshold, so gpt-6-sol uses long-context pricing:
+    // 700k ordinary input * $4 + 200k cached * $0.4 + 100k cache writes * $5 + 100k output * $15 = $4.88.
+    assert.equal(row.estimated_cost_microusd,4880000);
     assert.equal(row.fx_rate_microunits_per_usd,31780000);
-    assert.equal(row.estimated_cost_microntd,85488200);
+    assert.equal(row.estimated_cost_microntd,155086400);
     assert.equal(row.fx_rate_id,'builtin-cbc-usd-twd-20260924');
     assert.equal(row.service_tier,'default');
     assert.equal(row.cache_write_tokens,100000);
