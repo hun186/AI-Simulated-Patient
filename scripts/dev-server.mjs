@@ -19,6 +19,7 @@ import changePasswordHandler from '../api/auth/change-password.js';
 import authAuditHandler from '../api/auth/audit.js';
 import { applySecurityHeaders,isProductionEnv } from '../lib/request-security.js';
 import { databaseDriver,databaseInfo } from '../lib/db.js';
+import { loadLlmMasterKey,llmLocalKeyPath } from '../lib/llm/secret-store.js';
 import teacherCasesHandler from '../api/teacher/cases.js';
 import teacherUsersHandler from '../api/teacher/users.js';
 import teacherRecordsHandler from '../api/teacher/records.js';
@@ -38,6 +39,13 @@ if(driver==='sqlite'){
   console.log('[db] PostgreSQL mode');
 }else{
   console.log('[db] Browser/localStorage demo mode');
+}
+if(driver==='sqlite' && !isProductionEnv() && !process.env.LLM_SECRET_MASTER_KEY){
+  loadLlmMasterKey();
+  console.log('[security] Local LLM credential master key: '+llmLocalKeyPath());
+}
+if(isProductionEnv() && driver!=='browser' && !process.env.LLM_SECRET_MASTER_KEY){
+  console.warn('[security] LLM_SECRET_MASTER_KEY is not set. Production LLM credentials cannot be decrypted until it is configured.');
 }
 if(isProductionEnv() && driver!=='browser' && !process.env.ADMIN_SETUP_KEY){
   console.warn('[security] ADMIN_SETUP_KEY is not set. First-admin bootstrap will be unavailable until it is configured.');
