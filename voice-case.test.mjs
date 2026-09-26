@@ -6,6 +6,7 @@ import {
 } from './lib/cases.js';
 import { buildPatientPrompt } from './lib/llm/prompts.js';
 import { mockPatientReply } from './lib/mock-patient.js';
+import { mockEvaluate } from './lib/mock-evaluator.js';
 import demoHandler from './api/demo.js';
 
 const voiceCase=getCase('voice_nodule_001');
@@ -19,6 +20,10 @@ test('voice nodule case is a valid built-in public demo case',()=>{
     ['aphasia_001','voice_nodule_001']
   );
   assert.match(voiceCase.studentBrief,/嗓音評估與衛教/);
+  assert.match(voiceCase.facts.find((fact)=>fact.id==='residence').value,/台北市中山區/);
+  assert.match(voiceCase.facts.find((fact)=>fact.id==='family_status').value,/未婚/);
+  assert.match(voiceCase.facts.find((fact)=>fact.id==='teaching_tenure').value,/2年/);
+  assert.match(voiceCase.facts.find((fact)=>fact.id==='diagnosis').value,/12月/);
 });
 
 test('patient LLM prompt preserves case-specific disclosure, text-only, and counseling behavior',()=>{
@@ -52,6 +57,35 @@ test('mock patient reveals history on questions and uses counseling response rul
   assert.match(counseling.reply,/一次要喝很多水嗎/);
   assert.match(counseling.reply,/咖啡或茶代替嗎/);
   assert.deepEqual(counseling.revealedFactIds,history.revealedFactIds);
+});
+
+test('mock evaluator scores counseling from student actions rather than history questions',()=>{
+  const historyOnly=[
+    {role:'patient',content:voiceCase.opening},
+    {role:'student',content:'你平常喝水跟咖啡的習慣怎麼樣？'},
+    {role:'patient',content:'我每天都會喝咖啡。'},
+    {role:'student',content:'你上課會不會常常需要大聲說話？'},
+    {role:'patient',content:'有時候下課環境很吵。'}
+  ];
+  const historyScore=mockEvaluate({
+    caseId:'voice_nodule_001',transcript:historyOnly,revealedFactIds:['hydration_caffeine','microphone_noise']
+  });
+  const historyEducation=historyScore.items.find((item)=>item.id==='voice_education');
+  const historyExplanation=historyScore.items.find((item)=>item.id==='voice_explanation');
+  assert.equal(historyEducation.status,'missed');
+  assert.equal(historyExplanation.status,'missed');
+
+  const counseled=[
+    ...historyOnly,
+    {role:'student',content:'建議你多喝水，也要減少大聲說話，讓聲音有休息的時間。'},
+    {role:'patient',content:'好，我會試試看。'},
+    {role:'student',content:'聲帶結節通常是聲帶反覆碰撞、加上過度用聲慢慢形成的。'}
+  ];
+  const counseledScore=mockEvaluate({
+    caseId:'voice_nodule_001',transcript:counseled,revealedFactIds:['hydration_caffeine','microphone_noise']
+  });
+  assert.equal(counseledScore.items.find((item)=>item.id==='voice_education').status,'covered');
+  assert.equal(counseledScore.items.find((item)=>item.id==='voice_explanation').status,'covered');
 });
 
 test('demo cases route exposes both built-in teaching cases',async()=>{
