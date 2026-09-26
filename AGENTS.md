@@ -15,11 +15,11 @@
 以下區塊由首次初始化或後續明確的專案級變更維護；一般任務不要重寫其他規則。
 
 <!-- BEGIN CODEX PROJECT QUICKSTART -->
-- 初始化狀態：`UNINITIALIZED`
-- 專案目的：`待初始化`
-- 主要技術：`待初始化`
-- 主要入口：`待初始化`
-- 最快驗證：`待初始化；在確認前禁止猜測或執行`
+- 初始化狀態：`INITIALIZED`（2026-09-26，基準 `f04bc8c`）
+- 專案目的：提供語言治療臨床訪談的訓練／考核原型，包含模擬病人、可選教練、結構化評量、教師管理與伺服器端持久化。
+- 主要技術：Node.js 22 ESM、原生 HTTP／Vercel Functions、靜態 HTML/CSS/JavaScript、SQLite（預設）與 PostgreSQL/Neon adapter。
+- 主要入口：`scripts/dev-server.mjs`（本機伺服器）、`index.html`／`app.js`（UI）、`api/*.js`（HTTP handlers）、`lib/db.js`（資料庫選擇）。
+- 最快驗證：`npm test`（`node --test`；不需外部服務，測試資料庫位於臨時目錄）。
 <!-- END CODEX PROJECT QUICKSTART -->
 
 若狀態仍為 `UNINITIALIZED`：

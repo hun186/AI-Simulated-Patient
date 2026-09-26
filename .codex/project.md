@@ -1,86 +1,63 @@
 # Project Profile
 
-> 類型：Current state。只描述目前有效的專案身份與範圍，不保存工作流水帳。
+> 類型：Current state。最後查證：2026-09-26；基準 branch `codex/bootstrap-project-context`、commit `f04bc8c`。
 
-## Metadata
+## 專案身份與範圍
 
-- 初始化狀態：`UNINITIALIZED`
-- 最後查證日期：`待初始化`
-- 查證基準：`待初始化，例如 commit / branch / workspace 狀態`
-- 維護責任：`待確認`
-
-## 一句話目的
-
-`待初始化：用一個可觀察、可驗證的句子說明此專案解決什麼問題。`
-
-## 使用者與使用情境
-
-- 主要使用者：`待初始化`
-- 主要使用情境：`待初始化`
-- 主要輸入：`待初始化`
-- 主要輸出：`待初始化`
-
-## 目標
-
-- `待初始化`
-
-## 非目標
-
-- `待初始化；若沒有已證實的非目標，寫「目前未明確定義」。`
+- 初始化狀態：`INITIALIZED`
+- 一句話目的：提供語言治療臨床訪談的訓練／考核原型，讓學生訪談模擬病人、取得受控教練提示與結構化評量，並讓教師管理案例、帳號與紀錄。
+- 主要使用者：學生、教師、管理員；角色與資源範圍由伺服器端 RBAC 執行。
+- 主要輸入：案例定義、學生訪談訊息、模式與教練設定、帳號／教師管理動作、LLM provider／route／定價／配額設定。
+- 主要輸出：病人回覆、非洩題教練提示、逐項評量、正式 transcript/evaluation、稽核與 LLM usage/cost 摘要。
+- 明確非目標：本專案是教育原型，不是醫療器材，亦不提供診斷或治療建議；Vercel 公開面不是 production persistence host。
 
 ## 技術與執行環境
 
 | 面向 | 目前狀態 | 證據位置 |
 | --- | --- | --- |
-| 主要語言 | 待初始化 | 待初始化 |
-| Framework / runtime | 待初始化 | 待初始化 |
-| 套件與 lockfile | 待初始化 | 待初始化 |
-| 儲存與外部服務 | 待初始化 | 待初始化 |
-| 支援平台 | 待初始化 | 待初始化 |
+| 語言／UI | JavaScript ESM；無 framework 的靜態 HTML/CSS/JS | `package.json`, `index.html`, `app.js`, `formal-app.js` |
+| Runtime／server | Node.js 22.x；本機原生 `node:http`，部署另有 Vercel Functions | `package.json`, `scripts/dev-server.mjs`, `vercel.json` |
+| 套件 | npm lockfile v3；`@neondatabase/serverless`、`better-sqlite3` | `package.json`, `package-lock.json` |
+| 儲存 | 一般主機預設 SQLite；`DATABASE_URL` 可選 PostgreSQL/Neon；Vercel 無 DB 時為 browser/localStorage demo | `lib/db.js`, `lib/db-*.js`, `docs/PRODUCTION_ARCHITECTURE.md` |
+| LLM | OpenAI Responses 與 OpenAI-compatible adapter；OpenAI、DeepSeek、Ollama、custom presets | `lib/llm/`, `docs/LLM_PROVIDERS.md` |
+| 支援平台 | 文件化 Windows/Linux SQLite 部署與隔離式 Vercel demo | `docs/WINDOWS_PRODUCTION.md`, `docs/LINUX_PRODUCTION.md`, `docs/VERCEL_DEMO.md` |
 
 ## Repository 地圖
 
-只列會影響任務路由的主要位置，不完整列出整棵目錄樹。
-
-| 路徑 | 責任 | 何時優先查看 |
+| 路徑 | 責任 | 優先查看時機 |
 | --- | --- | --- |
-| `待初始化` | 待初始化 | 待初始化 |
+| `index.html`, `app.js`, `styles.css` | 主要單頁 UI | 學生／教師互動與畫面契約 |
+| `formal-app.js`, `formal.css` | 另一套正式視覺 UI 資產 | Vercel allowlist 或正式外觀 |
+| `scripts/` | 本機 HTTP server、SQLite backup | 執行、路由、營運工具 |
+| `api/` | HTTP handler；auth、訪談、teacher management | API 行為、權限、錯誤狀態 |
+| `lib/` | domain/service、DB facade、auth、安全與 LLM adapters | 核心行為與跨 handler 共用邏輯 |
+| `db/` | PostgreSQL schema、SQLite v1 schema、ordered migrations | schema／migration 相容性 |
+| `*.test.mjs` | Node 單元、integration、UI/config contract tests | 行為與回歸事實來源 |
+| `docs/` | production、安全、LLM 與已完成階段設計／進度 | 設計理由與部署邊界 |
 
-## 主要入口
+## 主要入口與事實來源
 
-| 入口類型 | 路徑／命令 | 用途 | 狀態 |
-| --- | --- | --- | --- |
-| 待初始化 | 待初始化 | 待初始化 | 待確認 |
+| 入口 | 用途 | 狀態 |
+| --- | --- | --- |
+| `npm run dev` → `scripts/dev-server.mjs` | 本機 UI/API server，預設 `http://localhost:3000` | README、manifest 與程式一致 |
+| `index.html` → `app.js` | Browser application | 已存在 |
+| `api/demo.js` + `vercel.json` rewrites | Vercel deterministic mock surface | isolation tests 覆蓋 |
+| `npm test` → `node --test` | 完整測試套件 | manifest 定義；bootstrap 時實跑 |
+| `npm run db:backup` | 一致性 SQLite backup | 僅 SQLite 模式 |
 
-## 事實來源
+事實來源優先序：可執行程式與 `*.test.mjs` → `package*.json`／`vercel.json` → `db/schema.sql`、`db/sqlite-schema.sql`、`db/migrations/` → current production/security docs → phase plans/progress。
 
-按此專案的實際情況排列，例如 schema、migration、OpenAPI、測試、設定、資料字典或產物 manifest。
+## 資料、秘密與產物邊界
 
-1. `待初始化`
+- 應提交：程式、測試、schemas/migrations、靜態 UI、文件與 `data/.gitkeep`。
+- 不應提交：`.env*`（已追蹤範例若未來建立須無秘密）、`node_modules/`、`.vercel/`、`data/*` 中的 SQLite/WAL/backup 與本機 `llm-secret.key`。
+- 正式敏感資料：密碼雜湊、opaque sessions、transcripts、evaluations、audit events 與 LLM credential ciphertext；不得放入 `.codex/`。
+- 測試 fixture：多數 integration tests 在 OS temp 目錄建立獨立 SQLite DB 並清理；provider tests 注入 fake `fetch`，不要求外部 LLM。
 
-## 資料、模型與產物邊界
+## 外部系統、限制與待確認
 
-- 應提交 Git：`待初始化`
-- 不應提交 Git：`待初始化`
-- 可供測試的最小 fixture：`待初始化`
-- 大型／敏感資料位置：只描述規則，不記錄秘密或個資；`待初始化`
-
-## 外部系統與相鄰專案
-
-| 系統／專案 | 本專案依賴方式 | 交接契約 | 可用性／限制 |
-| --- | --- | --- | --- |
-| 目前未確認 | — | — | — |
-
-## 重要限制與不變條件
-
-- `待初始化`
-
-## 待確認事項
-
-- [ ] `初始化時無法由 repository 證實、且可能影響後續工作的問題。`
-
-## 維護規則
-
-- 專案目的、範圍、主要技術、入口或 repository 地圖改變時原地更新。
-- 不追加日期型變更紀錄；變更結果寫入 `memory.md`，重大取捨寫入 `decisions.md`。
-- 任何「待確認」在取得證據後應改成事實或刪除，不要永久保留模糊占位符。
+- PostgreSQL/Neon：由 `DATABASE_URL` 與 `@neondatabase/serverless` adapter 使用；SQLite 才是一般主機目前預設。
+- LLM endpoints：只由 server adapters 呼叫；credential 不進 browser、transcript 或 API response。
+- Vercel：只上傳 allowlist 的 demo handler／mock code 與靜態資產，不能視為 SQLite durable production。
+- CI：目前 checkout 未含 `.github/workflows/`；歷史 progress 文件記載先前 hosted checks 通過，但目前 main 的持續 CI 定義待確認。
+- 維護責任與正式 release／support policy：repository 未明確定義，待 maintainer 確認。
