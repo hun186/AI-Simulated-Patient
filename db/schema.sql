@@ -207,3 +207,38 @@ create index if not exists llm_usage_events_connection_idx
 
 -- LLM usage reporting state (SQLite migration version 3 equivalent).
 alter table llm_usage_events add column if not exists usage_status text not null default 'reported';
+
+
+-- LLM usage pricing and per-user quotas (SQLite migration version 4 equivalent).
+create table if not exists llm_pricing_rules (
+  id uuid primary key,
+  preset text not null check (preset in ('openai','deepseek','ollama','custom')),
+  model_pattern text not null,
+  input_microusd_per_million bigint check (input_microusd_per_million is null or input_microusd_per_million >= 0),
+  cached_input_microusd_per_million bigint check (cached_input_microusd_per_million is null or cached_input_microusd_per_million >= 0),
+  output_microusd_per_million bigint check (output_microusd_per_million is null or output_microusd_per_million >= 0),
+  reasoning_microusd_per_million bigint check (reasoning_microusd_per_million is null or reasoning_microusd_per_million >= 0),
+  effective_at timestamptz not null,
+  is_active boolean not null default true,
+  created_by uuid references app_users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists llm_pricing_rules_lookup_idx
+  on llm_pricing_rules(preset,model_pattern,is_active,effective_at desc);
+
+create table if not exists llm_user_quotas (
+  user_id uuid primary key references app_users(id) on delete cascade,
+  daily_token_limit bigint check (daily_token_limit is null or daily_token_limit >= 0),
+  monthly_token_limit bigint check (monthly_token_limit is null or monthly_token_limit >= 0),
+  daily_cost_limit_microusd bigint check (daily_cost_limit_microusd is null or daily_cost_limit_microusd >= 0),
+  monthly_cost_limit_microusd bigint check (monthly_cost_limit_microusd is null or monthly_cost_limit_microusd >= 0),
+  is_active boolean not null default true,
+  updated_by uuid references app_users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table llm_usage_events add column if not exists estimated_cost_microusd bigint;
+alter table llm_usage_events add column if not exists pricing_status text not null default 'unpriced';
+alter table llm_usage_events add column if not exists pricing_rule_id uuid references llm_pricing_rules(id) on delete set null;
