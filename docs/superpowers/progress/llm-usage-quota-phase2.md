@@ -9,8 +9,8 @@ Branch: `feat/llm-usage-quota-phase2`
 |---|---|
 | 1. Pricing/quota schema + SQLite migration v4 | COMPLETE |
 | 2. Cost estimator | COMPLETE |
-| 3. Hard quota enforcement | IMPLEMENTED_CI_PENDING |
-| 4. Usage/quota API + RBAC | NOT_STARTED |
+| 3. Hard quota enforcement | COMPLETE |
+| 4. Usage/quota API + RBAC | IMPLEMENTED_CI_PENDING |
 | 5. Usage/cost dashboard UI | NOT_STARTED |
 | 6. Final regression / hosted verification | NOT_STARTED |
 
@@ -63,3 +63,18 @@ Implemented:
 
 Task 2 hosted evidence: `7a5eb1a0b115dbb23fa4b2fe491195cd4de329fe`, Actions `36224188446` PASS.
 Task 3 CI: PENDING after push.
+
+## Task 4
+
+Implemented:
+- `lib/llm/usage-admin.js` for authorized user lists, usage summaries, quota CRUD, and pricing-rule management.
+- `GET/POST /api/teacher/llm-usage`.
+- Admin can view all users, manage any user quota, and manage pricing rules.
+- Teacher can view self + assigned students, manage assigned-student quotas only, and cannot manage pricing.
+- Usage summaries support optional user/date-window filters and aggregates by user/provider/model/agent.
+- Management actions generate auth audit events.
+- Dev server route registered.
+- `llm-usage-admin.integration.test.mjs` verifies scope boundaries and summary results.
+
+Task 3 hosted evidence: `aee3cdf70f67b5acbb2f37a34676103efff34413`, Actions `36224395870` PASS.
+Task 4 CI: PENDING after push.
