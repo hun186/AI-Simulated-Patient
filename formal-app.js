@@ -279,10 +279,10 @@ async function renderAiSettings(){
     const teacher=state.user?.role==='teacher';
     $('aiCaseRow').classList.toggle('hidden',!teacher);
     if(teacher){
-      const ownedCases=(state.teacherCases||[]).filter(c=>c.createdBy===state.user?.id);
-      $('aiCaseSelect').innerHTML=ownedCases.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.internalTitle||c.title||c.studentLabel||c.id)+'</option>').join('');
-      if(!ownedCases.length){
-        $('aiRouteGrid').innerHTML='<p class="empty">你目前沒有可設定 AI route 的自建病例。</p>';
+      const selectableCases=(state.teacherCases||[]).filter(c=>!c.createdBy||c.createdBy===state.user?.id);
+      $('aiCaseSelect').innerHTML=selectableCases.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.internalTitle||c.title||c.studentLabel||c.id)+(c.createdBy?'':'（系統內建）')+'</option>').join('');
+      if(!selectableCases.length){
+        $('aiRouteGrid').innerHTML='<p class="empty">目前沒有可設定 AI route 的病例。</p>';
         return;
       }
     }
@@ -290,7 +290,9 @@ async function renderAiSettings(){
     const usable=(data.connections||[]).filter(connection=>connection.isActive&&(state.user?.role==='admin'?connection.scopeType==='system':connection.scopeType==='teacher'&&connection.ownerUserId===state.user?.id));
     $('aiRouteGrid').innerHTML=['patient','coach','evaluator'].map(agent=>{
       const caseId=teacher?$('aiCaseSelect').value:null;
-      const route=(data.routes||[]).find(r=>r.agentType===agent&&(teacher?(r.scopeType==='case'&&r.scopeId===caseId):r.scopeType==='system'));
+      const route=(data.routes||[]).find(r=>r.agentType===agent&&(teacher
+        ?(r.scopeType==='case'&&r.scopeId===caseId&&r.ownerUserId===state.user?.id)
+        :r.scopeType==='system'));
       const options=usable.map(c=>'<option value="'+c.id+'" '+(route?.connectionId===c.id?'selected':'')+'>'+esc(c.name)+' · '+esc(c.defaultModel)+'</option>').join('');
       return '<section class="ai-route-card" data-agent="'+agent+'"><header><strong>'+AI_AGENT_LABELS[agent]+'</strong><small>'+(route?'已設定':'未設定')+'</small></header>'+
         '<label>Provider / Model<select class="ai-route-connection"><option value="">未設定</option>'+options+'</select></label>'+
