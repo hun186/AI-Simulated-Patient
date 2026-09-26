@@ -437,7 +437,109 @@ async function manageUser(userId,action){
   try{await post('/api/teacher/users',payload);await renderUsers();}
   catch{alert('帳號操作失敗或權限不足。');}
 }
-function microusdToUsd(value){return '
+function microusdToUsd(value){return '$'+(Number(value||0)/1000000).toFixed(6);}
+function quotaUsdToMicrousd(value){
+  const text=String(value??'').trim();
+  if(!text)return null;
+  const n=Number(text);
+  return Number.isFinite(n)&&n>=0?Math.round(n*1000000):null;
+}
+function quotaNumber(value){
+  const text=String(value??'').trim();
+  if(!text)return null;
+  const n=Number(text);
+  return Number.isFinite(n)&&n>=0?Math.round(n):null;
+}
+function canEditUsageQuota(user){
+  if(!user)return false;
+  if(state.user?.role==='admin')return true;
+  return state.user?.role==='teacher'&&user.role==='student'&&user.id!==state.user?.id;
+}
+function usageRows(title,rows,labelKey){
+  return '<section class="usage-breakdown-group"><h4>'+title+'</h4>'+
+    ((rows||[]).length?(rows||[]).map(row=>'<div class="usage-breakdown-row"><strong>'+esc(row[labelKey]||'--')+'</strong><span>'+Number(row.calls||0)+' 次</span><span>'+Number(row.tokens||0).toLocaleString('zh-TW')+' tk</span><span>'+microusdToUsd(row.estimatedCostMicrousd)+'</span></div>').join(''):'<p class="empty">尚無資料。</p>')+
+    '</section>';
+}
+async function renderUsageDashboard(){
+  if(!state.serverMode||!['teacher','admin'].includes(state.user?.role))return;
+  try{
+    const selected=$('usageUserSelect').value||'';
+    const params=new URLSearchParams({action:'summary'});
+    if(selected)params.set('userId',selected);
+    const response=await fetch('/api/teacher/llm-usage?'+params.toString());
+    if(!response.ok)throw new Error('usage');
+    const data=await response.json();
+    state.usageDashboard=data;
+
+    const current=$('usageUserSelect').value;
+    $('usageUserSelect').innerHTML='<option value="">全部可見使用者</option>'+
+      (data.users||[]).map(u=>'<option value="'+esc(u.id)+'">'+esc(u.displayName||u.email)+' · '+esc(u.role)+'</option>').join('');
+    $('usageUserSelect').value=(data.users||[]).some(u=>u.id===current)?current:'';
+
+    const totals=(data.totals||[]).reduce((a,row)=>({
+      calls:a.calls+Number(row.calls||0),
+      tokens:a.tokens+Number(row.tokens||0),
+      cost:a.cost+Number(row.estimatedCostMicrousd||0),
+      unpriced:a.unpriced+Number(row.unpricedCalls||0)
+    }),{calls:0,tokens:0,cost:0,unpriced:0});
+    $('usageCalls').textContent=totals.calls.toLocaleString('zh-TW');
+    $('usageTokens').textContent=totals.tokens.toLocaleString('zh-TW');
+    $('usageCost').textContent=microusdToUsd(totals.cost);
+    $('usageUnpriced').textContent=totals.unpriced.toLocaleString('zh-TW');
+    $('usageBreakdown').innerHTML=
+      usageRows('Provider',data.byProvider,'preset')+
+      usageRows('Model',data.byModel,'model')+
+      usageRows('Agent',data.byAgent,'agentType');
+
+    await renderSelectedQuota();
+  }catch{
+    $('usageBreakdown').innerHTML='<p class="empty">用量資料讀取失敗。</p>';
+  }
+}
+async function renderSelectedQuota(){
+  const userId=$('usageUserSelect').value;
+  const user=(state.usageDashboard?.users||[]).find(u=>u.id===userId);
+  const editable=canEditUsageQuota(user);
+  $('quotaForm').classList.toggle('disabled',!editable);
+  $('quotaSaveBtn').disabled=!editable;
+  if(!userId){
+    $('quotaHelp').textContent='選擇一位使用者查看配額。';
+    ['quotaDailyTokens','quotaMonthlyTokens','quotaDailyCost','quotaMonthlyCost'].forEach(id=>$(id).value='');
+    $('quotaEnabled').checked=true;
+    return;
+  }
+  try{
+    const response=await fetch('/api/teacher/llm-usage?action=quota&userId='+encodeURIComponent(userId));
+    if(!response.ok)throw new Error('quota');
+    const quota=(await response.json()).quota;
+    $('quotaDailyTokens').value=quota?.dailyTokenLimit??'';
+    $('quotaMonthlyTokens').value=quota?.monthlyTokenLimit??'';
+    $('quotaDailyCost').value=quota?.dailyCostLimitMicrousd==null?'':Number(quota.dailyCostLimitMicrousd)/1000000;
+    $('quotaMonthlyCost').value=quota?.monthlyCostLimitMicrousd==null?'':Number(quota.monthlyCostLimitMicrousd)/1000000;
+    $('quotaEnabled').checked=quota?.isActive!==false;
+    $('quotaHelp').textContent=editable?'可設定硬上限；留空代表該維度不限。':'此帳號僅供查看，你沒有修改其配額的權限。';
+  }catch{$('quotaHelp').textContent='配額讀取失敗。';}
+}
+async function saveUsageQuota(event){
+  event.preventDefault();
+  const userId=$('usageUserSelect').value;
+  const user=(state.usageDashboard?.users||[]).find(u=>u.id===userId);
+  if(!canEditUsageQuota(user))return;
+  const payload={
+    action:'setQuota',userId,
+    dailyTokenLimit:quotaNumber($('quotaDailyTokens').value),
+    monthlyTokenLimit:quotaNumber($('quotaMonthlyTokens').value),
+    dailyCostLimitMicrousd:quotaUsdToMicrousd($('quotaDailyCost').value),
+    monthlyCostLimitMicrousd:quotaUsdToMicrousd($('quotaMonthlyCost').value),
+    isActive:$('quotaEnabled').checked
+  };
+  try{
+    await post('/api/teacher/llm-usage',payload);
+    await renderSelectedQuota();
+    alert('配額已儲存。');
+  }catch(error){alert('配額儲存失敗：'+(error.message||'請確認權限與數值。'));}
+}
+async function renderSecurityAudit(){
   if(!state.serverMode||state.user?.role!=='admin')return;
   try{
     const d=await fetch('/api/auth/audit?limit=100').then(r=>r.json());
