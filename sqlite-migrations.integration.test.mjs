@@ -34,13 +34,13 @@ function inspect(dbPath){
   }
 }
 
-test('fresh SQLite database advances to schema version 2 with LLM provider foundation',()=>{
+test('fresh SQLite database advances to schema version 3 with LLM provider foundation',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-migrate-fresh-'));
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const info=openThroughApplication(dbPath);
     const state=inspect(dbPath);
-    assert.equal(info.schemaVersion,2);
+    assert.equal(info.schemaVersion,3);
     for(const table of ['llm_provider_connections','llm_agent_routes','llm_usage_events']){
       assert.equal(state.tables.has(table),true,table+' missing');
     }
@@ -50,7 +50,7 @@ test('fresh SQLite database advances to schema version 2 with LLM provider found
   }
 });
 
-test('existing schema version 1 database migrates to version 2 without losing data',()=>{
+test('existing schema version 1 database migrates to version 3 without losing data',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-migrate-v1-'));
   const dbPath=join(dir,'aisp.sqlite');
   try{
@@ -64,7 +64,7 @@ test('existing schema version 1 database migrates to version 2 without losing da
 
     const info=openThroughApplication(dbPath);
     const state=inspect(dbPath);
-    assert.equal(info.schemaVersion,2);
+    assert.equal(info.schemaVersion,3);
     assert.deepEqual(state.user,{id:'legacy-admin',email:'legacy@example.com'});
     for(const table of ['llm_provider_connections','llm_agent_routes','llm_usage_events']){
       assert.equal(state.tables.has(table),true,table+' missing');

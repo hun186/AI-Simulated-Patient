@@ -203,3 +203,7 @@ create index if not exists llm_usage_events_session_idx
   on llm_usage_events(session_id,created_at asc);
 create index if not exists llm_usage_events_connection_idx
   on llm_usage_events(connection_id,created_at desc);
+
+
+-- LLM usage reporting state (SQLite migration version 3 equivalent).
+alter table llm_usage_events add column if not exists usage_status text not null default 'reported';
