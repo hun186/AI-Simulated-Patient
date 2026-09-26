@@ -106,7 +106,7 @@ test('database whose user_version was reset to 1 is reconciled from applied migr
     try{
       assert.equal(check.pragma('user_version',{simple:true}),4);
       assert.equal(
-        check.prepare("select 1 from sqlite_master where type='table' and name='llm_provider_connections'").get()?.[1] ?? 1,
+        check.prepare("select count(*) as count from sqlite_master where type='table' and name='llm_provider_connections'").get().count,
         1
       );
     }finally{
