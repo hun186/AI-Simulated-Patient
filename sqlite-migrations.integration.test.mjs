@@ -56,6 +56,7 @@ test('existing schema version 1 database migrates to version 4 without losing da
   try{
     const legacy=new Database(dbPath);
     legacy.exec(readFileSync(resolve('db/sqlite-schema.sql'),'utf8'));
+    legacy.pragma('user_version = 1');
     legacy.prepare(
       "insert into app_users (id,email,display_name,role,password_salt,password_hash,is_active,account_status) values (?,?,?,?,?,?,?,?)"
     ).run('legacy-admin','legacy@example.com','Legacy Admin','admin','salt','hash',1,'active');
