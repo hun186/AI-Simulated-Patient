@@ -487,6 +487,7 @@ async function renderUsageDashboard(){
     $('usageCost').textContent=microusdToUsd(totals.cost);
     $('usageUnpriced').textContent=totals.unpriced.toLocaleString('zh-TW');
     $('usageBreakdown').innerHTML=
+      usageRows('日期',data.byDate,'date')+
       usageRows('Provider',data.byProvider,'preset')+
       usageRows('Model',data.byModel,'model')+
       usageRows('Agent',data.byAgent,'agentType');

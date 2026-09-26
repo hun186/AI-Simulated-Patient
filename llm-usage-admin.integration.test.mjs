@@ -91,5 +91,7 @@ test('usage/quota API enforces Admin and Teacher scope',()=>{
     assert.equal(data.teacherSummary.status,200);
     assert.equal(Number(data.teacherSummary.body.totals[0].tokens),15);
     assert.equal(Number(data.teacherSummary.body.totals[0].estimatedCostMicrousd),20);
+    assert.equal(data.teacherSummary.body.byDate[0].date,'2026-09-26');
+    assert.equal(Number(data.teacherSummary.body.byDate[0].tokens),15);
   }finally{rmSync(dir,{recursive:true,force:true});}
 });

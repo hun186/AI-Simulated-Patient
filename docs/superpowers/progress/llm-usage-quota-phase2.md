@@ -11,8 +11,8 @@ Branch: `feat/llm-usage-quota-phase2`
 | 2. Cost estimator | COMPLETE |
 | 3. Hard quota enforcement | COMPLETE |
 | 4. Usage/quota API + RBAC | COMPLETE |
-| 5. Usage/cost dashboard UI | IMPLEMENTED_CI_PENDING |
-| 6. Final regression / hosted verification | NOT_STARTED |
+| 5. Usage/cost dashboard UI | COMPLETE |
+| 6. Final regression / hosted verification | IMPLEMENTED_CI_PENDING |
 
 ## Task 1
 
@@ -94,3 +94,10 @@ Implemented:
 
 Task 4 hosted evidence: `13c21e32146e435aefc88a82b64dceae67026658`, Actions `36224789787` PASS, Vercel PASS.
 Task 5 CI: PENDING after push.
+
+## Task 6
+
+Final hosted review found one acceptance gap before completion: the plan required usage totals by date/user/provider/model/agent, while Task 5 initially exposed date-window filtering but no by-date breakdown. Added `byDate` aggregation using cross-database `date(created_at)`, rendered it in the dashboard, and extended API/UI tests.
+
+Task 5 hosted evidence before final correction: `627b3d290eea14394f012a87bf195e6f0c0a6be9`, Actions `36225268731` PASS.
+Task 6 CI: PENDING after final-review correction.

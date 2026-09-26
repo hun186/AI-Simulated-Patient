@@ -24,6 +24,7 @@ test('dashboard surfaces persisted cost and unpriced usage separately',()=>{
   assert.match(html,/id="usageUnpriced"/);
   assert.match(app,/estimatedCostMicrousd/);
   assert.match(app,/unpricedCalls/);
+  assert.match(app,/usageRows\('日期',data\.byDate,'date'\)/);
   assert.match(app,/function microusdToUsd/);
 });
 
