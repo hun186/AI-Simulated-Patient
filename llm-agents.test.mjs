@@ -83,7 +83,7 @@ test('agents call provider gateway with opaque safety id and evaluator validates
   const fetchImpl=async(_url,options)=>{
     const body=JSON.parse(options.body);
     calls.push(body);
-    const isEvaluator=String(body.messages?.[0]?.content||'').includes('Evaluate the completed interview');
+    const isEvaluator=(body.messages||[]).some((message)=>String(message?.content||'').includes('Evaluate the completed interview'));
     return {
       ok:true,status:200,headers:{get:()=>null},
       async json(){
