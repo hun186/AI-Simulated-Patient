@@ -100,9 +100,21 @@ See `docs/AUTH_SECURITY.md`.
 - no hidden case hints
 - final scoring only after the interview ends
 
-## LLM provider status
+## LLM providers
 
-Patient, Coach and Evaluator remain deterministic mock providers for reproducible POC demonstrations. The persistence/auth contracts are designed so they can later be replaced by structured LLM providers.
+Production database mode supports native configurable LLM providers for three independent roles:
+
+- Patient
+- Coach
+- Evaluator
+
+Supported presets are OpenAI, DeepSeek, Ollama, and generic OpenAI-compatible endpoints. Teacher accounts may create their own OpenAI / DeepSeek connections; arbitrary custom/private endpoints and Ollama are Admin-only. Provider credentials are encrypted at rest with AES-256-GCM and are never returned to the browser after submission.
+
+Session routes are snapshotted when an interview starts, so later route edits do not silently change an active interview. Provider usage and failures are recorded in `llm_usage_events`.
+
+The Vercel PoC remains an isolated deterministic Mock demonstration and receives no production LLM credentials.
+
+See `docs/LLM_PROVIDERS.md`.
 
 ## Local start
 
