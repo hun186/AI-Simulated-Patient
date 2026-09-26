@@ -12,7 +12,7 @@ Branch: `feat/llm-usage-quota-phase2`
 | 3. Hard quota enforcement | COMPLETE |
 | 4. Usage/quota API + RBAC | COMPLETE |
 | 5. Usage/cost dashboard UI | COMPLETE |
-| 6. Final regression / hosted verification | IMPLEMENTED_CI_PENDING |
+| 6. Final regression / hosted verification | COMPLETE |
 
 ## Task 1
 
@@ -101,3 +101,15 @@ Final hosted review found one acceptance gap before completion: the plan require
 
 Task 5 hosted evidence before final correction: `627b3d290eea14394f012a87bf195e6f0c0a6be9`, Actions `36225268731` PASS.
 Task 6 CI: PENDING after final-review correction.
+
+## Final hosted verification
+
+- Final implementation head before progress-only checkpoint: `2697aace357679ae51473a1b184d53b127b90ae5`.
+- GitHub Actions run `36225655333`: PASS.
+- Vercel deployment for the same head: Ready / SUCCESS.
+- PR #3 mergeable: true.
+- Pull request reviews: none blocking.
+- Unresolved review threads: none.
+- Final hosted diff review completed; the only acceptance gap found was missing by-date breakdown, corrected before this verification.
+
+Phase 2 Tasks 1-6: COMPLETE.
