@@ -10,7 +10,7 @@ import {
 function statusFor(error){
   if(error?.code==='FORBIDDEN') return 403;
   if(['USER_NOT_FOUND','PRICING_RULE_NOT_FOUND'].includes(error?.code)) return 404;
-  if(['INVALID_LIMIT','INVALID_PRESET','MODEL_PATTERN_REQUIRED'].includes(error?.code)) return 400;
+  if(['INVALID_LIMIT','INVALID_PRESET','INVALID_TIME_BAND','MODEL_PATTERN_REQUIRED'].includes(error?.code)) return 400;
   return 500;
 }
 
