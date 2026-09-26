@@ -25,6 +25,9 @@ test('AI Settings respects provider scope and keeps stored keys masked/write-onl
   assert.match(app,/\?\[\['openai','OpenAI'\],\['deepseek','DeepSeek'\],\['ollama','Ollama'\],\['custom','OpenAI-compatible \/ Custom'\]\]/);
   assert.match(app,/:\[\['openai','OpenAI'\],\['deepseek','DeepSeek'\]\]/);
   assert.match(app,/connection\.apiKeyLast4\?'••••'/);
+  assert.match(app,/data-ai-edit/);
+  assert.match(app,/data-ai-toggle/);
+  assert.match(app,/action:'updateConnection'/);
   assert.doesNotMatch(app,/encrypted_api_key|api_key_iv|api_key_tag/);
   assert.match(connections,/actor\.role===ROLE_TEACHER && !rules\.teacherAllowed/);
   assert.match(connections,/apiKeyLast4:row\.api_key_last4/);
@@ -37,4 +40,11 @@ test('Patient Coach and Evaluator have separate configurable route selectors',()
   assert.match(app,/action='setSystemRoute'|payload\.action='setSystemRoute'/);
   assert.match(app,/payload\.action='setCaseRoute'/);
   assert.match(app,/payload\.action='setCaseRoute';payload\.caseId=\$\('aiCaseSelect'\)\.value/);
+});
+
+test('Teacher AI route picker includes only cases owned by the signed-in Teacher',()=>{
+  const app=readFileSync('formal-app.js','utf8');
+  const cases=readFileSync('lib/server-cases.js','utf8');
+  assert.match(cases,/createdBy:row\.created_by\|\|null/);
+  assert.match(app,/filter\(c=>c\.createdBy===state\.user\?\.id\)/);
 });

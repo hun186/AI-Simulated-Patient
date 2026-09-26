@@ -260,17 +260,24 @@ async function renderAiSettings(){
       return '<div class="ai-provider-row"><div class="ai-provider-meta"><strong>'+esc(connection.name)+'</strong><small>'+
         esc(connection.preset)+' · '+esc(connection.defaultModel)+' · '+(connection.isActive?'啟用':'停用')+
         ' · <span class="ai-key-mask">'+key+'</span></small></div><div class="ai-provider-actions">'+
-        (canManage?'<button class="small-btn" data-ai-test="'+connection.id+'">測試連線</button><button class="small-btn danger-btn" data-ai-delete="'+connection.id+'">刪除</button>':'<span class="readonly-pill">系統提供</span>')+
+        (canManage?'<button class="small-btn" data-ai-edit="'+connection.id+'">編輯</button><button class="small-btn" data-ai-toggle="'+connection.id+'">'+(connection.isActive?'停用':'啟用')+'</button><button class="small-btn" data-ai-test="'+connection.id+'">測試連線</button><button class="small-btn danger-btn" data-ai-delete="'+connection.id+'">刪除</button>':'<span class="readonly-pill">系統提供</span>')+
         '</div></div>';
     }).join('')||'<p class="empty">尚未設定 AI Provider 連線。</p>';
 
+    $('aiConnectionList').querySelectorAll('[data-ai-edit]').forEach(button=>button.onclick=()=>editAiConnection(button.dataset.aiEdit));
+    $('aiConnectionList').querySelectorAll('[data-ai-toggle]').forEach(button=>button.onclick=()=>toggleAiConnection(button.dataset.aiToggle));
     $('aiConnectionList').querySelectorAll('[data-ai-test]').forEach(button=>button.onclick=()=>testAiConnection(button.dataset.aiTest));
     $('aiConnectionList').querySelectorAll('[data-ai-delete]').forEach(button=>button.onclick=()=>deleteAiConnection(button.dataset.aiDelete));
 
     const teacher=state.user?.role==='teacher';
     $('aiCaseRow').classList.toggle('hidden',!teacher);
     if(teacher){
-      $('aiCaseSelect').innerHTML=(state.teacherCases||[]).map(c=>'<option value="'+esc(c.id)+'">'+esc(c.internalTitle||c.title||c.studentLabel||c.id)+'</option>').join('');
+      const ownedCases=(state.teacherCases||[]).filter(c=>c.createdBy===state.user?.id);
+      $('aiCaseSelect').innerHTML=ownedCases.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.internalTitle||c.title||c.studentLabel||c.id)+'</option>').join('');
+      if(!ownedCases.length){
+        $('aiRouteGrid').innerHTML='<p class="empty">你目前沒有可設定 AI route 的自建病例。</p>';
+        return;
+      }
     }
 
     const usable=(data.connections||[]).filter(connection=>connection.isActive&&(state.user?.role==='admin'?connection.scopeType==='system':connection.scopeType==='teacher'&&connection.ownerUserId===state.user?.id));
@@ -302,6 +309,31 @@ async function createAiConnection(event){
     await post('/api/teacher/ai-settings',payload);
     $('aiConnectionForm').reset();$('aiApiKey').value='';await renderAiSettings();
   }catch(error){alert('AI Provider 建立失敗：'+(error.message||'請檢查設定與權限。'));}
+}
+async function editAiConnection(connectionId){
+  const connection=(state.aiSettings?.connections||[]).find(c=>c.id===connectionId);
+  if(!connection)return;
+  const name=prompt('連線名稱',connection.name);
+  if(name===null)return;
+  const model=prompt('預設模型',connection.defaultModel);
+  if(model===null)return;
+  const apiKey=prompt('新的 API Key（留空表示保留原本金鑰）','');
+  const payload={action:'updateConnection',connectionId,name:name.trim(),preset:connection.preset,defaultModel:model.trim(),isActive:connection.isActive};
+  if(connection.baseUrl)payload.baseUrl=connection.baseUrl;
+  if(apiKey)payload.apiKey=apiKey;
+  try{await post('/api/teacher/ai-settings',payload);await renderAiSettings();}
+  catch(error){alert('AI Provider 更新失敗：'+(error.message||'請檢查設定與權限。'));}
+}
+async function toggleAiConnection(connectionId){
+  const connection=(state.aiSettings?.connections||[]).find(c=>c.id===connectionId);
+  if(!connection)return;
+  const payload={
+    action:'updateConnection',connectionId,name:connection.name,preset:connection.preset,
+    defaultModel:connection.defaultModel,isActive:!connection.isActive
+  };
+  if(connection.baseUrl)payload.baseUrl=connection.baseUrl;
+  try{await post('/api/teacher/ai-settings',payload);await renderAiSettings();}
+  catch(error){alert('AI Provider 狀態更新失敗：'+(error.message||'請檢查權限。'));}
 }
 async function testAiConnection(connectionId){
   try{

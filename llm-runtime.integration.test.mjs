@@ -102,9 +102,9 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     const createNoCoachRes=response();
     await sessionsHandler(request({caseId:'aphasia_001',mode:'training',coachEnabled:false},auth),createNoCoachRes);
     const sessionNoCoach=createNoCoachRes.body.session.id;
-    await query("update interview_sessions set coach_enabled=true where id=$1",[sessionNoCoach]);
-    const coachMissingRes=response();
-    await coachHandler(request({sessionId:sessionNoCoach},auth),coachMissingRes);
+    const enableMissingCoachRes=response();
+    await sessionsHandler(request({action:'setCoach',sessionId:sessionNoCoach,coachEnabled:true},auth),enableMissingCoachRes);
+    const coachStateAfterRejectedEnable=(await query('select coach_enabled from interview_sessions where id=$1',[sessionNoCoach]))[0].coach_enabled;
 
     console.log(JSON.stringify({
       missing:{status:missingRes.statusCode,body:missingRes.body,count:Number(missingCount)},
@@ -114,7 +114,7 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
       coach:{status:coachRes.statusCode,body:coachRes.body},
       invalidEval:{status:invalidEvalRes.statusCode,body:invalidEvalRes.body,sessionStatus:activeAfterInvalid},
       evaluation:{status:evalRes.statusCode,body:evalRes.body,sessionStatus:completed,rows:evalRows.length},
-      coachMissing:{status:coachMissingRes.statusCode,body:coachMissingRes.body},
+      enableMissingCoach:{status:enableMissingCoachRes.statusCode,body:enableMissingCoachRes.body,coachEnabled:Boolean(coachStateAfterRejectedEnable)},
       usage:usageRows
     }));
     await new Promise(resolve=>server.close(resolve));
@@ -144,8 +144,9 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     assert.equal(data.evaluation.status,200);
     assert.equal(data.evaluation.sessionStatus,'completed');
     assert.equal(data.evaluation.rows,1);
-    assert.equal(data.coachMissing.status,503);
-    assert.equal(data.coachMissing.body.error,'AI_COACH_PROVIDER_NOT_CONFIGURED');
+    assert.equal(data.enableMissingCoach.status,503);
+    assert.equal(data.enableMissingCoach.body.error,'AI_COACH_PROVIDER_NOT_CONFIGURED');
+    assert.equal(data.enableMissingCoach.coachEnabled,false);
     assert.deepEqual(data.usage.map(x=>x.agent_type),['patient','patient','coach','evaluator','evaluator']);
     assert.equal(Boolean(data.usage[0].success),true);
     assert.equal(data.usage[0].total_tokens,15);
