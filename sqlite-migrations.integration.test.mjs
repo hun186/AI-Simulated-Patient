@@ -120,3 +120,46 @@ test('database whose user_version was reset to 1 is reconciled from applied migr
     rmSync(dir,{recursive:true,force:true});
   }
 });
+
+test('schema version 4 teacher routes are backfilled with route owner during v5 migration',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'aisp-migrate-v4-route-owner-'));
+  const dbPath=join(dir,'aisp.sqlite');
+  try{
+    const legacy=new Database(dbPath);
+    legacy.exec(readFileSync(resolve('db/sqlite-schema.sql'),'utf8'));
+    for(const name of [
+      '002_llm_provider_foundation.sql',
+      '003_llm_usage_status.sql',
+      '004_llm_usage_cost_quota.sql'
+    ]){
+      legacy.exec(readFileSync(resolve('db/migrations',name),'utf8'));
+    }
+    legacy.pragma('user_version = 4');
+    legacy.prepare(
+      "insert into app_users (id,email,display_name,role,password_salt,password_hash,is_active,account_status) values (?,?,?,?,?,?,?,?)"
+    ).run('teacher-v4','teacher-v4@example.com','Teacher v4','teacher','salt','hash',1,'active');
+    legacy.prepare(
+      "insert into cases (id,version,internal_title,student_label,difficulty,student_brief,definition_json,status,created_by) values (?,?,?,?,?,?,?,?,?)"
+    ).run('teacher-case-v4',1,'Legacy Case','Legacy Case','test','',JSON.stringify({id:'teacher-case-v4',title:'Legacy Case',patient:{name:'P'},opening:'hi',facts:[],rubric:[]}),'published','teacher-v4');
+    legacy.prepare(
+      "insert into llm_provider_connections (id,scope_type,owner_user_id,name,provider_kind,preset,base_url,default_model,is_active,created_by) values (?,?,?,?,?,?,?,?,?,?)"
+    ).run('conn-v4','teacher','teacher-v4','Teacher DeepSeek','openai_compatible','deepseek','https://api.deepseek.com','deepseek-flash',1,'teacher-v4');
+    legacy.prepare(
+      "insert into llm_agent_routes (id,scope_type,scope_id,agent_type,connection_id,model,config_json,created_by) values (?,?,?,?,?,?,?,?)"
+    ).run('route-v4','case','teacher-case-v4','patient','conn-v4','deepseek-flash','{}','teacher-v4');
+    legacy.close();
+
+    const info=openThroughApplication(dbPath);
+    assert.equal(info.schemaVersion,5);
+
+    const upgraded=new Database(dbPath,{readonly:true});
+    try{
+      const route=upgraded.prepare("select owner_user_id from llm_agent_routes where id='route-v4'").get();
+      assert.equal(route.owner_user_id,'teacher-v4');
+    }finally{
+      upgraded.close();
+    }
+  }finally{
+    rmSync(dir,{recursive:true,force:true});
+  }
+});
