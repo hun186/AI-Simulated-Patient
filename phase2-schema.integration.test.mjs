@@ -40,8 +40,9 @@ test('fresh SQLite database advances to schema version 6 with pricing and quota 
     const pricingCols=new Set(db.prepare('pragma table_info(llm_pricing_rules)').all().map(x=>x.name));
     assert.equal(tables.has('llm_pricing_rules'),true);
     assert.equal(tables.has('llm_user_quotas'),true);
-    for(const name of ['estimated_cost_microusd','pricing_status','pricing_rule_id'])assert.equal(usageCols.has(name),true,name);
-    assert.equal(pricingCols.has('time_band'),true);
+    assert.equal(tables.has('llm_fx_rates'),true);
+    for(const name of ['estimated_cost_microusd','pricing_status','pricing_rule_id','cache_write_tokens','service_tier','estimated_cost_microntd','fx_rate_microunits_per_usd','fx_rate_id'])assert.equal(usageCols.has(name),true,name);
+    for(const name of ['time_band','context_band','cache_write_microusd_per_million'])assert.equal(pricingCols.has(name),true,name);
     assert.equal(db.prepare("select count(*) as count from llm_pricing_rules where preset='deepseek' and time_band in ('peak','off_peak')").get().count,6);
     db.close();
   }finally{rmSync(dir,{recursive:true,force:true});}
@@ -56,4 +57,9 @@ test('PostgreSQL schema preserves Phase 2 usage cost/status constraints',()=>{
   assert.match(schema,/time_band text not null default 'always'/);
   assert.match(schema,/deepseek-flash','peak',300000,6000,1200000/);
   assert.match(schema,/deepseek-v4-pro','off_peak',660000,22000,1980000/);
+  assert.match(schema,/context_band text not null default 'any'/);
+  assert.match(schema,/cache_write_microusd_per_million/);
+  assert.match(schema,/llm_fx_rates/);
+  assert.match(schema,/31780000,'CBC interbank closing rate 2026-09-24'/);
+  assert.match(schema,/gpt-6-sol\*','always','short',2000000,200000,2500000,10000000/);
 });
