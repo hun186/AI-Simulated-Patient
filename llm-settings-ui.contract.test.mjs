@@ -68,3 +68,13 @@ test('chat header shows the actual snapshotted Patient provider and model for th
   assert.match(sessions,/model:routeSnapshot\.patient\.model/);
   assert.doesNotMatch(sessions,/runtime:\{[^]*apiKey/);
 });
+
+
+test('runtime UI explains missing Evaluator routes and evaluation provider failures',()=>{
+  const app=readFileSync('formal-app.js','utf8');
+  assert.match(app,/AI_EVALUATOR_PROVIDER_NOT_CONFIGURED/);
+  assert.match(app,/Evaluator AI/);
+  assert.match(app,/invalid_response/);
+  assert.match(app,/INVALID_EVALUATION_CONTRACT/);
+  assert.match(app,/evaluationErrorMessage/);
+});

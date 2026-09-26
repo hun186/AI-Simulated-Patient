@@ -78,6 +78,7 @@ test('production chat quota rejection returns 429 before provider call and does 
       const auth=await loginUser({email:'student@example.com',password:'StudentPass!2026',req:request({},null)});
       const connection=await createConnection(admin,{name:'Local',preset:'custom',baseUrl,defaultModel:'test-model',apiKey:''});
       await setSystemRoute(admin,{agentType:'patient',connectionId:connection.id,model:'test-model'});
+      await setSystemRoute(admin,{agentType:'evaluator',connectionId:connection.id,model:'test-model'});
       const createRes=response();
       await sessionsHandler(request({caseId:'aphasia_001',mode:'training',coachEnabled:false},auth),createRes);
       const sessionId=createRes.body.session.id;
