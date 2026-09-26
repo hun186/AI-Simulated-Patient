@@ -13,11 +13,23 @@ function parseJson(value,fallback={}){
   return value&&typeof value==='object'?value:fallback;
 }
 function providerFailure(res,error){
-  if(error?.code==='AI_USAGE_QUOTA_EXCEEDED') return res.status(429).json({error:error.code,dimension:error.dimension});
-  if(error?.code==='AI_PROVIDER_NOT_CONFIGURED') return res.status(503).json({error:'AI_EVALUATOR_PROVIDER_NOT_CONFIGURED'});
-  if(error?.code==='timeout') return res.status(504).json({error:'AI_PROVIDER_TIMEOUT'});
-  if(error?.code) return res.status(502).json({error:'AI_PROVIDER_FAILURE',code:error.code});
-  return null;
+  if(error?.code==='AI_USAGE_QUOTA_EXCEEDED'){
+    res.status(429).json({error:error.code,dimension:error.dimension});
+    return true;
+  }
+  if(error?.code==='AI_PROVIDER_NOT_CONFIGURED'){
+    res.status(503).json({error:'AI_EVALUATOR_PROVIDER_NOT_CONFIGURED'});
+    return true;
+  }
+  if(error?.code==='timeout'){
+    res.status(504).json({error:'AI_PROVIDER_TIMEOUT'});
+    return true;
+  }
+  if(error?.code){
+    res.status(502).json({error:'AI_PROVIDER_FAILURE',code:error.code});
+    return true;
+  }
+  return false;
 }
 
 export default async function handler(req,res){
@@ -46,7 +58,7 @@ export default async function handler(req,res){
       return res.status(200).json(result);
     }
 
-    try{await enforceLlmQuota({userId:user.id});}catch(error){const mapped=providerFailure(res,error);if(mapped)return mapped;throw error;}
+    try{await enforceLlmQuota({userId:user.id});}catch(error){if(providerFailure(res,error)) return;throw error;}
     const started=Date.now();
     try{
       const result=await runEvaluatorAgent({session,transcript:serverTranscript,route});
