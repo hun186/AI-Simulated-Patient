@@ -102,6 +102,7 @@ test('LLM route precedence and session snapshots are scoped and immutable',()=>{
     const snapshotAfter=typeof storedAfter.llm_route_snapshot==='string'
       ?JSON.parse(storedAfter.llm_route_snapshot):storedAfter.llm_route_snapshot;
 
+    await deleteRoute(admin,systemRoute.id);
     process.env.APP_ENV='production';
     let missingProviderError='';
     try{
