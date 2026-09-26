@@ -71,8 +71,16 @@ function makeResponse(res){
   return {
     status(code){statusCode=code;return this;},
     setHeader(name,value){res.setHeader(name,value);},
-    json(data){res.writeHead(statusCode,{'content-type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));},
-    end(data=''){res.writeHead(statusCode);res.end(data);}
+    json(data){
+      if(res.writableEnded) return;
+      if(!res.headersSent) res.writeHead(statusCode,{'content-type':'application/json; charset=utf-8'});
+      res.end(JSON.stringify(data));
+    },
+    end(data=''){
+      if(res.writableEnded) return;
+      if(!res.headersSent) res.writeHead(statusCode);
+      res.end(data);
+    }
   };
 }
 
@@ -89,6 +97,7 @@ http.createServer(async(req,res)=>{
     res.writeHead(200,{'content-type':mime[extname(filePath)]||'application/octet-stream'});res.end(file);
   }catch(error){
     console.error(error);
+    if(res.writableEnded) return;
     if(!res.headersSent) res.writeHead(500,{'content-type':'application/json; charset=utf-8'});
     res.end(JSON.stringify({error:'Unexpected server error'}));
   }
