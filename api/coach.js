@@ -78,7 +78,8 @@ export default async function handler(req,res){
     try{
       const result=await runCoachAgent({session,transcript:serverTranscript,route});
       await recordLlmUsage({
-        userId:user.id,sessionId,caseId:session.case_id,agentType:'coach',route,result
+        userId:user.id,sessionId,caseId:session.case_id,agentType:'coach',route,result,
+        occurredAt:new Date(started).toISOString()
       });
       return res.status(200).json({
         provider:result.preset,model:result.model,...coachShape(caseSnapshot,serverTranscript,result.guidance)
@@ -86,7 +87,7 @@ export default async function handler(req,res){
     }catch(error){
       await recordLlmUsage({
         userId:user.id,sessionId,caseId:session.case_id,agentType:'coach',route,error,
-        latencyMs:Date.now()-started
+        latencyMs:Date.now()-started,occurredAt:new Date(started).toISOString()
       });
       const mapped=providerFailure(res,error);
       if(mapped) return mapped;
