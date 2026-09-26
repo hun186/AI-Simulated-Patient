@@ -8,8 +8,8 @@ Branch: `feat/llm-usage-quota-phase2`
 | Task | Status |
 |---|---|
 | 1. Pricing/quota schema + SQLite migration v4 | COMPLETE |
-| 2. Cost estimator | IMPLEMENTED_CI_PENDING |
-| 3. Hard quota enforcement | NOT_STARTED |
+| 2. Cost estimator | COMPLETE |
+| 3. Hard quota enforcement | IMPLEMENTED_CI_PENDING |
 | 4. Usage/quota API + RBAC | NOT_STARTED |
 | 5. Usage/cost dashboard UI | NOT_STARTED |
 | 6. Final regression / hosted verification | NOT_STARTED |
@@ -50,3 +50,16 @@ Implemented:
 - `llm-pricing.integration.test.mjs` covers resolver, double-count avoidance, partial/unpriced status, and persisted snapshots.
 
 Task 2 CI: PENDING after push.
+
+## Task 3
+
+Implemented:
+- `lib/llm/quota.js` with UTC daily/monthly usage aggregation.
+- Hard dimensions: daily/monthly tokens and daily/monthly estimated cost.
+- Quota rejection code: `AI_USAGE_QUOTA_EXCEEDED` with dimension metadata.
+- Production Patient/Coach/Evaluator APIs enforce quota before provider calls.
+- Quota rejection returns HTTP 429 and is not recorded as a provider usage failure.
+- Runtime test verifies provider is not called, messages/usage rows do not change, and session remains active.
+
+Task 2 hosted evidence: `7a5eb1a0b115dbb23fa4b2fe491195cd4de329fe`, Actions `36224188446` PASS.
+Task 3 CI: PENDING after push.

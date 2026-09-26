@@ -5,6 +5,7 @@ import { requireUser,requireCsrf } from '../lib/server-auth.js';
 import { getOwnedSession,getTranscript } from '../lib/server-sessions.js';
 import { runCoachAgent } from '../lib/llm/agents.js';
 import { recordLlmUsage } from '../lib/llm/usage.js';
+import { enforceLlmQuota } from '../lib/llm/quota.js';
 import { isProductionEnv } from '../lib/request-security.js';
 
 function parseJson(value,fallback={}){
@@ -30,6 +31,7 @@ function coachShape(caseData,transcript,guidance){
   };
 }
 function providerFailure(res,error){
+  if(error?.code==='AI_USAGE_QUOTA_EXCEEDED') return res.status(429).json({error:error.code,dimension:error.dimension});
   if(error?.code==='AI_PROVIDER_NOT_CONFIGURED') return res.status(503).json({error:'AI_COACH_PROVIDER_NOT_CONFIGURED'});
   if(error?.code==='timeout') return res.status(504).json({error:'AI_PROVIDER_TIMEOUT'});
   if(error?.code) return res.status(502).json({error:'AI_PROVIDER_FAILURE',code:error.code});
@@ -59,6 +61,7 @@ export default async function handler(req,res){
       }));
     }
 
+    try{await enforceLlmQuota({userId:user.id});}catch(error){const mapped=providerFailure(res,error);if(mapped)return mapped;throw error;}
     const started=Date.now();
     try{
       const result=await runCoachAgent({session,transcript:serverTranscript,route});
