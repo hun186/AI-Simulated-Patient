@@ -29,8 +29,9 @@ function inspect(dbPath){
     const columns=new Set(db.prepare("pragma table_info(interview_sessions)").all().map(row=>row.name));
     const routeColumns=new Set(db.prepare("pragma table_info(llm_agent_routes)").all().map(row=>row.name));
     const pricingColumns=new Set(db.prepare("pragma table_info(llm_pricing_rules)").all().map(row=>row.name));
+    const usageColumns=new Set(db.prepare("pragma table_info(llm_usage_events)").all().map(row=>row.name));
     const user=db.prepare("select id,email from app_users where id='legacy-admin'").get()||null;
-    return {tables,columns,routeColumns,pricingColumns,user};
+    return {tables,columns,routeColumns,pricingColumns,usageColumns,user};
   }finally{
     db.close();
   }
@@ -49,6 +50,12 @@ test('fresh SQLite database advances to schema version 6 with LLM provider found
     assert.equal(state.columns.has('llm_route_snapshot'),true);
     assert.equal(state.routeColumns.has('owner_user_id'),true);
     assert.equal(state.pricingColumns.has('time_band'),true);
+    assert.equal(state.pricingColumns.has('context_band'),true);
+    assert.equal(state.pricingColumns.has('cache_write_microusd_per_million'),true);
+    assert.equal(state.tables.has('llm_fx_rates'),true);
+    for(const name of ['cache_write_tokens','service_tier','estimated_cost_microntd','fx_rate_microunits_per_usd','fx_rate_id']){
+      assert.equal(state.usageColumns.has(name),true,name);
+    }
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }
@@ -77,6 +84,12 @@ test('existing schema version 1 database migrates to version 6 without losing da
     assert.equal(state.columns.has('llm_route_snapshot'),true);
     assert.equal(state.routeColumns.has('owner_user_id'),true);
     assert.equal(state.pricingColumns.has('time_band'),true);
+    assert.equal(state.pricingColumns.has('context_band'),true);
+    assert.equal(state.pricingColumns.has('cache_write_microusd_per_million'),true);
+    assert.equal(state.tables.has('llm_fx_rates'),true);
+    for(const name of ['cache_write_tokens','service_tier','estimated_cost_microntd','fx_rate_microunits_per_usd','fx_rate_id']){
+      assert.equal(state.usageColumns.has(name),true,name);
+    }
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }
@@ -193,10 +206,15 @@ test('schema version 5 pricing rules migrate to v6 time bands without losing cus
 
     const upgraded=new Database(dbPath,{readonly:true});
     try{
-      const custom=upgraded.prepare("select time_band from llm_pricing_rules where id='custom-v5'").get();
+      const custom=upgraded.prepare("select time_band,context_band,cache_write_microusd_per_million from llm_pricing_rules where id='custom-v5'").get();
       assert.equal(custom.time_band,'always');
+      assert.equal(custom.context_band,'any');
+      assert.equal(custom.cache_write_microusd_per_million,null);
       const seeded=upgraded.prepare("select count(*) as count from llm_pricing_rules where id like 'builtin-deepseek-%'").get();
       assert.equal(seeded.count,6);
+      assert.equal(upgraded.prepare("select count(*) as count from llm_pricing_rules where id like 'builtin-openai-%'").get().count>=15,true);
+      const fx=upgraded.prepare("select rate_microunits_per_unit from llm_fx_rates where id='builtin-cbc-usd-twd-20260924'").get();
+      assert.equal(fx.rate_microunits_per_unit,31780000);
     }finally{
       upgraded.close();
     }
