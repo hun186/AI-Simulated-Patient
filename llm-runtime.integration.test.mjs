@@ -30,7 +30,7 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
       const system=String(body.messages?.[0]?.content||'');
       let content='patient answer';
       if(system.includes('learning coach')) content='Ask one focused follow-up question.';
-      if(system.includes('evaluator')) content=providerMode==='invalid-eval'?'not-json':JSON.stringify(evaluation);
+      if(body.response_format?.type==='json_object') content=providerMode==='invalid-eval'?'not-json':JSON.stringify(evaluation);
       const payload={id:'provider-1',model:'test-model',choices:[{message:{content}}]};
       if(providerMode!=='no-usage') payload.usage={prompt_tokens:11,completion_tokens:4,total_tokens:15};
       res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify(payload));
