@@ -50,3 +50,21 @@ test('Teacher AI route picker includes built-in cases plus cases owned by the si
   assert.match(app,/系統內建/);
   assert.match(app,/r\.ownerUserId===state\.user\?\.id/);
 });
+
+
+test('chat header shows the actual snapshotted Patient provider and model for the session',()=>{
+  const html=readFileSync('index.html','utf8');
+  const app=readFileSync('formal-app.js','utf8');
+  const sessions=readFileSync('lib/server-sessions.js','utf8');
+
+  assert.match(html,/id="sessionProviderBadge"/);
+  assert.match(app,/state\.sessionRuntime=d\.session\.runtime\|\|null/);
+  assert.match(app,/DeepSeek/);
+  assert.match(app,/Mock/);
+  assert.match(app,/sessionProviderBadge/);
+  assert.match(sessions,/runtime:\{/);
+  assert.match(sessions,/providerKind:routeSnapshot\.patient\.providerKind/);
+  assert.match(sessions,/preset:routeSnapshot\.patient\.preset/);
+  assert.match(sessions,/model:routeSnapshot\.patient\.model/);
+  assert.doesNotMatch(sessions,/runtime:\{[^]*apiKey/);
+});
