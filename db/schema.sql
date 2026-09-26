@@ -233,6 +233,7 @@ create table if not exists llm_pricing_rules (
   id uuid primary key,
   preset text not null check (preset in ('openai','deepseek','ollama','custom')),
   model_pattern text not null,
+  time_band text not null default 'always' check (time_band in ('always','peak','off_peak')),
   input_microusd_per_million bigint check (input_microusd_per_million is null or input_microusd_per_million >= 0),
   cached_input_microusd_per_million bigint check (cached_input_microusd_per_million is null or cached_input_microusd_per_million >= 0),
   output_microusd_per_million bigint check (output_microusd_per_million is null or output_microusd_per_million >= 0),
@@ -243,8 +244,35 @@ create table if not exists llm_pricing_rules (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table llm_pricing_rules add column if not exists time_band text not null default 'always';
+
+do $
+begin
+  if not exists (
+    select 1 from pg_constraint where conname='llm_pricing_rules_time_band_check'
+  ) then
+    alter table llm_pricing_rules
+      add constraint llm_pricing_rules_time_band_check
+      check (time_band in ('always','peak','off_peak'));
+  end if;
+end $;
+
 create index if not exists llm_pricing_rules_lookup_idx
   on llm_pricing_rules(preset,model_pattern,is_active,effective_at desc);
+create index if not exists llm_pricing_rules_time_lookup_idx
+  on llm_pricing_rules(preset,model_pattern,time_band,is_active,effective_at desc);
+
+insert into llm_pricing_rules
+  (id,preset,model_pattern,time_band,input_microusd_per_million,cached_input_microusd_per_million,
+   output_microusd_per_million,reasoning_microusd_per_million,effective_at,is_active)
+values
+  ('00000000-0000-4000-8000-000000000601','deepseek','deepseek-flash','peak',300000,6000,1200000,1200000,'2026-09-10T04:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000602','deepseek','deepseek-flash','off_peak',150000,3000,600000,600000,'2026-09-10T04:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000603','deepseek','deepseek-v4-flash*','peak',300000,6000,1200000,1200000,'2026-09-10T04:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000604','deepseek','deepseek-v4-flash*','off_peak',150000,3000,600000,600000,'2026-09-10T04:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000605','deepseek','deepseek-v4-pro','peak',1320000,44000,3960000,3960000,'2026-08-16T16:00:00Z',true),
+  ('00000000-0000-4000-8000-000000000606','deepseek','deepseek-v4-pro','off_peak',660000,22000,1980000,1980000,'2026-08-16T16:00:00Z',true)
+on conflict (id) do nothing;
 
 create table if not exists llm_user_quotas (
   user_id uuid primary key references app_users(id) on delete cascade,
