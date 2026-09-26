@@ -66,6 +66,10 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     const connection=await createConnection(admin,{name:'Local test',preset:'custom',baseUrl,defaultModel:'test-model',apiKey:''});
     await setSystemRoute(admin,{agentType:'patient',connectionId:connection.id,model:'test-model'});
     const coachRoute=await setSystemRoute(admin,{agentType:'coach',connectionId:connection.id,model:'test-model'});
+
+    const missingEvaluatorRes=response();
+    await sessionsHandler(request({caseId:'aphasia_001',mode:'training',coachEnabled:false},auth),missingEvaluatorRes);
+
     await setSystemRoute(admin,{agentType:'evaluator',connectionId:connection.id,model:'test-model'});
 
     const createRes=response();
@@ -108,6 +112,7 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
 
     console.log(JSON.stringify({
       missing:{status:missingRes.statusCode,body:missingRes.body,count:Number(missingCount)},
+      missingEvaluator:{status:missingEvaluatorRes.statusCode,body:missingEvaluatorRes.body},
       created:{status:createRes.statusCode},
       chat:{status:chatRes.statusCode,body:chatRes.body,messages:afterSuccess},
       failure:{status:failRes.statusCode,body:failRes.body,beforeFail,afterFail:afterFail.length},
@@ -129,6 +134,8 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     assert.equal(data.missing.status,503);
     assert.equal(data.missing.body.error,'AI_PROVIDER_NOT_CONFIGURED');
     assert.equal(data.missing.count,0);
+    assert.equal(data.missingEvaluator.status,503);
+    assert.equal(data.missingEvaluator.body.error,'AI_EVALUATOR_PROVIDER_NOT_CONFIGURED');
     assert.equal(data.created.status,201);
     assert.equal(data.chat.status,200);
     assert.equal(data.chat.body.reply,'patient answer');
