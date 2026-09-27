@@ -1,12 +1,12 @@
-# Dify Integration Contract and Follow-up Plan
+# Dify Integration Contract
 
-Status: design record for the current Dify provider work and the required stateful Chatflow follow-up.
+Status: current-state contract for the implemented Dify provider, including Platform-managed and Stateful Chatflow execution.
 
 ## Why this document exists
 
 The platform supports Dify as an AI Provider in the same routing layer as OpenAI, DeepSeek, Ollama, and Custom providers. A collaborator already has a Dify Chatflow that keeps scoring state such as `H01_done ... H14_done` in Dify Conversation Variables.
 
-The current Dify provider implementation and the collaborator's existing Chatflow use different state-ownership models. This document records the compatibility requirement so it is not lost when the technical documentation and operation manual are written later.
+The platform supports both platform-managed and stateful Dify execution while remaining authoritative for the interview. This document records the compatibility contract with existing Chatflows that keep state in Dify Conversation Variables.
 
 ## State ownership
 
@@ -27,7 +27,7 @@ Provider-specific Dify state must be treated as subordinate external state, not 
 
 ### 1. Platform-managed / stateless Dify
 
-This is the first implementation.
+This mode is implemented for Dify apps that do not depend on provider-side conversation continuity.
 
 - The platform sends the required system prompt and transcript/context on each call.
 - Dify does not need prior conversation continuity.
@@ -36,7 +36,7 @@ This is the first implementation.
 
 ### 2. Stateful Dify Chatflow
 
-Required follow-up for compatibility with the collaborator's existing Chatflow.
+This mode is implemented for compatibility with the collaborator's existing Chatflow.
 
 - The first Dify Chat/Chatflow request starts with an empty `conversation_id`.
 - The returned Dify `conversation_id` is saved as provider state for that interview session and Dify route.
@@ -180,7 +180,7 @@ Dify Evaluator output must still pass the platform evaluator contract validation
 
 ## Route configuration expected for stateful Chatflow
 
-A future Dify route should be able to configure at least:
+Current Dify route configuration supports:
 
 - execution mode: `platform_managed` or `stateful_chatflow`;
 - Dify app type: `chat`, `workflow`, or `completion`;
@@ -241,9 +241,9 @@ For an existing Chatflow that already accumulates `H01_done ... H14_done`:
 5. expose a normal published Dify Application API and App API key;
 6. provide any required fixed input names to the platform route configuration.
 
-## Documentation/manual TODO
+## Documentation requirements
 
-When full documentation is requested later, ensure this design is incorporated into both documents.
+Technical and operation documentation should preserve this contract.
 
 ### Technical documentation must include
 
@@ -275,9 +275,9 @@ When full documentation is requested later, ensure this design is incorporated i
 
 ## Implementation status
 
-- Dify Provider Phase 1: implemented on PR #22 branch.
-- Stateful Chatflow / persisted `conversation_id`: implemented and covered by end-to-end tests on PR #22.
-- Provider state is persisted per `(interview_session, connection)` in `llm_provider_session_state` (SQLite schema v8; PostgreSQL adapter schema retained in `db/schema.sql`).
+- Dify Provider Phase 1: merged via PR #22 and present on current `main`.
+- Stateful Chatflow / persisted `conversation_id`: merged via PR #22 and covered by end-to-end tests.
+- Provider state is persisted per `(interview_session, connection)` in `llm_provider_session_state`, introduced by SQLite migration v8. The current SQLite schema advances through v9 because report-export context was added later; the PostgreSQL schema remains aligned in `db/schema.sql`.
 - Patient calls create/reuse the Dify `conversation_id`; an Evaluator route using the same Dify connection can send a configurable final trigger (default `問診結束`) into the same conversation.
 - A new interview session starts without the prior session's Dify conversation state.
 - PostgreSQL/Neon connectivity is not required for this feature; the existing PostgreSQL adapter path remains available for future durable deployments.

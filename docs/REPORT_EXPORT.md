@@ -84,9 +84,9 @@ This design is intentional because it:
 
 Production Teacher records/database APIs remain excluded from the Vercel Demo bundle.
 
-## Future technical documentation / operation manual
+## Documentation / operation manual requirements
 
-When the full documentation is written, include:
+Technical and operation documentation should include:
 
 - where Word/PDF buttons appear in Teacher records;
 - PDF Save-as-PDF instructions for major browsers;
