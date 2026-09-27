@@ -10,6 +10,7 @@ test('evaluation audit UI exposes safe IDs and staff-only on-demand ZIP export',
   assert.match(html,/id="resultAuditMeta"/);
   assert.match(html,/id="recordEvaluationAudit"/);
   assert.match(html,/id="recordEvaluationAuditMeta"/);
+  assert.match(html,/id="recordEvaluationAuditSelect"/);
   assert.match(html,/id="downloadRecordEvaluationAuditBtn"/);
   assert.match(html,/下載技術診斷包（ZIP）/);
 
@@ -23,6 +24,9 @@ test('evaluation audit UI exposes safe IDs and staff-only on-demand ZIP export',
   assert.match(app,/raw_ai_response\.txt/);
   assert.match(app,/repaired_ai_response\.txt/);
   assert.match(app,/\/api\/teacher\/evaluation-audits\?evaluationId=/);
+  assert.match(app,/function selectedRecordAuditSummary/);
+  assert.match(app,/evaluationAudits/);
+  assert.match(app,/recordEvaluationAuditSelect/);
   assert.match(app,/function downloadSelectedEvaluationAudit/);
 
   assert.match(css,/\.evaluation-audit-meta/);
