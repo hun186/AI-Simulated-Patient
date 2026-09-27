@@ -38,13 +38,13 @@ function inspect(dbPath){
   }
 }
 
-test('fresh SQLite database advances to schema version 11 with LLM provider foundation',()=>{
+test('fresh SQLite database advances to schema version 12 with LLM provider foundation',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-migrate-fresh-'));
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const info=openThroughApplication(dbPath);
     const state=inspect(dbPath);
-    assert.equal(info.schemaVersion,11);
+    assert.equal(info.schemaVersion,12);
     for(const table of ['llm_provider_connections','llm_agent_routes','llm_usage_events','llm_provider_session_state','interview_coach_events','evaluation_failure_diagnostics','evaluation_audits']){
       assert.equal(state.tables.has(table),true,table+' missing');
     }
@@ -56,7 +56,7 @@ test('fresh SQLite database advances to schema version 11 with LLM provider foun
     assert.equal(state.pricingColumns.has('cache_write_microusd_per_million'),true);
     assert.equal(state.tables.has('llm_fx_rates'),true);
     assert.equal(state.ollamaCloudPricingCount>0,true);
-    for(const name of ['cache_write_tokens','service_tier','estimated_cost_microntd','fx_rate_microunits_per_usd','fx_rate_id']){
+    for(const name of ['cache_write_tokens','service_tier','estimated_cost_microntd','fx_rate_microunits_per_usd','fx_rate_id','cache_miss_tokens','cache_read_status','cache_savings_microusd','cache_savings_microntd']){
       assert.equal(state.usageColumns.has(name),true,name);
     }
   }finally{
@@ -64,7 +64,7 @@ test('fresh SQLite database advances to schema version 11 with LLM provider foun
   }
 });
 
-test('existing schema version 1 database migrates to version 10 without losing data',()=>{
+test('existing schema version 1 database migrates to version 12 without losing data',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-migrate-v1-'));
   const dbPath=join(dir,'aisp.sqlite');
   try{
@@ -79,7 +79,7 @@ test('existing schema version 1 database migrates to version 10 without losing d
 
     const info=openThroughApplication(dbPath);
     const state=inspect(dbPath);
-    assert.equal(info.schemaVersion,11);
+    assert.equal(info.schemaVersion,12);
     assert.deepEqual(state.user,{id:'legacy-admin',email:'legacy@example.com'});
     for(const table of ['llm_provider_connections','llm_agent_routes','llm_usage_events','llm_provider_session_state','interview_coach_events','evaluation_failure_diagnostics','evaluation_audits']){
       assert.equal(state.tables.has(table),true,table+' missing');
@@ -90,7 +90,7 @@ test('existing schema version 1 database migrates to version 10 without losing d
     assert.equal(state.pricingColumns.has('context_band'),true);
     assert.equal(state.pricingColumns.has('cache_write_microusd_per_million'),true);
     assert.equal(state.tables.has('llm_fx_rates'),true);
-    for(const name of ['cache_write_tokens','service_tier','estimated_cost_microntd','fx_rate_microunits_per_usd','fx_rate_id']){
+    for(const name of ['cache_write_tokens','service_tier','estimated_cost_microntd','fx_rate_microunits_per_usd','fx_rate_id','cache_miss_tokens','cache_read_status','cache_savings_microusd','cache_savings_microntd']){
       assert.equal(state.usageColumns.has(name),true,name);
     }
   }finally{
@@ -103,9 +103,9 @@ test('migrated SQLite database can reopen without replaying migration 002',()=>{
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const first=openThroughApplication(dbPath);
-    assert.equal(first.schemaVersion,11);
+    assert.equal(first.schemaVersion,12);
     const second=openThroughApplication(dbPath);
-    assert.equal(second.schemaVersion,11);
+    assert.equal(second.schemaVersion,12);
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }
@@ -116,7 +116,7 @@ test('database whose user_version was reset to 1 is reconciled from applied migr
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const first=openThroughApplication(dbPath);
-    assert.equal(first.schemaVersion,11);
+    assert.equal(first.schemaVersion,12);
 
     const damaged=new Database(dbPath);
     damaged.pragma('user_version = 1');
@@ -124,10 +124,10 @@ test('database whose user_version was reset to 1 is reconciled from applied migr
     damaged.close();
 
     const recovered=openThroughApplication(dbPath);
-    assert.equal(recovered.schemaVersion,11);
+    assert.equal(recovered.schemaVersion,12);
     const check=new Database(dbPath,{readonly:true});
     try{
-      assert.equal(check.pragma('user_version',{simple:true}),11);
+      assert.equal(check.pragma('user_version',{simple:true}),12);
       assert.equal(
         check.prepare("select count(*) as count from sqlite_master where type='table' and name='llm_provider_connections'").get().count,
         1
@@ -169,7 +169,7 @@ test('schema version 4 teacher routes are backfilled with route owner during v5 
     legacy.close();
 
     const info=openThroughApplication(dbPath);
-    assert.equal(info.schemaVersion,11);
+    assert.equal(info.schemaVersion,12);
 
     const upgraded=new Database(dbPath,{readonly:true});
     try{
@@ -205,7 +205,7 @@ test('schema version 5 pricing rules migrate to v6 time bands without losing cus
     legacy.close();
 
     const info=openThroughApplication(dbPath);
-    assert.equal(info.schemaVersion,11);
+    assert.equal(info.schemaVersion,12);
 
     const upgraded=new Database(dbPath,{readonly:true});
     try{
