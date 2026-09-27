@@ -43,3 +43,17 @@
 .chat-head-main{display:flex;align-items:center;justify-content:space-between;gap:12px}.session-provider-badge{display:inline-flex;align-items:center;white-space:nowrap;padding:5px 9px;border-radius:999px;background:#eef2f8;color:#4d5b73;font-size:11px;font-weight:800;border:1px solid #dce3ee}@media(max-width:700px){.chat-head-main{align-items:flex-start;flex-direction:column}.session-provider-badge{white-space:normal}}
 
 .fx-reference{display:flex;flex-direction:column;gap:6px;min-width:250px;font-size:11px;color:#68738c}.fx-admin{display:flex;gap:6px;align-items:center}.fx-admin input{width:110px;border:1px solid #dbe2ee;border-radius:9px;padding:7px 8px}.fx-admin button{padding:7px 9px;font-size:11px}.usage-breakdown-row span:last-child{white-space:nowrap}
+
+.prompt-example-btn{border:0;background:#eef3fb;color:#47617f;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;cursor:pointer}
+.prompt-example-btn:hover{background:#e2eaf6}
+.ai-prompt-field-head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.prompt-example-dialog{border:0;border-radius:20px;padding:0;width:min(760px,calc(100vw - 32px));max-height:min(82vh,820px);box-shadow:0 28px 90px rgba(31,45,77,.24)}
+.prompt-example-dialog::backdrop{background:rgba(20,27,43,.42)}
+.prompt-example-shell{padding:22px;display:grid;gap:16px;overflow:auto;max-height:min(82vh,820px)}
+.prompt-example-shell h4{margin:0 0 7px;font-size:13px;color:#4f5e76}
+.prompt-example-note{display:grid;gap:4px;padding:12px 14px;border-radius:12px;background:#f4f7fb;color:#5d6a80;font-size:12px;line-height:1.55}
+.prompt-example-note strong{color:#40506a}
+.prompt-example-vars{display:flex;gap:7px;flex-wrap:wrap}
+.prompt-example-vars code{padding:5px 8px;border-radius:8px;background:#f1f4f8;color:#43526a;font-size:11px}
+#promptExampleText{width:100%;min-height:300px;resize:vertical;border:1px solid #dbe2ee;border-radius:12px;padding:14px;background:#fbfcfe;color:#2f3c52;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;box-sizing:border-box}
+@media(max-width:620px){.prompt-example-shell{padding:16px}.ai-prompt-field-head{align-items:flex-start;flex-direction:column}.prompt-example-btn{align-self:flex-start}#promptExampleText{min-height:260px}}
