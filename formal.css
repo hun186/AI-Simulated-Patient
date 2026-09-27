@@ -70,3 +70,7 @@
 .dify-route-config select{border:1px solid #dbe2ee;border-radius:9px;padding:9px;background:#fff}
 .dify-checkbox-row{display:flex!important;grid-template-columns:none!important;align-items:center;gap:8px!important;font-weight:700!important}
 .dify-checkbox-row input{width:auto;margin:0}
+
+.record-export-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.record-export-actions button{white-space:nowrap}
+@media(max-width:720px){.record-export-actions{justify-content:flex-start;width:100%}}
