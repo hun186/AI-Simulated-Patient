@@ -285,8 +285,9 @@ test('evaluator repair agent converts malformed contract output into validated J
   });
   assert.deepEqual(result.evaluation,validEvaluation());
   assert.equal(result.repaired,true);
-  assert.match(calls[0].messages[0].content,/Previous evaluator output/);
-  assert.match(calls[0].messages[0].content,/"totalScore":10/);
+  const repairUserMessage=calls[0].messages.find(message=>message.role==='user')?.content||'';
+  assert.match(repairUserMessage,/Previous evaluator output/);
+  assert.match(repairUserMessage,/"totalScore":10/);
   assert.deepEqual(calls[0].thinking,{type:'disabled'});
   assert.equal(calls[0].response_format.type,'json_object');
   assert.equal(calls[0].max_tokens,8192);
