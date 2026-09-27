@@ -254,3 +254,97 @@ test('testLlmConnection returns a sanitized success summary',async()=>{
   assert.equal(typeof result.latencyMs,'number');
   assert.deepEqual(Object.keys(result).sort(),['latencyMs','model','ok','preset','provider'].sort());
 });
+
+
+test('Dify Chat/Chatflow uses blocking chat-messages and normalizes answer/usage',async()=>{
+  const calls=[];
+  const fetchImpl=async(url,options)=>{
+    calls.push({url,options,body:JSON.parse(options.body)});
+    return fakeResponse({json:{
+      message_id:'dify-msg-1',
+      answer:'Dify patient answer',
+      metadata:{usage:{prompt_tokens:21,completion_tokens:7,total_tokens:28}}
+    }});
+  };
+  const {generateLlm}=await gateway();
+  const result=await generateLlm({
+    connection:{providerKind:'dify',preset:'dify',baseUrl:'https://api.dify.ai/v1',apiKey:'app-secret',defaultModel:'chat'},
+    model:'chat',
+    systemPrompt:'Stay in character.',
+    messages:[{role:'user',content:'你好'}],
+    safetyIdentifier:'opaque-user',
+    providerConfig:{difyInputs:{language:'zh-TW'}}
+  },{fetchImpl});
+
+  assert.equal(calls[0].url,'https://api.dify.ai/v1/chat-messages');
+  assert.equal(calls[0].options.headers.Authorization,'Bearer app-secret');
+  assert.equal(calls[0].body.response_mode,'blocking');
+  assert.equal(calls[0].body.user,'opaque-user');
+  assert.equal(calls[0].body.conversation_id,'');
+  assert.deepEqual(calls[0].body.inputs,{language:'zh-TW'});
+  assert.match(calls[0].body.query,/SYSTEM INSTRUCTIONS:/);
+  assert.match(calls[0].body.query,/Stay in character/);
+  assert.match(calls[0].body.query,/你好/);
+  assert.equal(result.text,'Dify patient answer');
+  assert.equal(result.provider,'dify');
+  assert.equal(result.preset,'dify');
+  assert.equal(result.model,'chat');
+  assert.deepEqual(result.usage,{
+    inputTokens:21,cachedInputTokens:0,outputTokens:7,reasoningTokens:0,totalTokens:28
+  });
+  assert.equal(result.providerRequestId,'dify-msg-1');
+});
+
+test('Dify Workflow maps combined prompt to configured input/output keys',async()=>{
+  const calls=[];
+  const fetchImpl=async(url,options)=>{
+    calls.push({url,body:JSON.parse(options.body)});
+    return fakeResponse({json:{
+      workflow_run_id:'wf-run-1',
+      task_id:'task-1',
+      data:{status:'succeeded',outputs:{result_text:'workflow answer'},total_tokens:44}
+    }});
+  };
+  const {generateLlm}=await gateway();
+  const result=await generateLlm({
+    connection:{providerKind:'dify',preset:'dify',baseUrl:'https://dify.internal/v1',apiKey:'app-secret',defaultModel:'workflow'},
+    model:'workflow',
+    systemPrompt:'Evaluator rules',
+    messages:[{role:'user',content:'Evaluate transcript'}],
+    providerConfig:{
+      difyInputKey:'agent_prompt',
+      difyOutputKey:'result_text',
+      difyInputs:{locale:'zh-TW'}
+    },
+    safetyIdentifier:'user-1'
+  },{fetchImpl});
+
+  assert.equal(calls[0].url,'https://dify.internal/v1/workflows/run');
+  assert.equal(calls[0].body.response_mode,'blocking');
+  assert.equal(calls[0].body.user,'user-1');
+  assert.equal(calls[0].body.inputs.locale,'zh-TW');
+  assert.match(calls[0].body.inputs.agent_prompt,/Evaluator rules/);
+  assert.equal(result.text,'workflow answer');
+  assert.equal(result.usage.totalTokens,44);
+  assert.equal(result.providerRequestId,'wf-run-1');
+});
+
+test('Dify connection test uses app parameters endpoint without invoking the app',async()=>{
+  const calls=[];
+  const {testLlmConnection}=await gateway();
+  const fetchImpl=async(url,options)=>{
+    calls.push({url,options});
+    return fakeResponse({json:{user_input_form:[]}});
+  };
+  const result=await testLlmConnection({
+    providerKind:'dify',preset:'dify',baseUrl:'https://api.dify.ai/v1',
+    apiKey:'app-key',defaultModel:'chat'
+  },{fetchImpl});
+  assert.equal(result.ok,true);
+  assert.equal(result.provider,'dify');
+  assert.equal(result.preset,'dify');
+  assert.equal(result.model,'chat');
+  assert.equal(calls[0].url,'https://api.dify.ai/v1/parameters?user=aisp-connection-test');
+  assert.equal(calls[0].options.method,'GET');
+  assert.equal(calls[0].options.headers.Authorization,'Bearer app-key');
+});
