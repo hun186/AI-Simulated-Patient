@@ -276,7 +276,7 @@ function promptTemplateEditor(agent,route,catalog){
 function aiPresetOptions(){
   const items=state.user?.role==='admin'
     ?[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local'],['custom','OpenAI-compatible / Custom']]
-    :[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud']];
+    :[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local（OpenAI 相容端點）']];
   return items.map(([value,label])=>'<option value="'+value+'">'+label+'</option>').join('');
 }
 function syncAiPresetFields(){
@@ -308,7 +308,7 @@ async function renderAiSettings(){
     syncAiPresetFields();
     $('aiRestrictionNote').textContent=state.user?.role==='admin'
       ?'Admin 可建立系統級 OpenAI、DeepSeek、Ollama Cloud、Ollama Local 與自訂 OpenAI-compatible 連線。'
-      :'Teacher 可建立自己的 OpenAI、DeepSeek 與 Ollama Cloud 連線；Ollama Local 與自訂私有端點由 Admin 管理。';
+      :'Teacher 可建立自己的 OpenAI、DeepSeek、Ollama Cloud 與 Ollama Local 連線；自訂私有端點仍由 Admin 管理。';
 
     $('aiConnectionList').innerHTML=(data.connections||[]).map(connection=>{
       const canManage=manageableAiConnection(connection);
