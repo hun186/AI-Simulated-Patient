@@ -148,3 +148,5 @@ For Workflow routes, the route config supports:
 - `difyInputs` — optional fixed JSON inputs, for example `{"language":"zh-TW"}`.
 
 Dify token usage is recorded when the Dify response reports it. Because the actual underlying model and billing policy are managed inside Dify, the platform does not invent a native model price for Dify calls; unmatched Dify usage remains explicitly unpriced until a dedicated pricing policy is configured.
+
+For the compatibility contract with existing Dify Chatflows that depend on `conversation_id` and Conversation Variables, see [`DIFY_INTEGRATION_CONTRACT.md`](./DIFY_INTEGRATION_CONTRACT.md). Stateful Chatflow support is a required follow-up and is not complete until the provider stores and reuses the Dify conversation ID per interview session.
