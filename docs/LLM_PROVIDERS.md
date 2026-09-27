@@ -99,3 +99,21 @@ Ollama Local and Ollama Cloud are intentionally separate choices in the Teacher 
 - **Ollama Cloud** uses Ollama's hosted OpenAI-compatible endpoint `https://ollama.com/v1` with an Ollama API key. Teacher-scoped keys are encrypted with the same secret store used for OpenAI and DeepSeek.
 
 Ollama Cloud usage is priced from the effective-dated catalog snapshot. DeepSeek cloud models use Ollama's UTC weekday peak window (12:00-18:00 UTC Monday-Friday) and off-peak rates at other times. Other seeded cloud models use their published per-million-token input, cached-input, and output rates. Cost is snapshotted in USD and converted to TWD using the effective FX reference already used by the usage dashboard.
+
+
+## Custom prompt templates
+
+Admin and Teacher routes may include safe educator-authored prompt templates. Templates are stored inside the existing route `config_json` and are snapshotted into each interview session together with the Provider/Model route, so later edits do not change historical sessions.
+
+Editable areas:
+
+- **Patient**: tone, response length, interaction style, and role-play emphasis.
+- **Coach**: coaching strategy, Socratic-questioning style, feedback tone, and teaching focus.
+- **Evaluator**: scoring explanation/evidence emphasis while preserving the rubric and machine-readable contract.
+- **Final Feedback**: guidance for `overall.comment`, strengths, improvements, recommendations, and next-practice focus only.
+
+Templates are supplemental. Locked system rules remain authoritative: the Patient cannot invent case facts or reveal hidden rubric material, the Coach cannot reveal hidden answers/model answers, and the Evaluator must grade only transcript evidence and preserve the fixed JSON/status contract.
+
+Supported placeholders are intentionally limited to:
+`{{case_title}}`, `{{patient_name}}`, `{{patient_age}}`, `{{learning_goals}}`, and `{{mode}}`.
+Hidden facts, rubric answers, API secrets, and raw system internals are not exposed as template variables. Each template is limited to 8,000 characters.

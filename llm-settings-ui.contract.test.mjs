@@ -40,7 +40,7 @@ test('Patient Coach and Evaluator have separate configurable route selectors',()
   assert.match(app,/\['patient','coach','evaluator'\]\.map/);
   assert.match(app,/action='setSystemRoute'|payload\.action='setSystemRoute'/);
   assert.match(app,/payload\.action='setCaseRoute'/);
-  assert.match(app,/payload\.action='setCaseRoute';payload\.caseId=\$\('aiCaseSelect'\)\.value/);
+  assert.match(app,/payload\.action='setCaseRoute';payload\.caseId=caseId/);
 });
 
 test('Teacher AI route picker includes built-in cases plus cases owned by the signed-in Teacher',()=>{
@@ -88,4 +88,24 @@ test('Ollama Cloud is API-key based while Ollama Local keeps its local endpoint 
   assert.match(app,/deepseek-v4-pro 或 deepseek-v4\.1-flash/);
   assert.match(connections,/ollama_cloud:\{providerKind:'openai_compatible',baseUrl:'https:\/\/ollama\.com\/v1'/);
   assert.match(connections,/storedPreset:'ollama'/);
+});
+
+
+test('AI Settings exposes safe customizable Patient Coach Evaluator and Final Feedback prompt templates',()=>{
+  const app=readFileSync('formal-app.js','utf8');
+  const api=readFileSync('api/teacher/ai-settings.js','utf8');
+  const prompts=readFileSync('lib/llm/prompts.js','utf8');
+  const routes=readFileSync('lib/llm/routes.js','utf8');
+
+  assert.match(app,/function promptTemplateEditor/);
+  assert.match(app,/data-prompt-key/);
+  assert.match(app,/系統鎖定規則（唯讀）/);
+  assert.match(prompts,/Final Feedback/);
+  assert.match(app,/儲存 Provider \/ Model \/ Prompt/);
+  assert.match(app,/config\[field\.dataset\.promptKey\]=field\.value\.trim\(\)/);
+  assert.match(api,/promptTemplates:getPromptTemplateCatalog\(\)/);
+  assert.match(prompts,/feedbackTemplate/);
+  assert.match(prompts,/PROMPT_TEMPLATE_MAX_CHARS=8000/);
+  assert.match(prompts,/UNSUPPORTED_PROMPT_VARIABLE/);
+  assert.match(routes,/validatePromptTemplate/);
 });

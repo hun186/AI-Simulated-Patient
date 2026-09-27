@@ -7,12 +7,14 @@ import {
 import { testLlmConnection } from '../../lib/llm/provider-gateway.js';
 import { recordAuthEvent } from '../../lib/auth-audit.js';
 import { setSystemRoute,setCaseRoute,deleteRoute,listVisibleRoutes } from '../../lib/llm/routes.js';
+import { getPromptTemplateCatalog } from '../../lib/llm/prompts.js';
 
 function statusFor(error){
   if(error?.code==='CONNECTION_NOT_FOUND' || error?.code==='ROUTE_NOT_FOUND' || error?.code==='CASE_NOT_FOUND') return 404;
   if(['FORBIDDEN','FORBIDDEN_PRESET','FORBIDDEN_CONNECTION','FORBIDDEN_CASE'].includes(error?.code)) return 403;
   if([
-    'INVALID_PRESET','INVALID_BASE_URL','BASE_URL_REQUIRED','API_KEY_REQUIRED','NAME_REQUIRED','MODEL_REQUIRED','INVALID_AGENT_TYPE'
+    'INVALID_PRESET','INVALID_BASE_URL','BASE_URL_REQUIRED','API_KEY_REQUIRED','NAME_REQUIRED','MODEL_REQUIRED','INVALID_AGENT_TYPE',
+    'INVALID_PROMPT_TEMPLATE','PROMPT_TEMPLATE_TOO_LONG','UNSUPPORTED_PROMPT_VARIABLE'
   ].includes(error?.code)) return 400;
   return 500;
 }
@@ -26,7 +28,8 @@ export default async function handler(req,res){
     return res.status(200).json({
       connections:await listVisibleConnections(actor),
       routes:await listVisibleRoutes(actor),
-      actorRole:actor.role
+      actorRole:actor.role,
+      promptTemplates:getPromptTemplateCatalog()
     });
   }
   if(req.method!=='POST') return res.status(405).json({error:'Method not allowed'});
