@@ -64,10 +64,10 @@ test('Teacher records API returns export-ready people transcript Coach LLM and e
     });
 
     await query(
-      `insert into llm_usage_events
-        (user_id,session_id,case_id,agent_type,provider_kind,preset,model,
-         input_tokens,output_tokens,total_tokens,latency_ms,success)
-       values ($1,$2,$3,'patient','openai','openai','gpt-test',10,5,15,120,1)`,
+      'insert into llm_usage_events '+
+      '(user_id,session_id,case_id,agent_type,provider_kind,preset,model,'+
+      ' input_tokens,output_tokens,total_tokens,latency_ms,success) '+
+      "values ($1,$2,$3,'patient','openai','openai','gpt-test',10,5,15,120,1)",
       [student.id,session.id,'aphasia_001']
     );
 
