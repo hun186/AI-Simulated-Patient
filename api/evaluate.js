@@ -42,25 +42,32 @@ function evaluationResponse(evaluation,audit){
   };
 }
 
-function providerFailure(res,error){
+function safeAuditResponse(audit){
+  return audit?{
+    ...evaluationAuditSummary(audit),
+    persisted:Boolean(audit?.storage?.persisted)
+  }:null;
+}
+function providerFailure(res,error,{audit=null}={}){
+  const auditSummary=safeAuditResponse(audit);
   if(error?.code==='AI_USAGE_QUOTA_EXCEEDED'){
-    res.status(429).json({error:error.code,dimension:error.dimension});
+    res.status(429).json({error:error.code,dimension:error.dimension,...(auditSummary?{audit:auditSummary}:{})});
     return true;
   }
   if(error?.code==='AI_PROVIDER_NOT_CONFIGURED'){
-    res.status(503).json({error:'AI_EVALUATOR_PROVIDER_NOT_CONFIGURED'});
+    res.status(503).json({error:'AI_EVALUATOR_PROVIDER_NOT_CONFIGURED',...(auditSummary?{audit:auditSummary}:{})});
     return true;
   }
   if(error?.code==='dify_conversation_state_missing'){
-    res.status(409).json({error:'DIFY_CONVERSATION_STATE_MISSING'});
+    res.status(409).json({error:'DIFY_CONVERSATION_STATE_MISSING',...(auditSummary?{audit:auditSummary}:{})});
     return true;
   }
   if(error?.code==='timeout'){
-    res.status(504).json({error:'AI_PROVIDER_TIMEOUT'});
+    res.status(504).json({error:'AI_PROVIDER_TIMEOUT',...(auditSummary?{audit:auditSummary}:{})});
     return true;
   }
   if(error?.code){
-    res.status(502).json({error:'AI_PROVIDER_FAILURE',code:error.code});
+    res.status(502).json({error:'AI_PROVIDER_FAILURE',code:error.code,...(auditSummary?{audit:auditSummary}:{})});
     return true;
   }
   return false;
@@ -138,7 +145,13 @@ export default async function handler(req,res){
 
       if(error?.code==='INVALID_EVALUATION_CONTRACT' && error?.llmResult){
         try{await enforceLlmQuota({userId:user.id});}
-        catch(quotaError){if(providerFailure(res,quotaError)) return;throw quotaError;}
+        catch(quotaError){
+          const audit=await persistEvaluationAudit({
+            session,user,route,status:'failed',initialError:error,repairError:quotaError
+          });
+          if(providerFailure(res,quotaError,{audit})) return;
+          throw quotaError;
+        }
 
         const repairStarted=Date.now();
         try{
@@ -193,13 +206,19 @@ export default async function handler(req,res){
               diagnostic:projectEvaluationFailureDiagnostic(diagnostic,{role:user.role})
             });
           }
-          const mappedRepair=providerFailure(res,repairError);
+          const audit=await persistEvaluationAudit({
+            session,user,route,status:'failed',initialError:error,repairError
+          });
+          const mappedRepair=providerFailure(res,repairError,{audit});
           if(mappedRepair) return mappedRepair;
           throw repairError;
         }
       }
 
-      const mapped=providerFailure(res,error);
+      const audit=await persistEvaluationAudit({
+        session,user,route,status:'failed',initialError:error
+      });
+      const mapped=providerFailure(res,error,{audit});
       if(mapped) return mapped;
       throw error;
     }
