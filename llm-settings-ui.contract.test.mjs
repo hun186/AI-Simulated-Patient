@@ -119,3 +119,27 @@ test('Teacher AI Settings includes free Ollama Local while arbitrary Custom endp
   assert.match(connections,/ollama:\{providerKind:'openai_compatible',baseUrl:'http:\/\/127\.0\.0\.1:11434\/v1',teacherAllowed:true,keyRequired:false\}/);
   assert.match(connections,/custom:\{providerKind:'openai_compatible',baseUrl:null,teacherAllowed:false/);
 });
+
+
+test('Teacher can configure a private-network Ollama Local Base URL',()=>{
+  const app=readFileSync('formal-app.js','utf8');
+  const connections=readFileSync('lib/llm/connections.js','utf8');
+  assert.match(app,/const showBase=preset==='ollama'\|\|\(state\.user\?\.role==='admin'&&preset==='custom'\)/);
+  assert.match(app,/http:\/\/192\.168\.1\.50:11434\/v1/);
+  assert.match(app,/if\(preset==='ollama'\|\|\(state\.user\?\.role==='admin'&&preset==='custom'\)\)payload\.baseUrl=/);
+  assert.match(app,/connection\.preset==='ollama'/);
+  assert.match(connections,/normalizeOllamaLocalBaseUrl/);
+  assert.match(connections,/OLLAMA_LOCAL_ENDPOINT_NOT_ALLOWED/);
+  assert.match(connections,/a===10/);
+  assert.match(connections,/a===192&&b===168/);
+  assert.match(connections,/a===172&&b>=16&&b<=31/);
+});
+
+test('saving an empty Agent route selection restores the unconfigured fallback state',()=>{
+  const app=readFileSync('formal-app.js','utf8');
+  assert.match(app,/未設定（Rule-based \/ 系統預設）/);
+  assert.match(app,/if\(!connectionId\)\{/);
+  assert.match(app,/action:'deleteRoute',routeId:currentRoute\.id/);
+  assert.match(app,/已恢復為未設定（Rule-based \/ 系統預設）/);
+  assert.doesNotMatch(app,/if\(!connectionId\)return alert\('請先選擇 Provider 連線。'\)/);
+});
