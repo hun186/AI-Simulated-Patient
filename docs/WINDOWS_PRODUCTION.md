@@ -31,7 +31,7 @@ The console should show something similar to:
 
 ```text
 [setup] Local first-admin setup key: ...
-[db] SQLite: D:\...\AI-Simulated-Patient\data\aisp.sqlite (WAL=true, schema=1)
+[db] SQLite: D:\...\AI-Simulated-Patient\data\aisp.sqlite (WAL=true, schema=9)
 AI simulated patient: http://localhost:3000
 ```
 
