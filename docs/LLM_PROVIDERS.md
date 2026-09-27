@@ -95,7 +95,7 @@ Each priced usage event also snapshots the effective USD/TWD reference rate and 
 
 Ollama Local and Ollama Cloud are intentionally separate choices in the Teacher Console:
 
-- **Ollama Local** uses the local OpenAI-compatible endpoint (default `http://127.0.0.1:11434/v1`) and does not require an API key. Local inference is recorded with a zero provider-token cost. If the model name explicitly uses Ollama's `:cloud` proxy suffix, the corresponding Ollama Cloud token price is used instead.
+- **Ollama Local** uses an OpenAI-compatible Ollama endpoint and does not require an API key. The default is `http://127.0.0.1:11434/v1`, but staff may configure another endpoint. Teacher-owned Ollama Local connections are restricted to localhost / loopback / private-network addresses (including common RFC1918 LAN ranges and local IPv6); this supports a separate on-premises Ollama host such as `http://192.168.1.50:11434/v1` without granting arbitrary public-URL access. Local inference is recorded with a zero provider-token cost. If the model name explicitly uses Ollama's `:cloud` proxy suffix, the corresponding Ollama Cloud token price is used instead.
 - **Ollama Cloud** uses Ollama's hosted OpenAI-compatible endpoint `https://ollama.com/v1` with an Ollama API key. Teacher-scoped keys are encrypted with the same secret store used for OpenAI and DeepSeek.
 
 Ollama Cloud usage is priced from the effective-dated catalog snapshot. DeepSeek cloud models use Ollama's UTC weekday peak window (12:00-18:00 UTC Monday-Friday) and off-peak rates at other times. Other seeded cloud models use their published per-million-token input, cached-input, and output rates. Cost is snapshotted in USD and converted to TWD using the effective FX reference already used by the usage dashboard.
@@ -117,3 +117,8 @@ Templates are supplemental. Locked system rules remain authoritative: the Patien
 Supported placeholders are intentionally limited to:
 `{{case_title}}`, `{{patient_name}}`, `{{patient_age}}`, `{{learning_goals}}`, and `{{mode}}`.
 Hidden facts, rubric answers, API secrets, and raw system internals are not exposed as template variables. Each template is limited to 8,000 characters.
+
+
+## Returning an Agent route to unconfigured
+
+Patient, Coach, and Evaluator route selectors support an explicit **Unconfigured (Rule-based / system default)** state. Saving that empty selection deletes the current route rather than requiring another Provider. In local/development mode, the existing deterministic rule-based fallback can then be used. Production keeps its strict policy: a production interview still requires the configured LLM routes needed by that workflow and does not silently fall back to mock/rule-based behavior.
