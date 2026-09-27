@@ -32,7 +32,7 @@ test('dashboard surfaces persisted cost and unpriced usage separately',()=>{
   assert.match(app,/action:'setFxRate'/);
   assert.match(app,/unpricedCalls/);
   assert.match(app,/partialPricingCalls/);
-  assert.match(app,/usageRows\('日期',data\.byDate,'date'\)/);
+  assert.match(app,/usageRows\('日期（本地）',data\.byDate,'date'\)/);
   assert.match(app,/function microusdToUsd/);
 });
 
@@ -87,10 +87,11 @@ test('usage analytics exposes time, dimensional, outcome and cache filters',()=>
 
   assert.match(app,/function usagePeriodRange/);
   assert.match(app,/timeZoneOffsetMinutes:String\(new Date\(\)\.getTimezoneOffset\(\)\)/);
-  assert.match(app,/params\.set\('provider'/);
-  assert.match(app,/params\.set\('model'/);
-  assert.match(app,/params\.set\('agentType'/);
-  assert.match(app,/params\.set\('caseId'/);
+  assert.match(app,/provider:\$\('usageProvider'\)\.value/);
+  assert.match(app,/model:\$\('usageModel'\)\.value/);
+  assert.match(app,/agentType:\$\('usageAgent'\)\.value/);
+  assert.match(app,/caseId:\$\('usageCase'\)\.value/);
+  assert.match(app,/for\(const \[key,value\] of Object\.entries\(values\)\)if\(value\)params\.set\(key,value\)/);
   assert.match(app,/params\.set\('outcome'/);
   assert.match(app,/params\.set\('cacheStatus'/);
   assert.match(app,/usageRows\('使用者'/);
