@@ -1131,9 +1131,24 @@ function canEditUsageQuota(user){
   if(state.user?.role==='admin')return true;
   return state.user?.role==='teacher'&&user.role==='student'&&user.id!==state.user?.id;
 }
+function cacheRate(row){
+  const hit=Number(row?.cachedInputTokens||0);
+  const miss=Number(row?.cacheMissTokens||0);
+  const total=hit+miss;
+  return total>0?hit/total:null;
+}
+function cacheSummary(row){
+  if(Number(row?.cacheReportedCalls||0)<=0)return 'Cache telemetry 未回報';
+  const hit=Number(row.cachedInputTokens||0);
+  const miss=Number(row.cacheMissTokens||0);
+  const rate=cacheRate(row);
+  return 'Cache '+hit.toLocaleString('zh-TW')+'/'+(hit+miss).toLocaleString('zh-TW')+' tk'
+    +(rate==null?'':' · '+(rate*100).toFixed(1)+'% hit')
+    +' · 省 '+microusdToUsd(row.cacheSavingsMicrousd)+' / '+microntdToTwd(row.cacheSavingsMicrontd);
+}
 function usageRows(title,rows,labelKey){
   return '<section class="usage-breakdown-group"><h4>'+title+'</h4>'+
-    ((rows||[]).length?(rows||[]).map(row=>'<div class="usage-breakdown-row"><strong>'+esc(row[labelKey]||'--')+'</strong><span>'+Number(row.calls||0)+' 次</span><span>'+Number(row.tokens||0).toLocaleString('zh-TW')+' tk</span><span>'+microusdToUsd(row.estimatedCostMicrousd)+' / '+microntdToTwd(row.estimatedCostMicrontd)+'</span></div>').join(''):'<p class="empty">尚無資料。</p>')+
+    ((rows||[]).length?(rows||[]).map(row=>'<div class="usage-breakdown-row"><strong>'+esc(row[labelKey]||'--')+'</strong><span>'+Number(row.calls||0)+' 次</span><span>'+Number(row.tokens||0).toLocaleString('zh-TW')+' tk</span><span>'+microusdToUsd(row.estimatedCostMicrousd)+' / '+microntdToTwd(row.estimatedCostMicrontd)+'</span><small>'+esc(cacheSummary(row))+'</small></div>').join(''):'<p class="empty">尚無資料。</p>')+
     '</section>';
 }
 async function renderUsageDashboard(){
@@ -1157,11 +1172,23 @@ async function renderUsageDashboard(){
       tokens:a.tokens+Number(row.tokens||0),
       cost:a.cost+Number(row.estimatedCostMicrousd||0),
       costTwd:a.costTwd+Number(row.estimatedCostMicrontd||0),
+      cached:a.cached+Number(row.cachedInputTokens||0),
+      cacheMiss:a.cacheMiss+Number(row.cacheMissTokens||0),
+      cacheReportedCalls:a.cacheReportedCalls+Number(row.cacheReportedCalls||0),
+      cacheSavings:a.cacheSavings+Number(row.cacheSavingsMicrousd||0),
+      cacheSavingsTwd:a.cacheSavingsTwd+Number(row.cacheSavingsMicrontd||0),
       unpriced:a.unpriced+Number(row.unpricedCalls||0),
       partial:a.partial+Number(row.partialPricingCalls||0)
-    }),{calls:0,tokens:0,cost:0,costTwd:0,unpriced:0,partial:0});
+    }),{calls:0,tokens:0,cost:0,costTwd:0,cached:0,cacheMiss:0,cacheReportedCalls:0,cacheSavings:0,cacheSavingsTwd:0,unpriced:0,partial:0});
     $('usageCalls').textContent=totals.calls.toLocaleString('zh-TW');
     $('usageTokens').textContent=totals.tokens.toLocaleString('zh-TW');
+    $('usageCacheHitTokens').textContent=totals.cached.toLocaleString('zh-TW');
+    const cachePrompt=totals.cached+totals.cacheMiss;
+    $('usageCacheHitRate').textContent=totals.cacheReportedCalls>0&&cachePrompt>0
+      ?((totals.cached/cachePrompt)*100).toFixed(1)+'%'
+      :'--';
+    $('usageCacheSavings').textContent=microusdToUsd(totals.cacheSavings);
+    $('usageCacheSavingsTwd').textContent=microntdToTwd(totals.cacheSavingsTwd);
     $('usageCost').textContent=microusdToUsd(totals.cost);
     $('usageCostTwd').textContent=microntdToTwd(totals.costTwd);
     const fx=data.fxRate||null;
