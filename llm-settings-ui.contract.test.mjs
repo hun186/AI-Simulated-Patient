@@ -206,3 +206,24 @@ test('AI Settings exposes Dify beside native LLM providers and stores per-route 
   assert.match(demo,/preset:'dify'/);
   assert.match(demo,/providerKind:'dify'/);
 });
+
+
+test('Dify route UI exposes platform-managed and stateful Chatflow modes with evaluator final trigger',()=>{
+  const app=readFileSync('formal-app.js','utf8');
+  const routes=readFileSync('lib/llm/routes.js','utf8');
+
+  assert.match(app,/Platform-managed（stateless）/);
+  assert.match(app,/Stateful Chatflow（沿用 conversation_id）/);
+  assert.match(app,/data-dify-execution-mode/);
+  assert.match(app,/data-dify-stateful-options/);
+  assert.match(app,/data-dify-final-trigger-enabled/);
+  assert.match(app,/data-dify-final-trigger/);
+  assert.match(app,/問診結束/);
+  assert.match(app,/Stateful Chatflow 只適用於 Dify App 類型 chat/);
+  assert.match(app,/config\.difyExecutionMode=/);
+  assert.match(app,/config\.difyFinalTriggerEnabled=/);
+
+  assert.match(routes,/INVALID_DIFY_EXECUTION_MODE/);
+  assert.match(routes,/INVALID_DIFY_STATEFUL_APP_MODE/);
+  assert.match(routes,/INVALID_DIFY_FINAL_TRIGGER/);
+});
