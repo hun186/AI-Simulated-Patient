@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildEvaluationFailureDiagnostic,redactDiagnosticText } from './lib/evaluation-diagnostics.js';
+import { buildEvaluationFailureDiagnostic,projectEvaluationFailureDiagnostic,redactDiagnosticText } from './lib/evaluation-diagnostics.js';
 
 test('evaluation diagnostics keep useful metadata while excluding route secrets and prompt configuration',()=>{
   const initialError=new Error('items');
@@ -54,4 +54,35 @@ test('diagnostic redaction catches common bearer and API-key forms',()=>{
   assert.equal(output.includes('xyzxyzxyzxyz'),false);
   assert.equal(output.includes('letmein'),false);
   assert.equal(output.includes('sk-1234567890abcdef'),false);
+});
+
+
+test('student projection hides evaluator text while staff projection keeps it',()=>{
+  const initialError=new Error('items');
+  initialError.code='INVALID_EVALUATION_CONTRACT';
+  initialError.llmResult={text:'raw evaluator answer',provider:'dify',preset:'dify',model:'chat'};
+  const repairError=new Error('overall');
+  repairError.code='EVALUATION_REPAIR_FAILED';
+  repairError.llmResult={text:'repaired evaluator answer',provider:'dify',preset:'dify',model:'chat'};
+  const diagnostic=buildEvaluationFailureDiagnostic({
+    session:{id:'session-2',case_id:'case-2',mode:'exam'},
+    user:{role:'student'},route:{connectionId:'conn-2',preset:'dify',model:'chat'},
+    initialError,repairError,now:new Date('2026-09-27T10:05:00.000Z')
+  });
+  diagnostic.storage={persisted:true};
+
+  const student=projectEvaluationFailureDiagnostic(diagnostic,{role:'student'});
+  assert.equal(student.access.rawResponsesIncluded,false);
+  assert.equal(student.attempts.initial.responseText,'');
+  assert.equal(student.attempts.initial.responseRestricted,true);
+  assert.equal(student.attempts.repair.responseText,'');
+  assert.match(student.access.staffLookupPath,/\/api\/teacher\/evaluation-diagnostics\?errorId=EVL-20260927-/);
+
+  const teacher=projectEvaluationFailureDiagnostic(diagnostic,{role:'teacher'});
+  assert.equal(teacher.access.rawResponsesIncluded,true);
+  assert.equal(teacher.attempts.initial.responseText,'raw evaluator answer');
+  assert.equal(teacher.attempts.repair.responseText,'repaired evaluator answer');
+
+  const admin=projectEvaluationFailureDiagnostic(diagnostic,{role:'admin'});
+  assert.equal(admin.access.rawResponsesIncluded,true);
 });
