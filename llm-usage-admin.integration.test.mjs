@@ -153,10 +153,10 @@ test('usage analytics filters provider model agent case outcome cache and groups
     await query("insert into cases (id,version,internal_title,student_label,difficulty,student_brief,definition_json,status,created_by) values ($1,1,$2,$3,'test','',$4,'published',$5)",
       ['case-filter','Internal Filter Case','篩選測試病例',JSON.stringify({id:'case-filter',title:'Filter',patient:{name:'P'},opening:'hi',facts:[],rubric:[]}),teacher.id]);
 
-    const insert=`insert into llm_usage_events
-      (user_id,case_id,agent_type,provider_kind,preset,model,input_tokens,cached_input_tokens,cache_miss_tokens,cache_read_status,
-       output_tokens,total_tokens,latency_ms,success,usage_status,pricing_status,created_at)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,1,$13,'reported','unpriced',$14)`;
+    const insert='insert into llm_usage_events '+
+      '(user_id,case_id,agent_type,provider_kind,preset,model,input_tokens,cached_input_tokens,cache_miss_tokens,cache_read_status,'+
+      ' output_tokens,total_tokens,latency_ms,success,usage_status,pricing_status,created_at) '+
+      "values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,1,$13,'reported','unpriced',$14)";
 
     await query(insert,[student.id,'case-filter','evaluator','openai_compatible','deepseek','deepseek-flash',100,40,60,'reported',20,120,false,'2026-09-27T15:30:00.000Z']);
     await query(insert,[student.id,'case-filter','patient','openai_compatible','deepseek','deepseek-flash',80,10,70,'reported',10,90,true,'2026-09-27T16:30:00.000Z']);
