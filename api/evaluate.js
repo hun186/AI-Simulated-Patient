@@ -6,7 +6,7 @@ import { runEvaluatorAgent,repairEvaluatorAgent } from '../lib/llm/agents.js';
 import { recordLlmUsage } from '../lib/llm/usage.js';
 import { enforceLlmQuota } from '../lib/llm/quota.js';
 import { getProviderSessionState,setProviderSessionState } from '../lib/llm/provider-state.js';
-import { isProductionEnv } from '../lib/request-security.js';
+import { isProductionEnv } from '../lib/request-security.js';\nimport { buildEvaluationFailureDiagnostic } from '../lib/evaluation-diagnostics.js';
 
 function parseJson(value,fallback={}){
   if(value==null) return fallback;
@@ -113,6 +113,16 @@ export default async function handler(req,res){
         }catch(repairError){
           if(repairError?.llmResult)await persistProviderState(repairError.llmResult);
           await recordAttempt({started:repairStarted,error:repairError});
+          if(repairError?.code==='EVALUATION_REPAIR_FAILED' && repairError?.llmResult){
+            const diagnostic=buildEvaluationFailureDiagnostic({
+              session,user,route,initialError:error,repairError
+            });
+            return res.status(502).json({
+              error:'AI_PROVIDER_FAILURE',
+              code:'EVALUATION_REPAIR_FAILED',
+              diagnostic
+            });
+          }
           const mappedRepair=providerFailure(res,repairError);
           if(mappedRepair) return mappedRepair;
           throw repairError;
