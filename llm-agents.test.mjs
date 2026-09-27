@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildPatientPrompt,buildCoachPrompt,buildEvaluatorPrompt,evaluationResponseFormat,
+  buildPatientPrompt,buildCoachPrompt,buildEvaluatorPrompt,buildEvaluatorRepairPrompt,evaluationResponseFormat,
   validatePromptTemplate,renderPromptTemplate,getPromptTemplateCatalog
 } from './lib/llm/prompts.js';
 import {
   validateEvaluationContract,parseAndValidateEvaluation
 } from './lib/llm/evaluation-contract.js';
 import {
-  runPatientAgent,runCoachAgent,runEvaluatorAgent
+  runPatientAgent,runCoachAgent,runEvaluatorAgent,repairEvaluatorAgent
 } from './lib/llm/agents.js';
 
 const caseDefinition={
@@ -248,4 +248,71 @@ test('agents send snapshotted route prompt customizations to provider system pro
   assert.match(bodies[1].messages[0].content,/Coach custom instruction/);
   assert.match(bodies[2].messages[0].content,/Score custom/);
   assert.match(bodies[2].messages[0].content,/Feedback custom/);
+});
+
+
+test('evaluation parser accepts fenced or wrapped JSON without a second LLM call',()=>{
+  const valid=JSON.stringify(validEvaluation(),null,2);
+  assert.deepEqual(parseAndValidateEvaluation('Here is the result:\n\`\`\`json\n'+valid+'\n\`\`\`'),validEvaluation());
+  assert.deepEqual(parseAndValidateEvaluation('prefix text '+valid+' trailing text'),validEvaluation());
+});
+
+test('evaluator repair agent converts malformed contract output into validated JSON',async()=>{
+  const calls=[];
+  const fetchImpl=async(_url,options)=>{
+    const body=JSON.parse(options.body);
+    calls.push(body);
+    return {
+      ok:true,status:200,headers:{get:()=>null},
+      async json(){return {
+        id:'repair-1',model:'deepseek-flash',
+        choices:[{message:{content:JSON.stringify(validEvaluation())}}],
+        usage:{prompt_tokens:30,completion_tokens:20,total_tokens:50}
+      };}
+    };
+  };
+  const route={
+    connection:{
+      providerKind:'openai_compatible',preset:'deepseek',
+      baseUrl:'https://api.deepseek.com',apiKey:'x',defaultModel:'deepseek-flash'
+    },
+    providerKind:'openai_compatible',preset:'deepseek',model:'deepseek-flash',config:{}
+  };
+  const result=await repairEvaluatorAgent({
+    session,transcript,route,fetchImpl,
+    invalidOutput:'{"totalScore":10,"items":[]}',
+    validationError:Object.assign(new Error('overall'),{code:'INVALID_EVALUATION_CONTRACT'})
+  });
+  assert.deepEqual(result.evaluation,validEvaluation());
+  assert.equal(result.repaired,true);
+  assert.match(calls[0].messages[0].content,/Previous evaluator output/);
+  assert.match(calls[0].messages[0].content,/"totalScore":10/);
+  assert.deepEqual(calls[0].thinking,{type:'disabled'});
+  assert.equal(calls[0].response_format.type,'json_object');
+  assert.equal(calls[0].max_tokens,8192);
+  const repairPrompt=buildEvaluatorRepairPrompt({session,transcript});
+  assert.match(repairPrompt,/JSON repair step/);
+  assert.match(repairPrompt,/Do not invent transcript evidence/);
+});
+
+test('evaluator repair agent reports repair-specific failure after a second invalid contract',async()=>{
+  const fetchImpl=async()=>({
+    ok:true,status:200,headers:{get:()=>null},
+    async json(){return {
+      id:'repair-bad',model:'deepseek-flash',
+      choices:[{message:{content:'{"totalScore":10}'}}],
+      usage:{prompt_tokens:20,completion_tokens:5,total_tokens:25}
+    };}
+  });
+  const route={
+    connection:{
+      providerKind:'openai_compatible',preset:'deepseek',
+      baseUrl:'https://api.deepseek.com',apiKey:'x',defaultModel:'deepseek-flash'
+    },
+    providerKind:'openai_compatible',preset:'deepseek',model:'deepseek-flash',config:{}
+  };
+  await assert.rejects(
+    ()=>repairEvaluatorAgent({session,transcript,route,fetchImpl,invalidOutput:'bad'}),
+    error=>error.code==='EVALUATION_REPAIR_FAILED'&&Boolean(error.llmResult)
+  );
 });
