@@ -25,6 +25,7 @@ import teacherUsersHandler from '../api/teacher/users.js';
 import teacherRecordsHandler from '../api/teacher/records.js';
 import teacherAiSettingsHandler from '../api/teacher/ai-settings.js';
 import teacherLlmUsageHandler from '../api/teacher/llm-usage.js';
+import teacherEvaluationDiagnosticsHandler from '../api/teacher/evaluation-diagnostics.js';
 import studentReportHandler from '../api/student/report.js';
 import healthHandler from '../api/health.js';
 
@@ -58,7 +59,7 @@ const routes=new Map([
   ['/api/cases',casesHandler],['/api/chat',chatHandler],['/api/coach',coachHandler],['/api/evaluate',evaluateHandler],
   ['/api/runtime',runtimeHandler],['/api/health',healthHandler],['/api/sessions',sessionsHandler],['/api/student/report',studentReportHandler],['/api/auth/login',loginHandler],['/api/auth/register',registerHandler],['/api/auth/logout',logoutHandler],
   ['/api/auth/me',meHandler],['/api/auth/bootstrap',bootstrapHandler],['/api/auth/change-password',changePasswordHandler],['/api/auth/audit',authAuditHandler],['/api/teacher/cases',teacherCasesHandler],
-  ['/api/teacher/users',teacherUsersHandler],['/api/teacher/records',teacherRecordsHandler],['/api/teacher/ai-settings',teacherAiSettingsHandler],['/api/teacher/llm-usage',teacherLlmUsageHandler]
+  ['/api/teacher/users',teacherUsersHandler],['/api/teacher/records',teacherRecordsHandler],['/api/teacher/ai-settings',teacherAiSettingsHandler],['/api/teacher/llm-usage',teacherLlmUsageHandler],['/api/teacher/evaluation-diagnostics',teacherEvaluationDiagnosticsHandler]
 ]);
 
 async function parseBody(req){
@@ -93,7 +94,7 @@ http.createServer(async(req,res)=>{
     const path=parsedUrl.pathname;
     if(routes.has(path)){req.body=await parseBody(req);return await routes.get(path)(req,makeResponse(res));}
     const filePath=path==='/'?'/index.html':path;
-    if(!['/index.html','/styles.css','/formal.css','/app.js','/formal-app.js','/report-export.js'].includes(filePath)){res.writeHead(404);return res.end('Not found');}
+    if(!['/index.html','/styles.css','/formal.css','/app.js','/formal-app.js','/report-export.js','/support-bundle.js'].includes(filePath)){res.writeHead(404);return res.end('Not found');}
     const file=await readFile(join(root,filePath));
     res.writeHead(200,{'content-type':mime[extname(filePath)]||'application/octet-stream'});res.end(file);
   }catch(error){

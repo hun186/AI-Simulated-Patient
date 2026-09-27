@@ -109,6 +109,13 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     const persistentInvalidRes=response();
     await evaluateHandler(request({sessionId:persistentSessionId},auth),persistentInvalidRes);
     const activeAfterPersistentInvalid=(await query('select status from interview_sessions where id=$1',[persistentSessionId]))[0].status;
+    const diagnosticRows=await query(
+      'select error_id as "errorId",diagnostic_json as diagnostic from evaluation_failure_diagnostics where session_id=$1 order by created_at desc',
+      [persistentSessionId]
+    );
+    const persistedDiagnostic=diagnosticRows[0]
+      ?(typeof diagnosticRows[0].diagnostic==='string'?JSON.parse(diagnosticRows[0].diagnostic):diagnosticRows[0].diagnostic)
+      :null;
 
     await deleteRoute(admin,coachRoute.id);
     const createNoCoachRes=response();
@@ -127,6 +134,7 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
       coach:{status:coachRes.statusCode,body:coachRes.body},
       repairedEvaluation:{status:repairedEvalRes.statusCode,body:repairedEvalRes.body,sessionStatus:completedAfterRepair,rows:evalRows.length},
       persistentInvalid:{status:persistentInvalidRes.statusCode,body:persistentInvalidRes.body,sessionStatus:activeAfterPersistentInvalid},
+      persistedDiagnostic,
       enableMissingCoach:{status:enableMissingCoachRes.statusCode,body:enableMissingCoachRes.body,coachEnabled:Boolean(coachStateAfterRejectedEnable)},
       usage:usageRows
     }));
@@ -161,6 +169,22 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     assert.equal(data.persistentInvalid.status,502);
     assert.equal(data.persistentInvalid.body.code,'EVALUATION_REPAIR_FAILED');
     assert.equal(data.persistentInvalid.sessionStatus,'active');
+    assert.equal(data.persistentInvalid.body.diagnostic.category,'evaluation_contract_repair_failed');
+    assert.equal(data.persistentInvalid.body.diagnostic.session.id,data.persistedDiagnostic.session.id);
+    assert.equal(data.persistentInvalid.body.diagnostic.session.userRole,'student');
+    assert.equal(data.persistentInvalid.body.diagnostic.access.rawResponsesIncluded,false);
+    assert.equal(data.persistentInvalid.body.diagnostic.attempts.initial.responseText,'');
+    assert.equal(data.persistentInvalid.body.diagnostic.attempts.initial.responseRestricted,true);
+    assert.equal(data.persistentInvalid.body.diagnostic.attempts.repair.responseText,'');
+    assert.equal(data.persistentInvalid.body.diagnostic.attempts.repair.responseRestricted,true);
+    assert.equal(data.persistentInvalid.body.diagnostic.attempts.initial.validation.code,'INVALID_EVALUATION_CONTRACT');
+    assert.equal(data.persistentInvalid.body.diagnostic.attempts.repair.validation.code,'EVALUATION_REPAIR_FAILED');
+    assert.match(data.persistentInvalid.body.diagnostic.access.staffLookupPath,/\/api\/teacher\/evaluation-diagnostics\?errorId=EVL-/);
+    assert.equal(JSON.stringify(data.persistentInvalid.body.diagnostic).includes('secret upstream body'),false);
+    assert.equal(data.persistedDiagnostic.storage.persisted,true);
+    assert.equal(data.persistedDiagnostic.session.id,data.persistentInvalid.body.diagnostic.session.id);
+    assert.equal(data.persistedDiagnostic.attempts.initial.responseText,'{"totalScore":10}');
+    assert.equal(data.persistedDiagnostic.attempts.repair.responseText,'{"totalScore":10}');
     assert.equal(data.enableMissingCoach.status,503);
     assert.equal(data.enableMissingCoach.body.error,'AI_COACH_PROVIDER_NOT_CONFIGURED');
     assert.equal(data.enableMissingCoach.coachEnabled,false);

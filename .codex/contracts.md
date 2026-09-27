@@ -12,6 +12,7 @@
 | `HTTP-004` | Teacher management | server ↔ Teacher Console | `api/teacher/*.js` | RBAC-sensitive |
 | `HTTP-005` | Isolated Vercel demo | `api/demo.js` ↔ public demo UI | `vercel.json`, `.vercelignore`, Vercel tests | intentionally reduced |
 | `HTTP-006` | Student report export | server → owning student | `api/student/report.js`, `lib/report-policy.js`, report tests | privacy/RBAC-sensitive |
+| `HTTP-007` | Evaluation failure support | evaluator → student/staff support UI | `api/evaluate.js`, `api/teacher/evaluation-diagnostics.js`, `lib/evaluation-diagnostics.js` | privacy/RBAC-sensitive |
 | `DB-001` | Relational schema/migrations | DB adapters/services | `db/schema.sql`, `db/sqlite-schema.sql`, `db/migrations/*.sql` | versioned |
 | `LLM-001` | Provider gateway result/error | adapters ↔ agents/routes/usage | `lib/llm/provider-gateway.js`, provider tests | normalized internal contract |
 | `EVAL-001` | Structured evaluation | evaluator/mock ↔ session/UI | `lib/llm/evaluation-contract.js`, `lib/mock-evaluator.js`, tests | validated before persistence |
@@ -37,7 +38,7 @@
 - `POST /api/sessions`: default `action=create`; `action=setCoach` only for owned active training sessions and only if frozen Coach route exists in production.
 - `POST /api/chat`: non-empty `message`; DB mode additionally requires an owned active `sessionId`. Success returns reply/provider metadata and persists only successful exchanges.
 - `POST /api/coach`: production requires active training session with Coach enabled; response is formative and non-spoiler.
-- `POST /api/evaluate`: completed session returns 409; successful validated result completes the session, provider/contract failure leaves it active.
+- `POST /api/evaluate`: completed session returns 409; successful validated result completes the session, provider/contract failure leaves it active. If automatic contract repair also fails, the response carries a safe diagnostic/error ID; student projection omits raw Evaluator text while Teacher/Admin may receive the redacted raw and repaired outputs.
 - Production LLM failures include 503 route-not-configured, 429 `AI_USAGE_QUOTA_EXCEEDED` with dimension, 504 timeout, or sanitized 502 provider failure; no mock fallback.
 
 ### `HTTP-004` Teacher Console
@@ -61,13 +62,20 @@
 - Policy values are `disabled`, `training_only` (default), and `all_completed`; authorization is enforced server-side, not by button visibility.
 - Student projections include transcript/evaluation and sanitized Provider/Model plus token/usage provenance, but omit internal Provider cost fields and all credentials/secrets.
 
+### `HTTP-007` evaluation failure support
+
+- Failed Evaluator contract repair receives an opaque `EVL-...` error ID, safe route/runtime metadata, validation codes and support instructions; the session stays active for retry.
+- The server persists the redacted first Evaluator output and redacted repair output in `evaluation_failure_diagnostics`. API keys, Authorization/cookies/passwords, provider Base URL, prompt templates and transcript are excluded from this snapshot.
+- Student responses/downloads deliberately omit the raw Evaluator outputs to avoid leaking rubric/case-ground-truth material, especially in exam mode. The support package still includes the error ID and staff lookup path.
+- `GET /api/teacher/evaluation-diagnostics?errorId=...` is Teacher/Admin-only. Admin scope is global; Teacher scope is self/assigned-student only. This production DB endpoint is not part of the Vercel demo surface.
+
 ## Data and LLM contracts
 
 ### `DB-001` schema and migration
 
-- `db/sqlite-schema.sql` is the v1 base schema; lexically ordered `db/migrations/NNN_*.sql` advance SQLite to current `user_version=9` transactionally. Never edit an already-deployed migration without an explicit compatibility decision.
+- `db/sqlite-schema.sql` is the v1 base schema; lexically ordered `db/migrations/NNN_*.sql` advance SQLite to current `user_version=10` transactionally. Never edit an already-deployed migration without an explicit compatibility decision.
 - `db/schema.sql` keeps the PostgreSQL structure aligned. Query callers use PostgreSQL-style `$n` placeholders; SQLite facade translates them.
-- Core evolution: v2 encrypted LLM connections/routes/usage and route snapshots; v3 usage status; v4 pricing snapshot and user quotas; v5 Teacher-owned case routes; v6 time/context pricing, FX and TWD snapshots; v7 Ollama Cloud pricing seed; v8 provider session state for Dify `conversation_id`; v9 Teacher snapshot and persisted Coach events for report export.
+- Core evolution: v2 encrypted LLM connections/routes/usage and route snapshots; v3 usage status; v4 pricing snapshot and user quotas; v5 Teacher-owned case routes; v6 time/context pricing, FX and TWD snapshots; v7 Ollama Cloud pricing seed; v8 provider session state for Dify `conversation_id`; v9 Teacher snapshot and persisted Coach events for report export; v10 persisted evaluation-failure diagnostics for support.
 - Timestamps are stored as UTC-like text generated by DB/application conventions; costs are non-negative integer micro-USD, not floating USD.
 
 ### `LLM-001` provider normalization
