@@ -345,11 +345,24 @@ function syncAiPresetFields(){
       ?'預設：https://api.dify.ai/v1；自架 Dify 可改網址'
       :'https://.../v1';
 }
-function difyRouteEditor(route){
+function difyRouteEditor(route,agent){
   const config=route?.config||{};
   const inputsJson=JSON.stringify(config.difyInputs||{},null,2);
+  const execution=String(config.difyExecutionMode||'platform_managed');
+  const stateful=execution==='stateful_chatflow';
   return '<div class="dify-route-config hidden">'+
-    '<div class="dify-route-note"><strong>Dify Route 設定</strong><span>Chat/Chatflow 會把完整 system prompt 與 transcript 放進 query；Workflow 會放進指定 input key。</span></div>'+
+    '<div class="dify-route-note"><strong>Dify Route 設定</strong><span>Platform-managed 每次由本平台送完整上下文；Stateful Chatflow 則沿用 Dify conversation_id，適合在 Conversation Variables 累積 H01～H14。</span></div>'+
+    '<label>Dify execution mode<select data-dify-execution-mode>'+
+      '<option value="platform_managed" '+(stateful?'':'selected')+'>Platform-managed（stateless）</option>'+
+      '<option value="stateful_chatflow" '+(stateful?'selected':'')+'>Stateful Chatflow（沿用 conversation_id）</option>'+
+    '</select></label>'+
+    '<div class="dify-stateful-options '+(stateful?'':'hidden')+'" data-dify-stateful-options>'+
+      '<div class="dify-route-note"><span>Stateful 僅支援 Dify Chat / Chatflow。若 Patient 與 Evaluator 要共用 H01～H14 Conversation Variables，兩者必須選同一個 Dify 連線。</span></div>'+
+      (agent==='evaluator'
+        ?'<label class="dify-checkbox-row"><input type="checkbox" data-dify-final-trigger-enabled '+(config.difyFinalTriggerEnabled?'checked':'')+'>結束評量時送出 final trigger</label>'+
+         '<label>Final trigger<input data-dify-final-trigger value="'+esc(config.difyFinalTrigger||'問診結束')+'" placeholder="問診結束"></label>'
+        :'')+
+    '</div>'+
     '<label>Workflow input key<input data-dify-input-key value="'+esc(config.difyInputKey||'prompt')+'" placeholder="prompt"></label>'+
     '<label>Workflow output key<input data-dify-output-key value="'+esc(config.difyOutputKey||'text')+'" placeholder="text"></label>'+
     '<label>Dify 固定 inputs JSON<textarea data-dify-inputs-json placeholder="{}">'+esc(inputsJson)+'</textarea></label>'+
@@ -358,7 +371,10 @@ function difyRouteEditor(route){
 function syncDifyRouteCard(card){
   const connectionId=card?.querySelector('.ai-route-connection')?.value;
   const connection=(state.aiSettings?.connections||[]).find(item=>item.id===connectionId);
-  card?.querySelector('.dify-route-config')?.classList.toggle('hidden',connection?.preset!=='dify');
+  const dify=connection?.preset==='dify';
+  card?.querySelector('.dify-route-config')?.classList.toggle('hidden',!dify);
+  const execution=card?.querySelector('[data-dify-execution-mode]')?.value;
+  card?.querySelector('[data-dify-stateful-options]')?.classList.toggle('hidden',!dify||execution!=='stateful_chatflow');
 }
 
 function manageableAiConnection(connection){
@@ -429,7 +445,7 @@ async function renderAiSettings(){
       return '<section class="ai-route-card" data-agent="'+agent+'"><header><strong>'+AI_AGENT_LABELS[agent]+'</strong><small>'+(route?'已設定':'未設定')+'</small></header>'+
         '<label>Provider / Model<select class="ai-route-connection"><option value="">未設定（Rule-based / 系統預設）</option>'+options+'</select></label>'+
         promptTemplateEditor(agent,route,data.promptTemplates)+
-        difyRouteEditor(route)+
+        difyRouteEditor(route,agent)+
         '<div class="ai-route-actions"><button class="secondary small-btn" type="button" data-ai-route-save="'+agent+'">儲存 Provider / Model / Prompt</button>'+
         (route?'<button class="small-btn danger-btn" type="button" data-ai-route-delete="'+route.id+'">移除</button>':'')+'</div></section>';
     }).join('');
@@ -441,6 +457,8 @@ async function renderAiSettings(){
     $('aiRouteGrid').querySelectorAll('.ai-route-card').forEach(card=>{
       const select=card.querySelector('.ai-route-connection');
       if(select)select.onchange=()=>syncDifyRouteCard(card);
+      const execution=card.querySelector('[data-dify-execution-mode]');
+      if(execution)execution.onchange=()=>syncDifyRouteCard(card);
       syncDifyRouteCard(card);
     });
   }catch{
@@ -548,6 +566,17 @@ async function saveAiRoute(agentType){
   if(connection?.preset==='dify'){
     config.difyInputKey=card.querySelector('[data-dify-input-key]')?.value.trim()||'prompt';
     config.difyOutputKey=card.querySelector('[data-dify-output-key]')?.value.trim()||'text';
+    config.difyExecutionMode=card.querySelector('[data-dify-execution-mode]')?.value||'platform_managed';
+    if(config.difyExecutionMode==='stateful_chatflow'&&connection.defaultModel!=='chat'){
+      return alert('Stateful Chatflow 只適用於 Dify App 類型 chat。請把此 Dify Provider 的 App 類型設為 chat。');
+    }
+    const finalEnabled=Boolean(card.querySelector('[data-dify-final-trigger-enabled]')?.checked);
+    config.difyFinalTriggerEnabled=finalEnabled;
+    if(finalEnabled){
+      config.difyFinalTrigger=card.querySelector('[data-dify-final-trigger]')?.value.trim()||'問診結束';
+    }else{
+      delete config.difyFinalTrigger;
+    }
     const inputsText=card.querySelector('[data-dify-inputs-json]')?.value.trim()||'{}';
     try{
       const parsed=JSON.parse(inputsText);
@@ -556,6 +585,8 @@ async function saveAiRoute(agentType){
     }catch{
       return alert('Dify 固定 inputs 必須是 JSON object，例如：{"language":"zh-TW"}');
     }
+  }else{
+    for(const key of ['difyInputKey','difyOutputKey','difyInputs','difyExecutionMode','difyFinalTriggerEnabled','difyFinalTrigger']) delete config[key];
   }
   const payload={agentType,connectionId,model:connection?.defaultModel||'',config};
   if(state.user?.role==='admin')payload.action='setSystemRoute';
