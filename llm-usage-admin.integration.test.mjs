@@ -197,6 +197,8 @@ test('usage analytics filters provider model agent case outcome cache and groups
     assert.deepEqual(data.filtered.body.byProvider.map(x=>x.preset),['deepseek']);
     assert.deepEqual(data.filtered.body.byModel.map(x=>x.model),['deepseek-flash']);
     assert.deepEqual(data.filtered.body.byAgent.map(x=>x.agentType),['evaluator']);
+    assert.equal(data.filtered.body.byCase.length,1);
+    assert.equal(data.filtered.body.byCase[0].caseLabel,'篩選測試病例');
     assert.deepEqual(data.filtered.body.filters.providers,['deepseek','openai']);
     assert.equal(data.filtered.body.filters.models.some(x=>x.provider==='openai'&&x.model==='gpt-test'),true);
     assert.equal(data.filtered.body.filters.cases[0].label,'篩選測試病例');
