@@ -137,7 +137,8 @@ function renderEvaluationFailure(error){
   const rows=[
     ['發生時間',diagnostic.occurredAt?new Date(diagnostic.occurredAt).toLocaleString('zh-TW'):'--'],
     ['Session',diagnostic.session?.id||'--'],
-    ['Case',diagnostic.session?.caseId||'--'],
+    ['案例',diagnostic.session?.caseLabel||diagnostic.session?.caseId||'--'],
+    ['Case ID',diagnostic.session?.caseId||'--'],
     ['角色',diagnostic.session?.userRole||state.user?.role||'--'],
     ['Provider',provider],
     ['Model',model],
