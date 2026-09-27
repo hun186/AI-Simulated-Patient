@@ -139,7 +139,14 @@ The default base URL is `https://api.dify.ai/v1`. Self-hosted Dify can use anoth
 
 A connection test uses `GET /parameters`, so testing credentials does not generate a real Patient/Coach/Evaluator response.
 
-The platform remains the source of truth for interview history. Dify calls use blocking mode and receive the current locked system prompt plus the relevant transcript/request context each time; the integration does not depend on Dify `conversation_id` continuity. This avoids two competing conversation stores.
+The platform remains the source of truth for interview history and persisted assessment results. Dify supports two execution modes:
+
+- **Platform-managed (stateless)** — the platform sends the current locked system prompt and relevant transcript/request context on every call. Dify conversation continuity is not required.
+- **Stateful Chatflow** — available only for Dify Chat/Chatflow apps. The platform sends the current user query, stores the returned `conversation_id` as provider-specific session state, and reuses it for later turns in the same interview. This mode is intended for Dify Conversation Variables such as `H01_done ... H14_done`. The Dify App itself owns the Patient/assessment workflow prompt logic in this mode; the platform still owns the canonical transcript and final persisted result.
+
+Provider state is stored per interview session and Dify connection in `llm_provider_session_state`. If Patient and Evaluator must share the same Dify Conversation Variables, they must select the same Dify connection. A new interview session does not reuse the previous session's Dify `conversation_id`.
+
+A Stateful Evaluator route can enable a configurable final trigger, defaulting to `問診結束`. The platform sends that trigger to the same Dify conversation when the learner ends the interview. If no conversation state exists for that connection, evaluation fails with `DIFY_CONVERSATION_STATE_MISSING` instead of silently starting a new conversation.
 
 For Workflow routes, the route config supports:
 
@@ -149,4 +156,4 @@ For Workflow routes, the route config supports:
 
 Dify token usage is recorded when the Dify response reports it. Because the actual underlying model and billing policy are managed inside Dify, the platform does not invent a native model price for Dify calls; unmatched Dify usage remains explicitly unpriced until a dedicated pricing policy is configured.
 
-For the compatibility contract with existing Dify Chatflows that depend on `conversation_id` and Conversation Variables, see [`DIFY_INTEGRATION_CONTRACT.md`](./DIFY_INTEGRATION_CONTRACT.md). Stateful Chatflow support is a required follow-up and is not complete until the provider stores and reuses the Dify conversation ID per interview session.
+For the compatibility contract with existing Dify Chatflows that depend on `conversation_id` and Conversation Variables, see [`DIFY_INTEGRATION_CONTRACT.md`](./DIFY_INTEGRATION_CONTRACT.md). Stateful Chatflow support is implemented in PR #22 and covered by adapter, route-validation, schema-migration, and interview-lifecycle integration tests.
