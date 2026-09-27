@@ -6,7 +6,8 @@ import { runEvaluatorAgent,repairEvaluatorAgent } from '../lib/llm/agents.js';
 import { recordLlmUsage } from '../lib/llm/usage.js';
 import { enforceLlmQuota } from '../lib/llm/quota.js';
 import { getProviderSessionState,setProviderSessionState } from '../lib/llm/provider-state.js';
-import { isProductionEnv } from '../lib/request-security.js';\nimport { buildEvaluationFailureDiagnostic } from '../lib/evaluation-diagnostics.js';
+import { isProductionEnv } from '../lib/request-security.js';\nimport { buildEvaluationFailureDiagnostic,projectEvaluationFailureDiagnostic } from '../lib/evaluation-diagnostics.js';
+import { saveEvaluationFailureDiagnostic } from '../lib/evaluation-diagnostic-store.js';
 
 function parseJson(value,fallback={}){
   if(value==null) return fallback;
@@ -117,10 +118,19 @@ export default async function handler(req,res){
             const diagnostic=buildEvaluationFailureDiagnostic({
               session,user,route,initialError:error,repairError
             });
+            try{
+              diagnostic.storage={persisted:true};
+              await saveEvaluationFailureDiagnostic({
+                diagnostic,sessionId:session.id,studentUserId:session.student_user_id
+              });
+            }catch(storeError){
+              diagnostic.storage={persisted:false};
+              console.warn('evaluation_diagnostic_store_failed',diagnostic.errorId,storeError?.message||storeError);
+            }
             return res.status(502).json({
               error:'AI_PROVIDER_FAILURE',
               code:'EVALUATION_REPAIR_FAILED',
-              diagnostic
+              diagnostic:projectEvaluationFailureDiagnostic(diagnostic,{role:user.role})
             });
           }
           const mappedRepair=providerFailure(res,repairError);
