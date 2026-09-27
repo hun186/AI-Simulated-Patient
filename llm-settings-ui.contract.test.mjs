@@ -40,7 +40,7 @@ test('Patient Coach and Evaluator have separate configurable route selectors',()
   assert.match(app,/\['patient','coach','evaluator'\]\.map/);
   assert.match(app,/action='setSystemRoute'|payload\.action='setSystemRoute'/);
   assert.match(app,/payload\.action='setCaseRoute'/);
-  assert.match(app,/payload\.action='setCaseRoute';payload\.caseId=\$\('aiCaseSelect'\)\.value/);
+  assert.match(app,/payload\.action='setCaseRoute';payload\.caseId=caseId/);
 });
 
 test('Teacher AI route picker includes built-in cases plus cases owned by the signed-in Teacher',()=>{
@@ -100,7 +100,7 @@ test('AI Settings exposes safe customizable Patient Coach Evaluator and Final Fe
   assert.match(app,/function promptTemplateEditor/);
   assert.match(app,/data-prompt-key/);
   assert.match(app,/系統鎖定規則（唯讀）/);
-  assert.match(app,/Final Feedback/);
+  assert.match(prompts,/Final Feedback/);
   assert.match(app,/儲存 Provider \/ Model \/ Prompt/);
   assert.match(app,/config\[field\.dataset\.promptKey\]=field\.value\.trim\(\)/);
   assert.match(api,/promptTemplates:getPromptTemplateCatalog\(\)/);
