@@ -1318,11 +1318,18 @@ async function renderUsageDashboard(){
     if(state.user?.role==='admin'&&fx)$('usageFxRate').value=Number(fx.rate).toFixed(3);
     $('usageUnpriced').textContent=totals.unpriced.toLocaleString('zh-TW');
     $('usagePartial').textContent=totals.partial.toLocaleString('zh-TW');
+    const usersById=new Map((data.users||[]).map(user=>[user.id,user]));
+    const byUser=(data.totals||[]).map(row=>{
+      const user=usersById.get(row.userId);
+      return {...row,userLabel:user?(user.displayName||user.email)+' · '+user.role:row.userId||'Unknown'};
+    });
     $('usageBreakdown').innerHTML=
       usageRows('日期（本地）',data.byDate,'date')+
+      usageRows('使用者',byUser,'userLabel')+
       usageRows('Provider',data.byProvider,'preset')+
       usageRows('Model',data.byModel,'model')+
-      usageRows('Agent',data.byAgent,'agentType');
+      usageRows('Agent',data.byAgent,'agentType')+
+      usageRows('病例',data.byCase,'caseLabel');
 
     await renderSelectedQuota();
   }catch{
