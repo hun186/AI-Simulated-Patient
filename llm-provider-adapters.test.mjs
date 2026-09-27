@@ -119,6 +119,27 @@ test('Ollama preset is keyless by default and uses local OpenAI-compatible endpo
   assert.equal(result.text,'local answer');
 });
 
+test('Ollama Cloud uses hosted OpenAI-compatible endpoint with bearer API key',async()=>{
+  const calls=[];
+  const fetchImpl=async(url,options)=>{
+    calls.push({url,options,body:JSON.parse(options.body)});
+    return fakeResponse({json:{
+      id:'oc_1',model:'deepseek-v4-pro',
+      choices:[{message:{content:'cloud answer'}}],
+      usage:{prompt_tokens:100,prompt_tokens_details:{cached_tokens:25},completion_tokens:20,total_tokens:120}
+    }});
+  };
+  const {generateLlm}=await gateway();
+  const result=await generateLlm({
+    connection:{providerKind:'openai_compatible',preset:'ollama',baseUrl:'https://ollama.com/v1',apiKey:'ollama-secret',defaultModel:'deepseek-v4-pro'},
+    messages:[{role:'user',content:'hi'}]
+  },{fetchImpl});
+  assert.equal(calls[0].url,'https://ollama.com/v1/chat/completions');
+  assert.equal(calls[0].options.headers.Authorization,'Bearer ollama-secret');
+  assert.equal(result.text,'cloud answer');
+  assert.equal(result.usage.cachedInputTokens,25);
+});
+
 test('custom compatible base URL is joined without duplicate slashes',async()=>{
   const calls=[];
   const fetchImpl=async(url)=>{

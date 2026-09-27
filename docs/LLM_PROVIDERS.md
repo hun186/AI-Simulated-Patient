@@ -89,3 +89,13 @@ Each priced usage event also snapshots the effective USD/TWD reference rate and 
 - Teacher cannot configure arbitrary custom/private endpoints.
 - Production provider credentials must not be configured on the Vercel PoC.
 - Treat local Ollama/custom endpoints as privileged Admin configuration.
+
+
+## Ollama Local and Ollama Cloud
+
+Ollama Local and Ollama Cloud are intentionally separate choices in the Teacher Console:
+
+- **Ollama Local** uses the local OpenAI-compatible endpoint (default `http://127.0.0.1:11434/v1`) and does not require an API key. Local inference is recorded with a zero provider-token cost. If the model name explicitly uses Ollama's `:cloud` proxy suffix, the corresponding Ollama Cloud token price is used instead.
+- **Ollama Cloud** uses Ollama's hosted OpenAI-compatible endpoint `https://ollama.com/v1` with an Ollama API key. Teacher-scoped keys are encrypted with the same secret store used for OpenAI and DeepSeek.
+
+Ollama Cloud usage is priced from the effective-dated catalog snapshot. DeepSeek cloud models use Ollama's UTC weekday peak window (12:00-18:00 UTC Monday-Friday) and off-peak rates at other times. Other seeded cloud models use their published per-million-token input, cached-input, and output rates. Cost is snapshotted in USD and converted to TWD using the effective FX reference already used by the usage dashboard.

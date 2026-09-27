@@ -22,8 +22,9 @@ test('AI Settings respects provider scope and keeps stored keys masked/write-onl
   const api=readFileSync('api/teacher/ai-settings.js','utf8');
   const connections=readFileSync('lib/llm/connections.js','utf8');
 
-  assert.match(app,/\?\[\['openai','OpenAI'\],\['deepseek','DeepSeek'\],\['ollama','Ollama'\],\['custom','OpenAI-compatible \/ Custom'\]\]/);
-  assert.match(app,/:\[\['openai','OpenAI'\],\['deepseek','DeepSeek'\]\]/);
+  assert.match(app,/\['ollama_cloud','Ollama Cloud'\]/);
+  assert.match(app,/\['ollama','Ollama Local'\]/);
+  assert.match(app,/Teacher 可建立自己的 OpenAI、DeepSeek 與 Ollama Cloud/);
   assert.match(app,/connection\.apiKeyLast4\?'••••'/);
   assert.match(app,/data-ai-edit/);
   assert.match(app,/data-ai-toggle/);
@@ -77,4 +78,14 @@ test('runtime UI explains missing Evaluator routes and evaluation provider failu
   assert.match(app,/invalid_response/);
   assert.match(app,/INVALID_EVALUATION_CONTRACT/);
   assert.match(app,/evaluationErrorMessage/);
+});
+
+
+test('Ollama Cloud is API-key based while Ollama Local keeps its local endpoint workflow',()=>{
+  const app=readFileSync('formal-app.js','utf8');
+  const connections=readFileSync('lib/llm/connections.js','utf8');
+  assert.match(app,/\['openai','deepseek','ollama_cloud'\]\.includes\(preset\)/);
+  assert.match(app,/deepseek-v4-pro 或 deepseek-v4\.1-flash/);
+  assert.match(connections,/ollama_cloud:\{providerKind:'openai_compatible',baseUrl:'https:\/\/ollama\.com\/v1'/);
+  assert.match(connections,/storedPreset:'ollama'/);
 });

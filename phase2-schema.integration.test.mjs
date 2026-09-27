@@ -22,14 +22,14 @@ function openThroughApplication(dbPath){
   });
 }
 
-test('fresh SQLite database advances to schema version 6 with pricing and quota tables',()=>{
+test('fresh SQLite database advances to schema version 7 with pricing and quota tables',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-phase2-schema-'));
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const result=openThroughApplication(dbPath);
     assert.equal(result.status,0,result.stderr);
     const data=JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1));
-    assert.equal(data.info.schemaVersion,6);
+    assert.equal(data.info.schemaVersion,7);
     assert.equal(data.quota.daily_token_limit,0);
     assert.equal(data.quota.monthly_token_limit,null);
     assert.equal(data.quota.monthly_cost_limit_microusd,2500000);
@@ -44,6 +44,7 @@ test('fresh SQLite database advances to schema version 6 with pricing and quota 
     for(const name of ['estimated_cost_microusd','pricing_status','pricing_rule_id','cache_write_tokens','service_tier','estimated_cost_microntd','fx_rate_microunits_per_usd','fx_rate_id'])assert.equal(usageCols.has(name),true,name);
     for(const name of ['time_band','context_band','cache_write_microusd_per_million'])assert.equal(pricingCols.has(name),true,name);
     assert.equal(db.prepare("select count(*) as count from llm_pricing_rules where preset='deepseek' and time_band in ('peak','off_peak')").get().count,6);
+    assert.equal(db.prepare("select count(*) as count from llm_pricing_rules where id like 'builtin-ollama-direct-%'").get().count>0,true);
     db.close();
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
@@ -62,4 +63,5 @@ test('PostgreSQL schema preserves Phase 2 usage cost/status constraints',()=>{
   assert.match(schema,/llm_fx_rates/);
   assert.match(schema,/31780000,'CBC interbank closing rate 2026-09-24'/);
   assert.match(schema,/gpt-6-sol\*','always','short',2000000,200000,2500000,10000000/);
+  assert.match(schema,/cloud::deepseek-v4-pro\*','peak','any',1320000,44000/);
 });
