@@ -6,6 +6,7 @@ import { getOwnedSession,getTranscript } from '../lib/server-sessions.js';
 import { runCoachAgent } from '../lib/llm/agents.js';
 import { recordLlmUsage } from '../lib/llm/usage.js';
 import { enforceLlmQuota } from '../lib/llm/quota.js';
+import { getProviderSessionState,setProviderSessionState } from '../lib/llm/provider-state.js';
 import { isProductionEnv } from '../lib/request-security.js';
 
 function parseJson(value,fallback={}){
@@ -73,17 +74,14 @@ export default async function handler(req,res){
       }));
     }
 
+    const providerState=route?.connectionId
+      ?await getProviderSessionState({sessionId,connectionId:route.connectionId})
+      :{};
     try{await enforceLlmQuota({userId:user.id});}catch(error){if(providerFailure(res,error)) return;throw error;}
     const started=Date.now();
+    let result;
     try{
-      const result=await runCoachAgent({session,transcript:serverTranscript,route});
-      await recordLlmUsage({
-        userId:user.id,sessionId,caseId:session.case_id,agentType:'coach',route,result,
-        occurredAt:new Date(started).toISOString()
-      });
-      return res.status(200).json({
-        provider:result.preset,model:result.model,...coachShape(caseSnapshot,serverTranscript,result.guidance)
-      });
+      result=await runCoachAgent({session,transcript:serverTranscript,route,providerState});
     }catch(error){
       await recordLlmUsage({
         userId:user.id,sessionId,caseId:session.case_id,agentType:'coach',route,error,
@@ -93,6 +91,18 @@ export default async function handler(req,res){
       if(mapped) return mapped;
       throw error;
     }
+    if(result.providerState&&route?.connectionId){
+      await setProviderSessionState({
+        sessionId,connectionId:route.connectionId,providerKind:result.provider,state:result.providerState
+      });
+    }
+    await recordLlmUsage({
+      userId:user.id,sessionId,caseId:session.case_id,agentType:'coach',route,result,
+      occurredAt:new Date(started).toISOString()
+    });
+    return res.status(200).json({
+      provider:result.preset,model:result.model,...coachShape(caseSnapshot,serverTranscript,result.guidance)
+    });
   }catch(error){
     console.error(error);return res.status(500).json({error:'Unexpected error'});
   }
