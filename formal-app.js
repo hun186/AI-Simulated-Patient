@@ -43,7 +43,7 @@ function renderAll(){renderHeader();renderMode();renderChat();renderCoach();}
 function providerLabel(route){
   if(!route)return 'Provider 未設定';
   const preset=String(route.preset||route.providerKind||'').toLowerCase();
-  const names={openai:'OpenAI',deepseek:'DeepSeek',ollama_cloud:'Ollama Cloud',ollama:'Ollama Local',custom:'Custom',mock:'Mock'};
+  const names={openai:'OpenAI',deepseek:'DeepSeek',ollama_cloud:'Ollama Cloud',ollama:'Ollama Local',dify:'Dify',custom:'Custom',mock:'Mock'};
   const provider=names[preset]||route.preset||route.providerKind||'Provider';
   return provider+' · '+(route.model||'未指定模型');
 }
@@ -77,6 +77,7 @@ function evaluationErrorMessage(error){
   if(code==='INVALID_EVALUATION_CONTRACT'||code==='INVALID_EVALUATION_JSON') return '評量失敗：AI 回傳的評量格式不符合要求，session 仍保持未完成，可再次嘗試。';
   if(code==='EVALUATION_REPAIR_FAILED') return '評量失敗：AI 的評量格式經自動修復後仍不符合要求；session 仍保持未完成，可再次嘗試。';
   if(code==='AI_USAGE_QUOTA_EXCEEDED') return '評量失敗：此帳號已達 LLM 使用上限。';
+  if(code==='DIFY_CONVERSATION_STATE_MISSING'||code==='dify_conversation_state_missing') return '評量失敗：此 Dify Stateful Evaluator 找不到本場問診的 conversation_id。請確認 Patient 與 Evaluator 使用同一個 Dify 連線，且 Patient 已至少完成一輪 Dify 對話。';
   return '評量失敗：'+(code||'請檢查 Evaluator AI 設定或稍後再試。');
 }
 async function finish(){try{const d=await post('/api/evaluate',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.revealedFactIds,mode:state.mode});renderEvaluation(d);if(state.serverMode){if(['teacher','admin'].includes(state.user?.role))await renderRecords();return;}const rec={id:state.sessionId,studentName:state.studentName||'未填姓名',caseTitle:state.caseData.studentLabel||state.caseData.title||'臨床問診案例',mode:state.mode,coachUsed:state.mode==='training'&&state.coachUsed,completedAt:new Date().toISOString(),transcript:state.transcript,evaluation:d};state.records=read(RKEY,[]);const ix=state.records.findIndex(x=>x.id===rec.id);if(ix>=0)state.records[ix]=rec;else state.records.unshift(rec);write(RKEY,state.records);renderRecords();}catch(error){alert(evaluationErrorMessage(error));}}
