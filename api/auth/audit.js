@@ -42,7 +42,10 @@ function append(where,params,clause,value){
 function auditScope(user,{selfOnly=false}={}){
   const where=[];
   const params=[];
-  if(selfOnly) append(where,params,'(e.actor_user_id=? or e.target_user_id=?)',user.id);
+  if(selfOnly){
+    params.push(user.id,user.id);
+    where.push('(e.actor_user_id=$1 or e.target_user_id=$2)');
+  }
   return {where,params};
 }
 
@@ -58,18 +61,11 @@ function applyEventFilters(scope,{action,success,actorUserId,targetUserId,queryT
   if(targetUserId) append(scope.where,scope.params,'e.target_user_id = ?',targetUserId);
   if(queryText){
     const like='%'+queryText.toLowerCase()+'%';
-    append(
-      scope.where,scope.params,
-      `(lower(e.identifier) like ? or lower(e.reason) like ? or lower(e.client_host) like ? or lower(e.action) like ?)`,
-      like
+    const start=scope.params.length+1;
+    scope.params.push(like,like,like,like);
+    scope.where.push(
+      `(lower(e.identifier) like ${start} or lower(e.reason) like ${start+1} or lower(e.client_host) like ${start+2} or lower(e.action) like ${start+3})`
     );
-    // append() substitutes only the first placeholder. Add the remaining three parameters deterministically.
-    const first=scope.params.length;
-    scope.params.push(like,like,like);
-    scope.where[scope.where.length-1]=scope.where[scope.where.length-1]
-      .replace('?', '$'+(first+1))
-      .replace('?', '$'+(first+2))
-      .replace('?', '$'+(first+3));
   }
 }
 
@@ -119,6 +115,8 @@ export default async function handler(req,res){
 
     const selected={where:[...base.where],params:[...base.params]};
     applyEventFilters(selected,filters);
+    const actorScope={where:[...base.where,'e.actor_user_id is not null'],params:[...base.params]};
+    const targetScope={where:[...base.where,'e.target_user_id is not null'],params:[...base.params]};
 
     const [countRows,rows,actions,actorRows,targetRows]=await Promise.all([
       query(
@@ -147,17 +145,17 @@ export default async function handler(req,res){
         `select distinct e.actor_user_id as "userId",u.display_name as "displayName",u.email
          from auth_audit_events e
          join app_users u on u.id=e.actor_user_id
-         ${whereSql(base)} and e.actor_user_id is not null
+         ${whereSql(actorScope)}
          order by u.display_name,u.email`,
-        base.params
+        actorScope.params
       ),
       query(
         `select distinct e.target_user_id as "userId",u.display_name as "displayName",u.email
          from auth_audit_events e
          join app_users u on u.id=e.target_user_id
-         ${whereSql(base)} and e.target_user_id is not null
+         ${whereSql(targetScope)}
          order by u.display_name,u.email`,
-        base.params
+        targetScope.params
       )
     ]);
 
