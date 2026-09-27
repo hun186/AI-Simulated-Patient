@@ -75,6 +75,7 @@ function evaluationErrorMessage(error){
   if(code==='timeout'||code==='AI_PROVIDER_TIMEOUT') return '評量失敗：Evaluator 回應逾時，請稍後再試。';
   if(code==='invalid_response') return '評量失敗：AI Provider 沒有回傳可用的評量內容。';
   if(code==='INVALID_EVALUATION_CONTRACT'||code==='INVALID_EVALUATION_JSON') return '評量失敗：AI 回傳的評量格式不符合要求，session 仍保持未完成，可再次嘗試。';
+  if(code==='EVALUATION_REPAIR_FAILED') return '評量失敗：AI 的評量格式經自動修復後仍不符合要求；session 仍保持未完成，可再次嘗試。';
   if(code==='AI_USAGE_QUOTA_EXCEEDED') return '評量失敗：此帳號已達 LLM 使用上限。';
   return '評量失敗：'+(code||'請檢查 Evaluator AI 設定或稍後再試。');
 }
