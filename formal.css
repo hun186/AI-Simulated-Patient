@@ -97,3 +97,8 @@
 .evaluation-debug-block{margin-top:14px}.evaluation-debug-block h4{margin:0 0 7px;font-size:12px}.evaluation-debug-block pre{max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#172033;color:#eef2ff;border-radius:10px;padding:12px;font-size:11px;line-height:1.55}
 .evaluation-security-note{font-size:11px;color:#7b859a;line-height:1.55}
 @media(max-width:700px){.evaluation-failure-head{display:block}.evaluation-error-id{display:inline-block;margin-top:10px}.evaluation-failure-meta{grid-template-columns:1fr}}
+
+.evaluation-audit-meta{margin:7px 0 0;font-size:11px;color:#657188;line-height:1.5}
+.record-evaluation-audit{margin:0 0 18px;padding:13px 14px;border:1px solid #dbe5f1;border-radius:12px;background:#f7faff;display:flex;justify-content:space-between;gap:12px;align-items:center}
+.record-evaluation-audit>div{display:grid;gap:3px}.record-evaluation-audit span{font-size:11px;color:#66748b;line-height:1.5}
+@media(max-width:700px){.record-evaluation-audit{align-items:flex-start;flex-direction:column}}
