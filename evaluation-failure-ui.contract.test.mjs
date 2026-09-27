@@ -8,7 +8,8 @@ test('evaluation repair failure exposes actionable support UI and downloadable d
   const css=readFileSync('formal.css','utf8');
 
   assert.match(html,/id="evaluationFailureCard"/);
-  assert.match(html,/id="downloadEvaluationDebugBtn"/);\n  assert.match(html,/下載除錯支援包（ZIP）/);
+  assert.match(html,/id="downloadEvaluationDebugBtn"/);
+  assert.match(html,/下載除錯支援包（ZIP）/);
   assert.match(html,/id="retryEvaluationBtn"/);
   assert.match(html,/id="evaluationRawResponse"/);
   assert.match(html,/id="evaluationRepairedResponse"/);
@@ -16,8 +17,13 @@ test('evaluation repair failure exposes actionable support UI and downloadable d
 
   assert.match(app,/function renderEvaluationFailure/);
   assert.match(app,/error\?\.details\?\.diagnostic/);
+  assert.match(app,/function evaluationDiagnosticFiles/);
   assert.match(app,/function downloadEvaluationDiagnostic/);
-  assert.match(app,/application\/json;charset=utf-8/);
+  assert.match(app,/createZipBlob/);
+  assert.match(app,/raw_ai_response\.txt/);
+  assert.match(app,/repaired_ai_response\.txt/);
+  assert.match(app,/validation_errors\.json/);
+  assert.match(app,/staff_lookup\.txt/);
   assert.match(app,/state\.user\?\.role==='student'/);
   assert.match(app,/提供給授課教師或系統管理員/);
   assert.match(app,/學生畫面不直接顯示完整 AI 原始回覆/);
