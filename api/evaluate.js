@@ -5,6 +5,7 @@ import { getOwnedSession,getTranscript,completeSession } from '../lib/server-ses
 import { runEvaluatorAgent,repairEvaluatorAgent } from '../lib/llm/agents.js';
 import { recordLlmUsage } from '../lib/llm/usage.js';
 import { enforceLlmQuota } from '../lib/llm/quota.js';
+import { getProviderSessionState,setProviderSessionState } from '../lib/llm/provider-state.js';
 import { isProductionEnv } from '../lib/request-security.js';
 
 function parseJson(value,fallback={}){
@@ -19,6 +20,10 @@ function providerFailure(res,error){
   }
   if(error?.code==='AI_PROVIDER_NOT_CONFIGURED'){
     res.status(503).json({error:'AI_EVALUATOR_PROVIDER_NOT_CONFIGURED'});
+    return true;
+  }
+  if(error?.code==='dify_conversation_state_missing'){
+    res.status(409).json({error:'DIFY_CONVERSATION_STATE_MISSING'});
     return true;
   }
   if(error?.code==='timeout'){
@@ -48,6 +53,17 @@ export default async function handler(req,res){
     const caseSnapshot=parseJson(session.case_snapshot,{});
     const routes=parseJson(session.llm_route_snapshot,{});
     const route=routes.evaluator||null;
+    const providerState=route?.connectionId
+      ?await getProviderSessionState({sessionId,connectionId:route.connectionId})
+      :{};
+    const persistProviderState=async providerResult=>{
+      if(providerResult?.providerState&&route?.connectionId){
+        await setProviderSessionState({
+          sessionId,connectionId:route.connectionId,
+          providerKind:providerResult.provider,state:providerResult.providerState
+        });
+      }
+    };
 
     if(!isProductionEnv() && route?.preset==='mock'){
       const result=mockEvaluate({
@@ -68,11 +84,13 @@ export default async function handler(req,res){
 
     const started=Date.now();
     try{
-      const result=await runEvaluatorAgent({session,transcript:serverTranscript,route});
+      const result=await runEvaluatorAgent({session,transcript:serverTranscript,route,providerState});
+      await persistProviderState(result);
       await recordAttempt({started,result});
       await completeSession(sessionId,result.evaluation);
       return res.status(200).json(result.evaluation);
     }catch(error){
+      if(error?.llmResult)await persistProviderState(error.llmResult);
       await recordAttempt({started,error});
 
       if(error?.code==='INVALID_EVALUATION_CONTRACT' && error?.llmResult){
@@ -81,14 +99,19 @@ export default async function handler(req,res){
 
         const repairStarted=Date.now();
         try{
+          const refreshedProviderState=route?.connectionId
+            ?await getProviderSessionState({sessionId,connectionId:route.connectionId})
+            :providerState;
           const repaired=await repairEvaluatorAgent({
-            session,transcript:serverTranscript,route,
+            session,transcript:serverTranscript,route,providerState:refreshedProviderState,
             invalidOutput:error.llmResult.text,validationError:error
           });
+          await persistProviderState(repaired);
           await recordAttempt({started:repairStarted,result:repaired});
           await completeSession(sessionId,repaired.evaluation);
           return res.status(200).json(repaired.evaluation);
         }catch(repairError){
+          if(repairError?.llmResult)await persistProviderState(repairError.llmResult);
           await recordAttempt({started:repairStarted,error:repairError});
           const mappedRepair=providerFailure(res,repairError);
           if(mappedRepair) return mappedRepair;
