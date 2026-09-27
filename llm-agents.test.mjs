@@ -58,6 +58,9 @@ test('Patient, Coach, and Evaluator prompts keep distinct semantics',()=>{
   assert.match(evaluator,/Return JSON only/);
   assert.match(evaluator,/covered, partial, missed/);
   assert.match(evaluator,/totalScore, maxScore, percentage, items, overall/);
+  assert.match(evaluator,/Each evidence entry must be an object exactly like/);
+  assert.match(evaluator,/"turn":2,"quote":"以前有住院過嗎？"/);
+  assert.match(evaluator,/totalScore must equal the sum of item\.score/);
   assert.match(evaluator,/left stroke/);
 
   const format=evaluationResponseFormat();
@@ -70,6 +73,10 @@ test('evaluation contract accepts only machine-readable allowed statuses and pre
   assert.deepEqual(validateEvaluationContract(value),value);
   assert.deepEqual(parseAndValidateEvaluation(JSON.stringify(value)),value);
   assert.throws(
+    ()=>validateEvaluationContract({...value,totalScore:9,percentage:90}),
+    error=>error.code==='INVALID_EVALUATION_CONTRACT'&&error.message==='score.aggregate'
+  );
+  assert.throws(
     ()=>validateEvaluationContract({...value,items:[{...value.items[0],status:'good'}]}),
     error=>error.code==='INVALID_EVALUATION_CONTRACT'
   );
@@ -77,6 +84,78 @@ test('evaluation contract accepts only machine-readable allowed statuses and pre
     ()=>parseAndValidateEvaluation('not-json'),
     error=>error.code==='INVALID_EVALUATION_CONTRACT'
   );
+});
+
+test('provider parser normalizes transcript-formatted evidence strings and recomputes aggregate scores',()=>{
+  const expected=validEvaluation();
+  const providerValue={
+    ...expected,
+    totalScore:7,maxScore:100,percentage:7,
+    items:[{
+      ...expected.items[0],
+      evidence:['[2] student: 以前有住院過嗎？']
+    }]
+  };
+
+  assert.throws(
+    ()=>validateEvaluationContract(providerValue),
+    error=>error.code==='INVALID_EVALUATION_CONTRACT'
+  );
+  assert.deepEqual(parseAndValidateEvaluation(JSON.stringify(providerValue)),expected);
+
+  const stringTurn={
+    ...expected,
+    items:[{
+      ...expected.items[0],
+      evidence:[{turn:'2',quote:'以前有住院過嗎？'}]
+    }]
+  };
+  assert.deepEqual(parseAndValidateEvaluation(JSON.stringify(stringTurn)),expected);
+
+  const unparseable={
+    ...expected,
+    items:[{
+      ...expected.items[0],
+      evidence:['student asked about history']
+    }]
+  };
+  assert.throws(
+    ()=>parseAndValidateEvaluation(JSON.stringify(unparseable)),
+    error=>error.code==='INVALID_EVALUATION_CONTRACT'&&error.message==='item.evidence'
+  );
+});
+
+test('evaluator agent accepts DeepSeek transcript-string evidence without a repair call',async()=>{
+  const providerValue={
+    ...validEvaluation(),
+    totalScore:7,maxScore:100,percentage:7,
+    items:[{
+      ...validEvaluation().items[0],
+      evidence:['[2] student: 以前有住院過嗎？']
+    }]
+  };
+  let calls=0;
+  const fetchImpl=async()=>{
+    calls+=1;
+    return {
+      ok:true,status:200,headers:{get:()=>null},
+      async json(){return {
+        id:'deepseek-evidence-string',model:'deepseek-flash',
+        choices:[{message:{content:JSON.stringify(providerValue)}}],
+        usage:{prompt_tokens:20,completion_tokens:20,total_tokens:40}
+      };}
+    };
+  };
+  const route={
+    connection:{
+      providerKind:'openai_compatible',preset:'deepseek',
+      baseUrl:'https://api.deepseek.com',apiKey:'x',defaultModel:'deepseek-flash'
+    },
+    providerKind:'openai_compatible',preset:'deepseek',model:'deepseek-flash',config:{}
+  };
+  const result=await runEvaluatorAgent({session,transcript,route,fetchImpl});
+  assert.deepEqual(result.evaluation,validEvaluation());
+  assert.equal(calls,1);
 });
 
 test('agents call provider gateway with opaque safety id and evaluator validates JSON',async()=>{
@@ -171,11 +250,12 @@ test('DeepSeek Patient, Coach, and Evaluator default to stable non-thinking mode
   assert.deepEqual(calls[0].thinking,{type:'enabled'});
 });
 
-test('Evaluator prompt includes a concrete JSON example for compatible JSON-output providers',()=>{
+test('Evaluator prompt includes a concrete evidence-object JSON example for compatible JSON-output providers',()=>{
   const evaluator=buildEvaluatorPrompt({session,transcript});
   assert.match(evaluator,/Example JSON shape/);
-  assert.match(evaluator,/"totalScore":0/);
-  assert.match(evaluator,/"status":"missed"/);
+  assert.match(evaluator,/"totalScore":10/);
+  assert.match(evaluator,/"status":"covered"/);
+  assert.match(evaluator,/"evidence":\[\{"turn":2,"quote":"以前有住院過嗎？"\}\]/);
 });
 
 
@@ -298,6 +378,8 @@ test('evaluator repair agent converts malformed contract output into validated J
   const repairPrompt=buildEvaluatorRepairPrompt({session,transcript});
   assert.match(repairPrompt,/JSON repair step/);
   assert.match(repairPrompt,/Do not invent transcript evidence/);
+  assert.match(repairPrompt,/Each evidence entry must be an object exactly like/);
+  assert.match(repairPrompt,/Recalculate totalScore from item\.score values/);
 });
 
 test('evaluator repair agent reports repair-specific failure after a second invalid contract',async()=>{

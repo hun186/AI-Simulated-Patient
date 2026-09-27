@@ -87,7 +87,8 @@
 
 ### `EVAL-001` evaluation
 
-- Valid status values are `covered`, `partial`, `missed`; result includes per-criterion evidence plus overall comment/recommendations as enforced by `validateEvaluationContract`.
+- Valid status values are `covered`, `partial`, `missed`; canonical evidence entries are `{turn,quote}` objects, and aggregate `totalScore` / `maxScore` / rounded `percentage` must match the validated item scores.
+- Provider text is normalized only for deterministic compatibility cases before canonical validation: transcript-formatted evidence strings such as `[2] student: ...` become `{turn:2,quote:"..."}`, numeric-string turn values are coerced, and aggregate scores are recomputed from already-numeric item scores. Ambiguous evidence still fails validation and may enter the LLM repair path.
 - Evaluator output is parsed/validated before `completeSession`; arbitrary model JSON is not a persistence contract.
 
 ## 通用相容性與安全規則

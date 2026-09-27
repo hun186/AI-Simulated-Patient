@@ -13,6 +13,12 @@
 
 ## Recent Outcomes
 
+### 2026-09-27 — Evaluator evidence compatibility fix
+
+- DeepSeek may return transcript evidence as strings such as `[2] student: ...` even when the canonical Evaluator contract requires `{turn,quote}`; provider parsing now normalizes only this deterministic form before strict validation.
+- Provider aggregate scores are recomputed from numeric item scores before validation, while the canonical contract now rejects inconsistent aggregate totals.
+- Evaluator/repair prompts explicitly require evidence objects and aggregate arithmetic; ambiguous evidence still fails and keeps the existing repair/diagnostic path.
+
 ### 2026-09-27 — Evaluation failure support diagnostics
 
 - Evaluator JSON 首次驗證與自動修復都失敗時，session 維持 active，系統產生 `EVL-...` 錯誤編號並保存 redacted failure snapshot。
