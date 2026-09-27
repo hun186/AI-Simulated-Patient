@@ -22,14 +22,14 @@ function openThroughApplication(dbPath){
   });
 }
 
-test('fresh SQLite database advances to schema version 8 with pricing and quota tables',()=>{
+test('fresh SQLite database advances to schema version 9 with pricing and quota tables',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-phase2-schema-'));
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const result=openThroughApplication(dbPath);
     assert.equal(result.status,0,result.stderr);
     const data=JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1));
-    assert.equal(data.info.schemaVersion,8);
+    assert.equal(data.info.schemaVersion,9);
     assert.equal(data.quota.daily_token_limit,0);
     assert.equal(data.quota.monthly_token_limit,null);
     assert.equal(data.quota.monthly_cost_limit_microusd,2500000);
@@ -42,6 +42,9 @@ test('fresh SQLite database advances to schema version 8 with pricing and quota 
     assert.equal(tables.has('llm_user_quotas'),true);
     assert.equal(tables.has('llm_fx_rates'),true);
     assert.equal(tables.has('llm_provider_session_state'),true);
+    assert.equal(tables.has('interview_coach_events'),true);
+    const sessionCols=new Set(db.prepare('pragma table_info(interview_sessions)').all().map(x=>x.name));
+    assert.equal(sessionCols.has('teacher_snapshot'),true);
     for(const name of ['estimated_cost_microusd','pricing_status','pricing_rule_id','cache_write_tokens','service_tier','estimated_cost_microntd','fx_rate_microunits_per_usd','fx_rate_id'])assert.equal(usageCols.has(name),true,name);
     for(const name of ['time_band','context_band','cache_write_microusd_per_million'])assert.equal(pricingCols.has(name),true,name);
     assert.equal(db.prepare("select count(*) as count from llm_pricing_rules where preset='deepseek' and time_band in ('peak','off_peak')").get().count,6);
@@ -66,4 +69,6 @@ test('PostgreSQL schema preserves Phase 2 usage cost/status constraints',()=>{
   assert.match(schema,/gpt-6-sol\*','always','short',2000000,200000,2500000,10000000/);
   assert.match(schema,/cloud::deepseek-v4-pro\*','peak','any',1320000,44000/);
   assert.match(schema,/create table if not exists llm_provider_session_state/);
+  assert.match(schema,/teacher_snapshot jsonb not null default/);
+  assert.match(schema,/create table if not exists interview_coach_events/);
 });

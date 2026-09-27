@@ -454,3 +454,17 @@ create table if not exists llm_provider_session_state (
 
 create index if not exists llm_provider_session_state_connection_idx
   on llm_provider_session_state(connection_id,updated_at desc);
+
+
+alter table interview_sessions
+  add column if not exists teacher_snapshot jsonb not null default '[]'::jsonb;
+
+create table if not exists interview_coach_events (
+  id bigserial primary key,
+  session_id uuid not null references interview_sessions(id) on delete cascade,
+  payload_json jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists interview_coach_events_session_idx
+  on interview_coach_events(session_id,id);
