@@ -24,7 +24,7 @@ test('AI Settings respects provider scope and keeps stored keys masked/write-onl
 
   assert.match(app,/\['ollama_cloud','Ollama Cloud'\]/);
   assert.match(app,/\['ollama','Ollama Local'\]/);
-  assert.match(app,/Teacher 可建立自己的 OpenAI、DeepSeek 與 Ollama Cloud/);
+  assert.match(app,/Teacher 可建立自己的 OpenAI、DeepSeek、Ollama Cloud 與 Ollama Local/);
   assert.match(app,/connection\.apiKeyLast4\?'••••'/);
   assert.match(app,/data-ai-edit/);
   assert.match(app,/data-ai-toggle/);
@@ -108,4 +108,14 @@ test('AI Settings exposes safe customizable Patient Coach Evaluator and Final Fe
   assert.match(prompts,/PROMPT_TEMPLATE_MAX_CHARS=8000/);
   assert.match(prompts,/UNSUPPORTED_PROMPT_VARIABLE/);
   assert.match(routes,/validatePromptTemplate/);
+});
+
+
+test('Teacher AI Settings includes free Ollama Local while arbitrary Custom endpoints remain Admin-only',()=>{
+  const app=readFileSync('formal-app.js','utf8');
+  const connections=readFileSync('lib/llm/connections.js','utf8');
+  assert.match(app,/:\[\['openai','OpenAI'\],\['deepseek','DeepSeek'\],\['ollama_cloud','Ollama Cloud'\],\['ollama','Ollama Local（OpenAI 相容端點）'\]\]/);
+  assert.match(app,/Teacher 可建立自己的 OpenAI、DeepSeek、Ollama Cloud 與 Ollama Local/);
+  assert.match(connections,/ollama:\{providerKind:'openai_compatible',baseUrl:'http:\/\/127\.0\.0\.1:11434\/v1',teacherAllowed:true,keyRequired:false\}/);
+  assert.match(connections,/custom:\{providerKind:'openai_compatible',baseUrl:null,teacherAllowed:false/);
 });
