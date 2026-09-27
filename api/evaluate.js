@@ -2,7 +2,7 @@ import { mockEvaluate } from '../lib/mock-evaluator.js';
 import { isDatabaseEnabled } from '../lib/db.js';
 import { requireUser,requireCsrf } from '../lib/server-auth.js';
 import { getOwnedSession,getTranscript,completeSession } from '../lib/server-sessions.js';
-import { runEvaluatorAgent } from '../lib/llm/agents.js';
+import { runEvaluatorAgent,repairEvaluatorAgent } from '../lib/llm/agents.js';
 import { recordLlmUsage } from '../lib/llm/usage.js';
 import { enforceLlmQuota } from '../lib/llm/quota.js';
 import { isProductionEnv } from '../lib/request-security.js';
@@ -59,20 +59,43 @@ export default async function handler(req,res){
     }
 
     try{await enforceLlmQuota({userId:user.id});}catch(error){if(providerFailure(res,error)) return;throw error;}
+    const recordAttempt=async({started,result=null,error=null})=>{
+      await recordLlmUsage({
+        userId:user.id,sessionId,caseId:session.case_id,agentType:'evaluator',route,result,error,
+        latencyMs:Date.now()-started,occurredAt:new Date(started).toISOString()
+      });
+    };
+
     const started=Date.now();
     try{
       const result=await runEvaluatorAgent({session,transcript:serverTranscript,route});
-      await recordLlmUsage({
-        userId:user.id,sessionId,caseId:session.case_id,agentType:'evaluator',route,result,
-        occurredAt:new Date(started).toISOString()
-      });
+      await recordAttempt({started,result});
       await completeSession(sessionId,result.evaluation);
       return res.status(200).json(result.evaluation);
     }catch(error){
-      await recordLlmUsage({
-        userId:user.id,sessionId,caseId:session.case_id,agentType:'evaluator',route,error,
-        latencyMs:Date.now()-started,occurredAt:new Date(started).toISOString()
-      });
+      await recordAttempt({started,error});
+
+      if(error?.code==='INVALID_EVALUATION_CONTRACT' && error?.llmResult){
+        try{await enforceLlmQuota({userId:user.id});}
+        catch(quotaError){if(providerFailure(res,quotaError)) return;throw quotaError;}
+
+        const repairStarted=Date.now();
+        try{
+          const repaired=await repairEvaluatorAgent({
+            session,transcript:serverTranscript,route,
+            invalidOutput:error.llmResult.text,validationError:error
+          });
+          await recordAttempt({started:repairStarted,result:repaired});
+          await completeSession(sessionId,repaired.evaluation);
+          return res.status(200).json(repaired.evaluation);
+        }catch(repairError){
+          await recordAttempt({started:repairStarted,error:repairError});
+          const mappedRepair=providerFailure(res,repairError);
+          if(mappedRepair) return mappedRepair;
+          throw repairError;
+        }
+      }
+
       const mapped=providerFailure(res,error);
       if(mapped) return mapped;
       throw error;
