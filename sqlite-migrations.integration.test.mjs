@@ -50,7 +50,6 @@ test('fresh SQLite database advances to schema version 9 with LLM provider found
     }
     assert.equal(state.columns.has('llm_route_snapshot'),true);
     assert.equal(state.columns.has('teacher_snapshot'),true);
-    assert.equal(state.columns.has('teacher_snapshot'),true);
     assert.equal(state.routeColumns.has('owner_user_id'),true);
     assert.equal(state.pricingColumns.has('time_band'),true);
     assert.equal(state.pricingColumns.has('context_band'),true);
