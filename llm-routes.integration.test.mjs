@@ -64,7 +64,7 @@ test('LLM routes support teacher-owned built-in overrides without cross-teacher 
     });
 
     const teacherBuiltinT1=await setCaseRoute(t1,{
-      caseId:'aphasia_001',agentType:'patient',connectionId:t1Conn.id,model:'gpt-teacher',config:{temperature:0.5}
+      caseId:'aphasia_001',agentType:'patient',connectionId:t1Conn.id,model:'gpt-teacher',config:{temperature:0.5,promptTemplate:'Answer briefly for {{patient_name}}.'}
     });
     const teacherBuiltinT2=await setCaseRoute(t2,{
       caseId:'aphasia_001',agentType:'patient',connectionId:t2Conn.id,model:'deepseek-flash',config:{temperature:0.3}
@@ -84,6 +84,14 @@ test('LLM routes support teacher-owned built-in overrides without cross-teacher 
     let teacherOtherCaseError='';
     try{await setCaseRoute(t1,{caseId:'t2_case',agentType:'coach',connectionId:t1Conn.id,model:'gpt-teacher'});}
     catch(error){teacherOtherCaseError=error.code||error.message;}
+
+    let unsupportedPromptVariableError='';
+    try{
+      await setCaseRoute(t1,{
+        caseId:'aphasia_001',agentType:'coach',connectionId:t1Conn.id,model:'gpt-teacher',
+        config:{promptTemplate:'Do not use {{hidden_facts}}'}
+      });
+    }catch(error){unsupportedPromptVariableError=error.code||error.message;}
 
     let teacherOtherConnectionError='';
     try{await setCaseRoute(t1,{caseId:'aphasia_001',agentType:'coach',connectionId:t2Conn.id,model:'deepseek-flash'});}
@@ -129,7 +137,7 @@ test('LLM routes support teacher-owned built-in overrides without cross-teacher 
     console.log(JSON.stringify({
       systemRoute,globalCaseRoute,teacherBuiltinT1,teacherBuiltinT2,teacherOwnRoute,
       globalResolved,t1Resolved,t2Resolved,t1AfterDelete,globalAfterChange,
-      teacherSystemError,teacherOtherCaseError,teacherOtherConnectionError,
+      teacherSystemError,teacherOtherCaseError,teacherOtherConnectionError,unsupportedPromptVariableError,
       teacherSnapshot,studentSnapshot,teacherSnapshotAfter,teacherVisible,missingProviderError,
       teacherSessionRuntime:teacherSession.runtime,studentSessionRuntime:studentSession.runtime,
       runtimeContainsSecret:/apiKey|encrypted|ciphertext|secret/i.test(JSON.stringify(teacherSession.runtime)),
@@ -160,8 +168,10 @@ test('LLM routes support teacher-owned built-in overrides without cross-teacher 
     assert.equal(data.teacherSystemError,'FORBIDDEN');
     assert.equal(data.teacherOtherCaseError,'FORBIDDEN_CASE');
     assert.equal(data.teacherOtherConnectionError,'FORBIDDEN_CONNECTION');
+    assert.equal(data.unsupportedPromptVariableError,'UNSUPPORTED_PROMPT_VARIABLE');
 
     assert.equal(data.teacherSnapshot.patient.connectionId,data.teacherBuiltinT1.connectionId);
+    assert.equal(data.teacherSnapshot.patient.config.promptTemplate,'Answer briefly for {{patient_name}}.');
     assert.equal(data.studentSnapshot.patient.connectionId,data.globalCaseRoute.connectionId);
     assert.deepEqual(data.teacherSessionRuntime.patient,{
       providerKind:'openai',preset:'openai',model:'gpt-teacher'
