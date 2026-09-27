@@ -261,7 +261,7 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     assert.equal(data.providerFailureEvaluation.body.audit.status,'failed');
     assert.equal(data.providerFailureEvaluation.body.audit.persisted,true);
     assert.equal(data.providerFailureEvaluation.audit.status,'failed');
-    assert.equal(data.providerFailureEvaluation.audit.audit.attempts.initial.validation.code,'http_error');
+    assert.equal(data.providerFailureEvaluation.audit.audit.attempts.initial.validation.code,'endpoint_unreachable');
     assert.equal(data.providerFailureEvaluation.audit.audit.attempts.initial.responseText,'');
     assert.equal(JSON.stringify(data.providerFailureEvaluation.audit.audit).includes('secret upstream body'),false);
 
