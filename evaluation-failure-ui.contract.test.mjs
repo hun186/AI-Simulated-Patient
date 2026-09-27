@@ -8,7 +8,7 @@ test('evaluation repair failure exposes actionable support UI and downloadable d
   const css=readFileSync('formal.css','utf8');
 
   assert.match(html,/id="evaluationFailureCard"/);
-  assert.match(html,/id="downloadEvaluationDebugBtn"/);
+  assert.match(html,/id="downloadEvaluationDebugBtn"/);\n  assert.match(html,/下載除錯支援包（ZIP）/);
   assert.match(html,/id="retryEvaluationBtn"/);
   assert.match(html,/id="evaluationRawResponse"/);
   assert.match(html,/id="evaluationRepairedResponse"/);
