@@ -1,6 +1,6 @@
 import { downloadWordReport,printPdfReport } from './report-export.js';
 const SKEY='aisp-formal-session-v1',RKEY='aisp-formal-records-v1',CKEY='aisp-formal-custom-cases-v1',DKEY='aisp-vercel-demo-user-v1';
-const state={serverMode:false,demoAuth:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,sessionRuntime:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[],aiSettings:null,usageDashboard:null,selectedRecordId:null,studentReport:null,studentReportSessionId:null,studentReportAllowed:false,studentReportAccess:null};
+const state={serverMode:false,demoAuth:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,sessionRuntime:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[],aiSettings:null,usageDashboard:null,selectedRecordId:null,studentReport:null,studentReportSessionId:null,studentReportAllowed:false,studentReportAccess:null,evaluationDiagnostic:null};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const uid=()=> 'session_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
@@ -52,7 +52,7 @@ function sessionStartErrorMessage(error){
 }
 async function start(){
   state.revealedFactIds=[];state.coach=null;state.coachUsed=state.mode==='training'&&state.coachEnabled;
-  $('resultCard').classList.add('hidden');syncStudentReportActions();
+  $('resultCard').classList.add('hidden');clearEvaluationFailure();syncStudentReportActions();
   try{
     if(state.serverMode){
       const d=await post('/api/sessions',{caseId:state.caseId,mode:state.mode,coachEnabled:state.coachEnabled});
@@ -114,11 +114,80 @@ function evaluationErrorMessage(error){
   if(code==='DIFY_CONVERSATION_STATE_MISSING'||code==='dify_conversation_state_missing') return '評量失敗：此 Dify Stateful Evaluator 找不到本場問診的 conversation_id。請確認 Patient 與 Evaluator 使用同一個 Dify 連線，且 Patient 已至少完成一輪 Dify 對話。';
   return '評量失敗：'+(code||'請檢查 Evaluator AI 設定或稍後再試。');
 }
+function evaluationSupportInstruction(){
+  if(state.user?.role==='student') return '請下載「除錯資訊」，提供給授課教師或系統管理員。一般使用者不需要自行修改檔案內容。';
+  if(state.user?.role==='teacher') return '請下載「除錯資訊」，提供給系統管理員或維運人員，並告知發生問題的案例與時間。';
+  return '請下載「除錯資訊」交給系統管理或開發人員；可用錯誤編號比對伺服器紀錄。';
+}
+function clearEvaluationFailure(){
+  state.evaluationDiagnostic=null;
+  $('evaluationFailureCard')?.classList.add('hidden');
+}
+function renderEvaluationFailure(error){
+  const diagnostic=error?.details?.diagnostic;
+  if(!diagnostic)return false;
+  state.evaluationDiagnostic=diagnostic;
+  const initial=diagnostic.attempts?.initial||{};
+  const repair=diagnostic.attempts?.repair||{};
+  const provider=repair.provider||initial.provider||diagnostic.evaluatorRoute?.preset||'--';
+  const model=repair.model||initial.model||diagnostic.evaluatorRoute?.model||'--';
+  $('evaluationFailureSummary').textContent=evaluationErrorMessage(error);
+  $('evaluationFailureErrorId').textContent=diagnostic.errorId||'--';
+  $('evaluationFailureGuidance').textContent=evaluationSupportInstruction();
+  const rows=[
+    ['發生時間',diagnostic.occurredAt?new Date(diagnostic.occurredAt).toLocaleString('zh-TW'):'--'],
+    ['Session',diagnostic.session?.id||'--'],
+    ['Case',diagnostic.session?.caseId||'--'],
+    ['角色',diagnostic.session?.userRole||state.user?.role||'--'],
+    ['Provider',provider],
+    ['Model',model],
+    ['第一次驗證',initial.validation?.code||initial.validation?.message||'--'],
+    ['自動修復驗證',repair.validation?.code||repair.validation?.message||'--']
+  ];
+  $('evaluationFailureMeta').innerHTML=rows.map(([label,value])=>'<div><span>'+esc(label)+'</span><strong>'+esc(value)+'</strong></div>').join('');
+  $('evaluationRawResponse').textContent=initial.responseText||'（沒有可顯示的 AI 原始回覆）';
+  $('evaluationRepairedResponse').textContent=repair.responseText||'（沒有可顯示的自動修復回覆）';
+  $('evaluationValidationErrors').textContent=[
+    '第一次：'+(initial.validation?.code||'--')+' · '+(initial.validation?.message||'--'),
+    '自動修復：'+(repair.validation?.code||'--')+' · '+(repair.validation?.message||'--')
+  ].join('\n');
+  const card=$('evaluationFailureCard');
+  card.classList.remove('hidden');
+  card.scrollIntoView?.({behavior:'smooth',block:'start'});
+  return true;
+}
+function evaluationDiagnosticDownloadPayload(){
+  if(!state.evaluationDiagnostic)return null;
+  return {
+    support:{
+      title:'AI 模擬病人－評量失敗除錯資訊',
+      instruction:evaluationSupportInstruction(),
+      note:'請將本檔完整提供給系統管理員。系統已排除常見憑證、prompt template 與 transcript 欄位。'
+    },
+    diagnostic:state.evaluationDiagnostic
+  };
+}
+function downloadEvaluationDiagnostic(){
+  const payload=evaluationDiagnosticDownloadPayload();
+  if(!payload)return;
+  const filename=state.evaluationDiagnostic.downloadFilename||('evaluation-debug-'+(state.evaluationDiagnostic.errorId||Date.now())+'.json');
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement('a');
+  link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),0);
+}
+async function copyEvaluationErrorId(){
+  const value=state.evaluationDiagnostic?.errorId;
+  if(!value)return;
+  try{await navigator.clipboard.writeText(value);}
+  catch{window.prompt('請複製錯誤編號',value);}
+}
 async function finish(){
   try{
     const completedSessionId=state.sessionId;
     const d=await post('/api/evaluate',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.revealedFactIds,mode:state.mode});
-    renderEvaluation(d);
+    clearEvaluationFailure();renderEvaluation(d);
     if(state.serverMode){
       if(state.user?.role==='student'){
         state.studentReport=null;state.studentReportAllowed=false;state.studentReportAccess=null;
@@ -147,7 +216,7 @@ async function finish(){
     const ix=state.records.findIndex(x=>x.id===rec.id);
     if(ix>=0)state.records[ix]=rec;else state.records.unshift(rec);
     write(RKEY,state.records);renderRecords();syncStudentReportActions();
-  }catch(error){alert(evaluationErrorMessage(error));}
+  }catch(error){if(!renderEvaluationFailure(error))alert(evaluationErrorMessage(error));}
 }
 function renderCases(){const list=state.teacherCases.length?state.teacherCases:state.customCases;$('teacherCaseList').innerHTML=list.length?list.map(c=>{const canManage=!state.serverMode||state.user?.role==='admin'||c.createdBy===state.user?.id;const policy=studentReportPolicy(c.studentReportExportPolicy);const policyControl=canManage?'<div class="case-report-policy"><select data-case-report-policy="'+esc(c.id)+'"><option value="disabled" '+(policy==='disabled'?'selected':'')+'>不允許學生下載</option><option value="training_only" '+(policy==='training_only'?'selected':'')+'>僅訓練模式可下載</option><option value="all_completed" '+(policy==='all_completed'?'selected':'')+'>訓練與考試皆可下載</option></select><button type="button" class="secondary small-btn" data-save-case-report-policy="'+esc(c.id)+'">儲存下載政策</button></div>':'<span class="hint">學生報告：'+esc(studentReportPolicyLabel(policy))+(c.createdBy?'':'（系統內建由 Admin 控制）')+'</span>';return '<div class="manage-row case-policy-row"><div><strong>'+esc(c.internalTitle||c.title||'未命名病例')+'</strong><small>學生看到：'+esc(c.studentLabel||'臨床問診案例')+' · '+esc(c.patient?.name||'')+' · '+esc(c.difficulty||'')+' · '+(c.learningGoals||[]).length+' 個學習目標</small>'+policyControl+'</div><span class="readonly-pill">'+(c.createdBy?'教師建立':'系統內建')+'</span></div>';}).join(''):'<p class="empty">尚無病例。</p>';$('teacherCaseList').querySelectorAll('[data-save-case-report-policy]').forEach(button=>button.onclick=()=>saveCaseReportPolicy(button.dataset.saveCaseReportPolicy));}
 async function renderRecords(){if(state.serverMode){if(!['teacher','admin'].includes(state.user?.role))return;try{
@@ -458,7 +527,7 @@ async function setCoachEnabled(enabled){
   }
   save();renderMode();renderCoach();
 }
-$('finishBtn').onclick=finish;$('studentExportWordBtn').onclick=exportOwnStudentWord;$('studentExportPdfBtn').onclick=exportOwnStudentPdf;$('studentReportRecheckBtn').onclick=()=>refreshStudentReportAccess({silent:false});$('resetBtn').onclick=start;$('caseSelect').onchange=e=>switchCase(e.target.value);$('modeSelect').onchange=e=>switchMode(e.target.value);$('coachToggle').onchange=e=>setCoachEnabled(e.target.value==='on');$('studentName').oninput=e=>{if(state.serverMode)return;state.studentName=e.target.value;save();};$('exportRecordWordBtn').onclick=exportSelectedWord;$('exportRecordPdfBtn').onclick=exportSelectedPdf;$('closeRecordBtn').onclick=()=>{$('recordDetail').classList.add('hidden');state.selectedRecordId=null;};
+$('finishBtn').onclick=finish;$('retryEvaluationBtn').onclick=finish;$('downloadEvaluationDebugBtn').onclick=downloadEvaluationDiagnostic;$('copyEvaluationErrorIdBtn').onclick=copyEvaluationErrorId;$('studentExportWordBtn').onclick=exportOwnStudentWord;$('studentExportPdfBtn').onclick=exportOwnStudentPdf;$('studentReportRecheckBtn').onclick=()=>refreshStudentReportAccess({silent:false});$('resetBtn').onclick=start;$('caseSelect').onchange=e=>switchCase(e.target.value);$('modeSelect').onchange=e=>switchMode(e.target.value);$('coachToggle').onchange=e=>setCoachEnabled(e.target.value==='on');$('studentName').oninput=e=>{if(state.serverMode)return;state.studentName=e.target.value;save();};$('exportRecordWordBtn').onclick=exportSelectedWord;$('exportRecordPdfBtn').onclick=exportSelectedPdf;$('closeRecordBtn').onclick=()=>{$('recordDetail').classList.add('hidden');state.selectedRecordId=null;};
 const AI_AGENT_LABELS={patient:'Patient',coach:'Coach',evaluator:'Evaluator'};
 function promptTemplateEditor(agent,route,catalog){
   const spec=catalog?.[agent];
