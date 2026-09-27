@@ -57,3 +57,6 @@
 .prompt-example-vars code{padding:5px 8px;border-radius:8px;background:#f1f4f8;color:#43526a;font-size:11px}
 #promptExampleText{width:100%;min-height:300px;resize:vertical;border:1px solid #dbe2ee;border-radius:12px;padding:14px;background:#fbfcfe;color:#2f3c52;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;box-sizing:border-box}
 @media(max-width:620px){.prompt-example-shell{padding:16px}.ai-prompt-field-head{align-items:flex-start;flex-direction:column}.prompt-example-btn{align-self:flex-start}#promptExampleText{min-height:260px}}
+
+.ai-demo-notice{margin:0 0 14px;padding:12px 14px;border:1px solid #d9e4f3;border-radius:12px;background:#f3f7fc;color:#52647d;font-size:12px;font-weight:700;line-height:1.55}
+.ai-demo-notice::before{content:'Vercel Demo · 唯讀展示';display:block;margin-bottom:3px;color:#344966;font-size:12px;font-weight:900}
