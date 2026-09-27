@@ -161,6 +161,15 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     assert.equal(data.persistentInvalid.status,502);
     assert.equal(data.persistentInvalid.body.code,'EVALUATION_REPAIR_FAILED');
     assert.equal(data.persistentInvalid.sessionStatus,'active');
+    assert.equal(data.persistentInvalid.body.diagnostic.category,'evaluation_contract_repair_failed');
+    assert.equal(data.persistentInvalid.body.diagnostic.session.id,persistentSessionId);
+    assert.equal(data.persistentInvalid.body.diagnostic.session.userRole,'student');
+    assert.equal(data.persistentInvalid.body.diagnostic.attempts.initial.responseText,'{"totalScore":10}');
+    assert.equal(data.persistentInvalid.body.diagnostic.attempts.repair.responseText,'{"totalScore":10}');
+    assert.equal(data.persistentInvalid.body.diagnostic.attempts.initial.validation.code,'INVALID_EVALUATION_CONTRACT');
+    assert.equal(data.persistentInvalid.body.diagnostic.attempts.repair.validation.code,'EVALUATION_REPAIR_FAILED');
+    assert.equal(JSON.stringify(data.persistentInvalid.body.diagnostic).includes('apiKey'),true); // excludedFields documents the omission
+    assert.equal(JSON.stringify(data.persistentInvalid.body.diagnostic).includes('secret upstream body'),false);
     assert.equal(data.enableMissingCoach.status,503);
     assert.equal(data.enableMissingCoach.body.error,'AI_COACH_PROVIDER_NOT_CONFIGURED');
     assert.equal(data.enableMissingCoach.coachEnabled,false);
