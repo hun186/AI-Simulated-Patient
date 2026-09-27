@@ -6,7 +6,7 @@
 
 - 初始化狀態：`INITIALIZED`；2026-09-26 依 commit `f04bc8c` 的實際程式、測試、manifest/lockfile、schema/migrations、README 與 docs 完成 bootstrap。
 - 目前產品基線：SQLite-first 的 AI 模擬病人教育原型；production auth/RBAC、native LLM providers、usage pricing/quota、Dify Stateful Chatflow、Teacher/Admin report export 與 case-level student report policy 已存在。
-- Current SQLite schema 由 v1 base + ordered migrations 推進至 `user_version=9`；v8 加入 provider session state，v9 加入 Teacher snapshot 與 Coach events。
+- Current SQLite schema 由 v1 base + ordered migrations 推進至 `user_version=10`；v8 加入 provider session state，v9 加入 Teacher snapshot 與 Coach events，v10 加入 evaluation failure diagnostics。
 - Vercel 必須維持 deterministic browser demo 隔離，不可把 production DB/auth/LLM code 或 credentials 納入 bundle；browser-local demo 可使用靜態 report exporter，但 production student-report API 不進 Vercel demo surface。
 - 修改 session/LLM 時維持 case/route snapshot、server-side ownership/RBAC、production no-mock-fallback 與 evaluator-before-completion 不變量。
 - Canonical 整體驗證是 `npm test`；hosted CI 定義於 `.github/workflows/ci.yml`，目前使用 Node 22、syntax checks 與 `npm test`。
