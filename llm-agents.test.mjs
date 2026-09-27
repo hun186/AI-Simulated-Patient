@@ -73,6 +73,10 @@ test('evaluation contract accepts only machine-readable allowed statuses and pre
   assert.deepEqual(validateEvaluationContract(value),value);
   assert.deepEqual(parseAndValidateEvaluation(JSON.stringify(value)),value);
   assert.throws(
+    ()=>validateEvaluationContract({...value,totalScore:9,percentage:90}),
+    error=>error.code==='INVALID_EVALUATION_CONTRACT'&&error.message==='score.aggregate'
+  );
+  assert.throws(
     ()=>validateEvaluationContract({...value,items:[{...value.items[0],status:'good'}]}),
     error=>error.code==='INVALID_EVALUATION_CONTRACT'
   );
