@@ -13,6 +13,12 @@
 
 ## Recent Outcomes
 
+### 2026-09-27 — Security audit pagination and filters
+
+- Security audit 改為 server-side pagination，預設 25 筆／頁，可切 50/100；API 回傳 total/totalPages，不再一次載入大量 audit rows。
+- Admin UI 可依今日／本週／本月／近 7/30 日／自訂／全部期間、action、成功/失敗、actor、target 與 identifier/reason/client-host/action 關鍵字篩選。
+- API 保留既有 permission boundary：Admin 可查全域，非 Admin 即使直接呼叫 API 仍只可看到 actor/target 涉及自己的事件；篩選條件不可擴張可見範圍。
+
 ### 2026-09-27 — Usage analytics filters
 
 - LLM usage analytics 保留完整歷史，不提供 destructive reset；Teacher/Admin 可依本地日曆期間（今日、本週、本月、近 7/30 日、自訂、全部）、可見使用者、Provider、Model、Agent、病例、成功/失敗與 cache telemetry 狀態篩選。
