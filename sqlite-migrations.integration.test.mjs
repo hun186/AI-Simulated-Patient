@@ -31,7 +31,8 @@ function inspect(dbPath){
     const pricingColumns=new Set(db.prepare("pragma table_info(llm_pricing_rules)").all().map(row=>row.name));
     const usageColumns=new Set(db.prepare("pragma table_info(llm_usage_events)").all().map(row=>row.name));
     const user=db.prepare("select id,email from app_users where id='legacy-admin'").get()||null;
-    return {tables,columns,routeColumns,pricingColumns,usageColumns,user};
+    const ollamaCloudPricingCount=db.prepare("select count(*) as count from llm_pricing_rules where id like 'builtin-ollama-direct-%'").get().count;
+    return {tables,columns,routeColumns,pricingColumns,usageColumns,user,ollamaCloudPricingCount};
   }finally{
     db.close();
   }
@@ -53,7 +54,7 @@ test('fresh SQLite database advances to schema version 7 with LLM provider found
     assert.equal(state.pricingColumns.has('context_band'),true);
     assert.equal(state.pricingColumns.has('cache_write_microusd_per_million'),true);
     assert.equal(state.tables.has('llm_fx_rates'),true);
-    assert.equal(new Database(dbPath,{readonly:true}).prepare("select count(*) as count from llm_pricing_rules where id like 'builtin-ollama-direct-%'").get().count>0,true);
+    assert.equal(state.ollamaCloudPricingCount>0,true);
     for(const name of ['cache_write_tokens','service_tier','estimated_cost_microntd','fx_rate_microunits_per_usd','fx_rate_id']){
       assert.equal(state.usageColumns.has(name),true,name);
     }
