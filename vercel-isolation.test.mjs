@@ -20,6 +20,8 @@ test('Vercel deployment is isolated to demo API instead of production auth/datab
   assert.match(ignore,/^!\/support-bundle\.js$/m);
   assert.equal(rewrites.has('/api/student/report'),false);
   assert.equal(rewrites.has('/api/teacher/evaluation-diagnostics'),false);
+  assert.equal(rewrites.has('/api/teacher/evaluation-audits'),false);
+  assert.doesNotMatch(ignore,/^!\/api\/teacher\/evaluation-audits\.js$/m);
   assert.doesNotMatch(ignore,/^!\/api\/student\/report\.js$/m);
   assert.doesNotMatch(demo,/server-auth|server-sessions|db\.js|db-sqlite|db-postgres|better-sqlite3|neondatabase/);
 });
