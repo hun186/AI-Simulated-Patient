@@ -2,6 +2,17 @@ import { getAllCases,getPublicCases } from '../lib/cases.js';
 import { mockPatientReply } from '../lib/mock-patient.js';
 import { mockCoach } from '../lib/mock-coach.js';
 import { mockEvaluate } from '../lib/mock-evaluator.js';
+import { getPromptTemplateCatalog } from '../lib/llm/prompts.js';
+
+
+function demoAiConnections(){
+  return [
+    {id:'demo-openai',scopeType:'teacher',ownerUserId:'demo-teacher',name:'Demo OpenAI',providerKind:'openai',preset:'openai',baseUrl:'https://api.openai.com/v1',defaultModel:'gpt-5-mini',apiKeyLast4:'',isActive:true},
+    {id:'demo-deepseek',scopeType:'teacher',ownerUserId:'demo-teacher',name:'Demo DeepSeek',providerKind:'openai_compatible',preset:'deepseek',baseUrl:'https://api.deepseek.com',defaultModel:'deepseek-flash',apiKeyLast4:'',isActive:true},
+    {id:'demo-ollama-cloud',scopeType:'teacher',ownerUserId:'demo-teacher',name:'Demo Ollama Cloud',providerKind:'openai_compatible',preset:'ollama_cloud',baseUrl:'https://ollama.com/v1',defaultModel:'deepseek-v4-pro',apiKeyLast4:'',isActive:true},
+    {id:'demo-ollama-local',scopeType:'teacher',ownerUserId:'demo-teacher',name:'Demo Ollama Local',providerKind:'openai_compatible',preset:'ollama',baseUrl:'http://192.168.1.50:11434/v1',defaultModel:'qwen3:latest',apiKeyLast4:'',isActive:true}
+  ];
+}
 
 function routeOf(req){
   if(req.query?.route) return String(req.query.route);
@@ -43,6 +54,23 @@ export default async function handler(req,res){
   if(route==='teacher-cases'){
     if(!requireMethod(req,res,'GET')) return;
     return res.status(200).json({mode:'demo',cases:getAllCases().map(teacherCase)});
+  }
+  if(route==='ai-settings'){
+    if(req.method!=='GET'){
+      return res.status(409).json({
+        error:'VERCEL_DEMO_READ_ONLY',
+        message:'Vercel Demo 僅展示 LLM Provider / Agent Route / Prompt Template 介面，不儲存設定，也不實際呼叫 LLM。'
+      });
+    }
+    return res.status(200).json({
+      mode:'demo',
+      demoReadOnly:true,
+      demoNote:'Vercel Demo 僅展示 LLM Provider、Agent Route 與 Prompt Template 介面；設定不會儲存，也不會實際呼叫 LLM。',
+      connections:demoAiConnections(),
+      routes:[],
+      actorRole:'demo',
+      promptTemplates:getPromptTemplateCatalog()
+    });
   }
   if(route==='chat'){
     if(!requireMethod(req,res,'POST')) return;

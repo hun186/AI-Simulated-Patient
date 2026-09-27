@@ -71,6 +71,10 @@
     {
       "source": "/api/teacher/cases",
       "destination": "/api/demo?route=teacher-cases"
+    },
+    {
+      "source": "/api/teacher/ai-settings",
+      "destination": "/api/demo?route=ai-settings"
     }
   ]
 }
