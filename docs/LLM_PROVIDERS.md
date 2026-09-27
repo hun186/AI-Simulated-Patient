@@ -4,7 +4,7 @@ Phase 1 adds native Patient, Coach, and Evaluator LLM routing to production data
 
 ## Deployment boundary
 
-The public Vercel PoC remains deterministic Mock-only. It does not expose the production AI Settings API and should not receive production provider credentials.
+The public Vercel PoC remains deterministic Mock-only for runtime calls. It exposes a read-only AI Settings preview, but never stores provider credentials or invokes external providers.
 
 Windows/Linux production deployments use the server-side database and the AI Settings screen in Teacher Console.
 
@@ -24,10 +24,11 @@ Do not commit this value. Losing or changing the key makes previously stored pro
 |---|---|---|---|
 | OpenAI | Responses API | fixed OpenAI endpoint | Yes |
 | DeepSeek | OpenAI-compatible Chat Completions | fixed DeepSeek endpoint | Yes |
-| Ollama | OpenAI-compatible Chat Completions | localhost default, Admin configurable | No |
+| Ollama | OpenAI-compatible Chat Completions | localhost/private endpoint | No |
+| Dify | Dify Application API (`chat-messages`, `workflows/run`, `completion-messages`) | Dify Cloud or allowed self-hosted endpoint | Yes |
 | Custom | OpenAI-compatible Chat Completions | Admin supplied | No |
 
-Ollama may be keyless. OpenAI and DeepSeek require an API key.
+Ollama may be keyless. OpenAI, DeepSeek, Ollama Cloud, and Dify require an API key.
 
 ## AI Settings
 
@@ -87,8 +88,8 @@ Each priced usage event also snapshots the effective USD/TWD reference rate and 
 - Provider API keys are not returned by GET endpoints.
 - Browser UI never stores the API key after submission.
 - Teacher cannot configure arbitrary custom/private endpoints.
-- Production provider credentials must not be configured on the Vercel PoC.
-- Treat local Ollama/custom endpoints as privileged Admin configuration.
+- Production provider credentials must not be configured on the Vercel PoC; its AI Settings surface is read-only.
+- Teacher-owned Ollama Local and Dify connections are restricted to approved official/private endpoints; arbitrary Custom endpoints remain Admin-only.
 
 
 ## Ollama Local and Ollama Cloud
@@ -122,3 +123,37 @@ Hidden facts, rubric answers, API secrets, and raw system internals are not expo
 ## Returning an Agent route to unconfigured
 
 Patient, Coach, and Evaluator route selectors support an explicit **Unconfigured (Rule-based / system default)** state. Saving that empty selection deletes the current route rather than requiring another Provider. In local/development mode, the existing deterministic rule-based fallback can then be used. Production keeps its strict policy: a production interview still requires the configured LLM routes needed by that workflow and does not silently fall back to mock/rule-based behavior.
+
+
+## Dify Application API
+
+Dify is available in the same **AI Provider connections** area as the native LLM providers. A Dify connection is one published Dify App API key plus its API base URL.
+
+Supported Dify app modes:
+
+- **Chat / Chatflow** → `POST /chat-messages`
+- **Workflow** → `POST /workflows/run`
+- **Completion** → `POST /completion-messages`
+
+The default base URL is `https://api.dify.ai/v1`. Self-hosted Dify can use another HTTP/HTTPS base URL; Teacher-owned connections are limited to the official Dify Cloud host or private/local network targets, while Admin retains broader endpoint control.
+
+A connection test uses `GET /parameters`, so testing credentials does not generate a real Patient/Coach/Evaluator response.
+
+The platform remains the source of truth for interview history and persisted assessment results. Dify supports two execution modes:
+
+- **Platform-managed (stateless)** — the platform sends the current locked system prompt and relevant transcript/request context on every call. Dify conversation continuity is not required.
+- **Stateful Chatflow** — available only for Dify Chat/Chatflow apps. The platform sends the current user query, stores the returned `conversation_id` as provider-specific session state, and reuses it for later turns in the same interview. This mode is intended for Dify Conversation Variables such as `H01_done ... H14_done`. The Dify App itself owns the Patient/assessment workflow prompt logic in this mode; the platform still owns the canonical transcript and final persisted result.
+
+Provider state is stored per interview session and Dify connection in `llm_provider_session_state`. If Patient and Evaluator must share the same Dify Conversation Variables, they must select the same Dify connection. A new interview session does not reuse the previous session's Dify `conversation_id`.
+
+A Stateful Evaluator route can enable a configurable final trigger, defaulting to `問診結束`. The platform sends that trigger to the same Dify conversation when the learner ends the interview. If no conversation state exists for that connection, evaluation fails with `DIFY_CONVERSATION_STATE_MISSING` instead of silently starting a new conversation.
+
+For Workflow routes, the route config supports:
+
+- `difyInputKey` — Workflow input variable receiving the combined agent prompt; default `prompt`.
+- `difyOutputKey` — Workflow output variable used as the agent response; default `text`.
+- `difyInputs` — optional fixed JSON inputs, for example `{"language":"zh-TW"}`.
+
+Dify token usage is recorded when the Dify response reports it. Because the actual underlying model and billing policy are managed inside Dify, the platform does not invent a native model price for Dify calls; unmatched Dify usage remains explicitly unpriced until a dedicated pricing policy is configured.
+
+For the compatibility contract with existing Dify Chatflows that depend on `conversation_id` and Conversation Variables, see [`DIFY_INTEGRATION_CONTRACT.md`](./DIFY_INTEGRATION_CONTRACT.md). Stateful Chatflow support is implemented in PR #22 and covered by adapter, route-validation, schema-migration, and interview-lifecycle integration tests.

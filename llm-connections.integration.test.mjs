@@ -84,6 +84,12 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
       defaultModel:'qwen3:latest'
     },t1Auth);
 
+    const teacherDify=await call('POST',{
+      action:'createConnection',name:'My Dify Chatflow',preset:'dify',
+      baseUrl:'https://api.dify.ai/v1',defaultModel:'chat',apiKey:'app-dify-secret-2468'
+    },t1Auth);
+    const storedTeacherDify=(await query('select provider_kind,preset,base_url,default_model,api_key_last4 from llm_provider_connections where id=$1',[teacherDify.body.connection.id]))[0];
+
     const teacherCloud=await call('POST',{
       action:'createConnection',name:'My Ollama Cloud',preset:'ollama_cloud',
       defaultModel:'deepseek-v4-pro',apiKey:'ollama-cloud-secret-4321'
@@ -155,6 +161,7 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
       teacherCreate:{status:teacherCreate.statusCode,connection:teacherCreate.body.connection},
       teacherLocal:{status:teacherLocal.statusCode,connection:teacherLocal.body.connection,stored:storedTeacherLocal},
       teacherPublicOllama:{status:teacherPublicOllama.statusCode,body:teacherPublicOllama.body},
+      teacherDify:{status:teacherDify.statusCode,connection:teacherDify.body.connection,stored:storedTeacherDify},
       teacherCloud:{status:teacherCloud.statusCode,connection:teacherCloud.body.connection,stored:storedTeacherCloud},
       teacher2Id:teacher2Create.body.connection.id,
       teacherCustom:{status:teacherCustom.statusCode,body:teacherCustom.body},
@@ -202,6 +209,16 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
     assert.equal(data.teacherLocal.stored.encrypted_api_key,null);
     assert.equal(data.teacherPublicOllama.status,400);
     assert.equal(data.teacherPublicOllama.body.error,'OLLAMA_LOCAL_ENDPOINT_NOT_ALLOWED');
+
+    assert.equal(data.teacherDify.status,201);
+    assert.equal(data.teacherDify.connection.preset,'dify');
+    assert.equal(data.teacherDify.connection.providerKind,'dify');
+    assert.equal(data.teacherDify.connection.defaultModel,'chat');
+    assert.equal(data.teacherDify.connection.apiKeyLast4,'2468');
+    assert.equal(data.teacherDify.stored.provider_kind,'openai_compatible');
+    assert.equal(data.teacherDify.stored.preset,'custom');
+    assert.equal(data.teacherDify.stored.default_model,'dify::chat');
+    assert.equal(data.teacherDify.stored.base_url,'https://api.dify.ai/v1');
 
     assert.equal(data.teacherCloud.status,201);
     assert.equal(data.teacherCloud.connection.preset,'ollama_cloud');

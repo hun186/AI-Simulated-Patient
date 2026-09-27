@@ -60,3 +60,13 @@
 
 .ai-demo-notice{margin:0 0 14px;padding:12px 14px;border:1px solid #d9e4f3;border-radius:12px;background:#f3f7fc;color:#52647d;font-size:12px;font-weight:700;line-height:1.55}
 .ai-demo-notice::before{content:'Vercel Demo · 唯讀展示';display:block;margin-bottom:3px;color:#344966;font-size:12px;font-weight:900}
+
+.dify-route-config{display:grid;gap:8px;padding:10px 12px;border:1px solid #e2e8f2;border-radius:12px;background:#f8fafc}
+.dify-route-config label{display:grid;gap:5px;font-size:12px;font-weight:800;color:#536079}
+.dify-route-config input,.dify-route-config textarea{border:1px solid #dbe2ee;border-radius:9px;padding:9px;background:#fff}
+.dify-route-config textarea{min-height:90px;resize:vertical;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.dify-route-note{display:grid;gap:3px;color:#69758c;font-size:11px;line-height:1.5}.dify-route-note strong{color:#40506a}
+
+.dify-route-config select{border:1px solid #dbe2ee;border-radius:9px;padding:9px;background:#fff}
+.dify-checkbox-row{display:flex!important;grid-template-columns:none!important;align-items:center;gap:8px!important;font-weight:700!important}
+.dify-checkbox-row input{width:auto;margin:0}

@@ -254,3 +254,174 @@ test('testLlmConnection returns a sanitized success summary',async()=>{
   assert.equal(typeof result.latencyMs,'number');
   assert.deepEqual(Object.keys(result).sort(),['latencyMs','model','ok','preset','provider'].sort());
 });
+
+
+test('Dify Chat/Chatflow uses blocking chat-messages and normalizes answer/usage',async()=>{
+  const calls=[];
+  const fetchImpl=async(url,options)=>{
+    calls.push({url,options,body:JSON.parse(options.body)});
+    return fakeResponse({json:{
+      message_id:'dify-msg-1',
+      answer:'Dify patient answer',
+      metadata:{usage:{prompt_tokens:21,completion_tokens:7,total_tokens:28}}
+    }});
+  };
+  const {generateLlm}=await gateway();
+  const result=await generateLlm({
+    connection:{providerKind:'dify',preset:'dify',baseUrl:'https://api.dify.ai/v1',apiKey:'app-secret',defaultModel:'chat'},
+    model:'chat',
+    systemPrompt:'Stay in character.',
+    messages:[{role:'user',content:'你好'}],
+    safetyIdentifier:'opaque-user',
+    providerConfig:{difyInputs:{language:'zh-TW'}}
+  },{fetchImpl});
+
+  assert.equal(calls[0].url,'https://api.dify.ai/v1/chat-messages');
+  assert.equal(calls[0].options.headers.Authorization,'Bearer app-secret');
+  assert.equal(calls[0].body.response_mode,'blocking');
+  assert.equal(calls[0].body.user,'opaque-user');
+  assert.equal(calls[0].body.conversation_id,'');
+  assert.deepEqual(calls[0].body.inputs,{language:'zh-TW'});
+  assert.match(calls[0].body.query,/SYSTEM INSTRUCTIONS:/);
+  assert.match(calls[0].body.query,/Stay in character/);
+  assert.match(calls[0].body.query,/你好/);
+  assert.equal(result.text,'Dify patient answer');
+  assert.equal(result.provider,'dify');
+  assert.equal(result.preset,'dify');
+  assert.equal(result.model,'chat');
+  assert.deepEqual(result.usage,{
+    inputTokens:21,cachedInputTokens:0,outputTokens:7,reasoningTokens:0,totalTokens:28
+  });
+  assert.equal(result.providerRequestId,'dify-msg-1');
+});
+
+test('Dify Workflow maps combined prompt to configured input/output keys',async()=>{
+  const calls=[];
+  const fetchImpl=async(url,options)=>{
+    calls.push({url,body:JSON.parse(options.body)});
+    return fakeResponse({json:{
+      workflow_run_id:'wf-run-1',
+      task_id:'task-1',
+      data:{status:'succeeded',outputs:{result_text:'workflow answer'},total_tokens:44}
+    }});
+  };
+  const {generateLlm}=await gateway();
+  const result=await generateLlm({
+    connection:{providerKind:'dify',preset:'dify',baseUrl:'https://dify.internal/v1',apiKey:'app-secret',defaultModel:'workflow'},
+    model:'workflow',
+    systemPrompt:'Evaluator rules',
+    messages:[{role:'user',content:'Evaluate transcript'}],
+    providerConfig:{
+      difyInputKey:'agent_prompt',
+      difyOutputKey:'result_text',
+      difyInputs:{locale:'zh-TW'}
+    },
+    safetyIdentifier:'user-1'
+  },{fetchImpl});
+
+  assert.equal(calls[0].url,'https://dify.internal/v1/workflows/run');
+  assert.equal(calls[0].body.response_mode,'blocking');
+  assert.equal(calls[0].body.user,'user-1');
+  assert.equal(calls[0].body.inputs.locale,'zh-TW');
+  assert.match(calls[0].body.inputs.agent_prompt,/Evaluator rules/);
+  assert.equal(result.text,'workflow answer');
+  assert.equal(result.usage.totalTokens,44);
+  assert.equal(result.providerRequestId,'wf-run-1');
+});
+
+test('Dify connection test uses app parameters endpoint without invoking the app',async()=>{
+  const calls=[];
+  const {testLlmConnection}=await gateway();
+  const fetchImpl=async(url,options)=>{
+    calls.push({url,options});
+    return fakeResponse({json:{user_input_form:[]}});
+  };
+  const result=await testLlmConnection({
+    providerKind:'dify',preset:'dify',baseUrl:'https://api.dify.ai/v1',
+    apiKey:'app-key',defaultModel:'chat'
+  },{fetchImpl});
+  assert.equal(result.ok,true);
+  assert.equal(result.provider,'dify');
+  assert.equal(result.preset,'dify');
+  assert.equal(result.model,'chat');
+  assert.equal(calls[0].url,'https://api.dify.ai/v1/parameters?user=aisp-connection-test');
+  assert.equal(calls[0].options.method,'GET');
+  assert.equal(calls[0].options.headers.Authorization,'Bearer app-key');
+});
+
+
+test('Dify Stateful Chatflow creates and then reuses conversation_id while sending only the current query',async()=>{
+  const calls=[];
+  let n=0;
+  const fetchImpl=async(url,options)=>{
+    const body=JSON.parse(options.body);
+    calls.push({url,body});
+    n+=1;
+    return fakeResponse({json:{
+      message_id:'msg-'+n,
+      conversation_id:'conv-123',
+      answer:n===1?'first reply':'second reply',
+      metadata:{usage:{prompt_tokens:5,completion_tokens:2,total_tokens:7}}
+    }});
+  };
+  const {generateLlm}=await gateway();
+  const base={
+    connection:{providerKind:'dify',preset:'dify',baseUrl:'https://api.dify.ai/v1',apiKey:'app-key',defaultModel:'chat'},
+    model:'chat',
+    systemPrompt:'LOCKED SYSTEM PROMPT SHOULD NOT BE SENT AS QUERY IN STATEFUL MODE',
+    providerConfig:{difyExecutionMode:'stateful_chatflow'},
+    safetyIdentifier:'opaque-user'
+  };
+
+  const first=await generateLlm({
+    ...base,
+    messages:[
+      {role:'assistant',content:'old patient reply'},
+      {role:'user',content:'第一題'}
+    ]
+  },{fetchImpl});
+
+  const second=await generateLlm({
+    ...base,
+    providerState:first.providerState,
+    messages:[
+      {role:'assistant',content:'old patient reply'},
+      {role:'user',content:'第二題'}
+    ]
+  },{fetchImpl});
+
+  assert.equal(calls[0].url,'https://api.dify.ai/v1/chat-messages');
+  assert.equal(calls[0].body.query,'第一題');
+  assert.equal(calls[0].body.conversation_id,'');
+  assert.equal(calls[1].body.query,'第二題');
+  assert.equal(calls[1].body.conversation_id,'conv-123');
+  assert.deepEqual(first.providerState,{conversationId:'conv-123'});
+  assert.deepEqual(second.providerState,{conversationId:'conv-123'});
+});
+
+test('Dify Stateful Chatflow can require an existing conversation for final-trigger calls',async()=>{
+  const {generateLlm}=await gateway();
+  await assert.rejects(
+    ()=>generateLlm({
+      connection:{providerKind:'dify',preset:'dify',baseUrl:'https://api.dify.ai/v1',apiKey:'app-key',defaultModel:'chat'},
+      model:'chat',
+      messages:[{role:'user',content:'問診結束'}],
+      providerConfig:{difyExecutionMode:'stateful_chatflow'},
+      requireProviderState:true
+    },{fetchImpl:async()=>fakeResponse({json:{}})}),
+    error=>error.code==='dify_conversation_state_missing'
+  );
+});
+
+test('Dify Stateful mode rejects Workflow because conversation_id is a Chatflow contract',async()=>{
+  const {generateLlm}=await gateway();
+  await assert.rejects(
+    ()=>generateLlm({
+      connection:{providerKind:'dify',preset:'dify',baseUrl:'https://api.dify.ai/v1',apiKey:'app-key',defaultModel:'workflow'},
+      model:'workflow',
+      messages:[{role:'user',content:'hello'}],
+      providerConfig:{difyExecutionMode:'stateful_chatflow'}
+    },{fetchImpl:async()=>fakeResponse({json:{}})}),
+    error=>error.code==='invalid_request'
+  );
+});

@@ -43,7 +43,7 @@ function renderAll(){renderHeader();renderMode();renderChat();renderCoach();}
 function providerLabel(route){
   if(!route)return 'Provider 未設定';
   const preset=String(route.preset||route.providerKind||'').toLowerCase();
-  const names={openai:'OpenAI',deepseek:'DeepSeek',ollama_cloud:'Ollama Cloud',ollama:'Ollama Local',custom:'Custom',mock:'Mock'};
+  const names={openai:'OpenAI',deepseek:'DeepSeek',ollama_cloud:'Ollama Cloud',ollama:'Ollama Local',dify:'Dify',custom:'Custom',mock:'Mock'};
   const provider=names[preset]||route.preset||route.providerKind||'Provider';
   return provider+' · '+(route.model||'未指定模型');
 }
@@ -77,6 +77,7 @@ function evaluationErrorMessage(error){
   if(code==='INVALID_EVALUATION_CONTRACT'||code==='INVALID_EVALUATION_JSON') return '評量失敗：AI 回傳的評量格式不符合要求，session 仍保持未完成，可再次嘗試。';
   if(code==='EVALUATION_REPAIR_FAILED') return '評量失敗：AI 的評量格式經自動修復後仍不符合要求；session 仍保持未完成，可再次嘗試。';
   if(code==='AI_USAGE_QUOTA_EXCEEDED') return '評量失敗：此帳號已達 LLM 使用上限。';
+  if(code==='DIFY_CONVERSATION_STATE_MISSING'||code==='dify_conversation_state_missing') return '評量失敗：此 Dify Stateful Evaluator 找不到本場問診的 conversation_id。請確認 Patient 與 Evaluator 使用同一個 Dify 連線，且 Patient 已至少完成一輪 Dify 對話。';
   return '評量失敗：'+(code||'請檢查 Evaluator AI 設定或稍後再試。');
 }
 async function finish(){try{const d=await post('/api/evaluate',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.revealedFactIds,mode:state.mode});renderEvaluation(d);if(state.serverMode){if(['teacher','admin'].includes(state.user?.role))await renderRecords();return;}const rec={id:state.sessionId,studentName:state.studentName||'未填姓名',caseTitle:state.caseData.studentLabel||state.caseData.title||'臨床問診案例',mode:state.mode,coachUsed:state.mode==='training'&&state.coachUsed,completedAt:new Date().toISOString(),transcript:state.transcript,evaluation:d};state.records=read(RKEY,[]);const ix=state.records.findIndex(x=>x.id===rec.id);if(ix>=0)state.records[ix]=rec;else state.records.unshift(rec);write(RKEY,state.records);renderRecords();}catch(error){alert(evaluationErrorMessage(error));}}
@@ -321,27 +322,62 @@ function applyPromptExample(){
 
 function aiPresetOptions(){
   const items=state.user?.role==='admin'
-    ?[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local'],['custom','OpenAI-compatible / Custom']]
-    :[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local（OpenAI 相容端點）']];
+    ?[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local'],['dify','Dify API'],['custom','OpenAI-compatible / Custom']]
+    :[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local（OpenAI 相容端點）'],['dify','Dify API']];
   return items.map(([value,label])=>'<option value="'+value+'">'+label+'</option>').join('');
 }
 function syncAiPresetFields(){
   const preset=$('aiPreset').value;
-  const showBase=preset==='ollama'||(state.user?.role==='admin'&&preset==='custom');
+  const showBase=['ollama','dify'].includes(preset)||(state.user?.role==='admin'&&preset==='custom');
   $('aiBaseUrlRow').classList.toggle('hidden',!showBase);
-  $('aiApiKey').required=['openai','deepseek','ollama_cloud'].includes(preset);
+  $('aiApiKey').required=['openai','deepseek','ollama_cloud','dify'].includes(preset);
   const placeholders={
     openai:'例如：gpt-5-mini',
     deepseek:'例如：deepseek-flash 或 deepseek-v4-pro',
     ollama_cloud:'例如：deepseek-v4-pro 或 deepseek-v4.1-flash',
     ollama:'例如：qwen3:latest 或 deepseek-v4-pro:cloud',
+    dify:'chat、workflow 或 completion',
     custom:'Provider 的 model id'
   };
   $('aiDefaultModel').placeholder=placeholders[preset]||'模型名稱';
   $('aiBaseUrl').placeholder=preset==='ollama'
     ?'例如：http://192.168.1.50:11434/v1'
-    :'https://.../v1';
+    :preset==='dify'
+      ?'預設：https://api.dify.ai/v1；自架 Dify 可改網址'
+      :'https://.../v1';
 }
+function difyRouteEditor(route,agent){
+  const config=route?.config||{};
+  const inputsJson=JSON.stringify(config.difyInputs||{},null,2);
+  const execution=String(config.difyExecutionMode||'platform_managed');
+  const stateful=execution==='stateful_chatflow';
+  return '<div class="dify-route-config hidden">'+
+    '<div class="dify-route-note"><strong>Dify Route 設定</strong><span>Platform-managed 每次由本平台送完整上下文；Stateful Chatflow 則沿用 Dify conversation_id，適合在 Conversation Variables 累積 H01～H14。</span></div>'+
+    '<label>Dify execution mode<select data-dify-execution-mode>'+
+      '<option value="platform_managed" '+(stateful?'':'selected')+'>Platform-managed（stateless）</option>'+
+      '<option value="stateful_chatflow" '+(stateful?'selected':'')+'>Stateful Chatflow（沿用 conversation_id）</option>'+
+    '</select></label>'+
+    '<div class="dify-stateful-options '+(stateful?'':'hidden')+'" data-dify-stateful-options>'+
+      '<div class="dify-route-note"><span>Stateful 僅支援 Dify Chat / Chatflow。若 Patient 與 Evaluator 要共用 H01～H14 Conversation Variables，兩者必須選同一個 Dify 連線。</span></div>'+
+      (agent==='evaluator'
+        ?'<label class="dify-checkbox-row"><input type="checkbox" data-dify-final-trigger-enabled '+(config.difyFinalTriggerEnabled?'checked':'')+'>結束評量時送出 final trigger</label>'+
+         '<label>Final trigger<input data-dify-final-trigger value="'+esc(config.difyFinalTrigger||'問診結束')+'" placeholder="問診結束"></label>'
+        :'')+
+    '</div>'+
+    '<label>Workflow input key<input data-dify-input-key value="'+esc(config.difyInputKey||'prompt')+'" placeholder="prompt"></label>'+
+    '<label>Workflow output key<input data-dify-output-key value="'+esc(config.difyOutputKey||'text')+'" placeholder="text"></label>'+
+    '<label>Dify 固定 inputs JSON<textarea data-dify-inputs-json placeholder="{}">'+esc(inputsJson)+'</textarea></label>'+
+    '</div>';
+}
+function syncDifyRouteCard(card){
+  const connectionId=card?.querySelector('.ai-route-connection')?.value;
+  const connection=(state.aiSettings?.connections||[]).find(item=>item.id===connectionId);
+  const dify=connection?.preset==='dify';
+  card?.querySelector('.dify-route-config')?.classList.toggle('hidden',!dify);
+  const execution=card?.querySelector('[data-dify-execution-mode]')?.value;
+  card?.querySelector('[data-dify-stateful-options]')?.classList.toggle('hidden',!dify||execution!=='stateful_chatflow');
+}
+
 function manageableAiConnection(connection){
   return state.user?.role==='admin'||(connection.scopeType==='teacher'&&connection.ownerUserId===state.user?.id);
 }
@@ -369,8 +405,8 @@ async function renderAiSettings(){
     $('aiPreset').innerHTML=aiPresetOptions();
     syncAiPresetFields();
     $('aiRestrictionNote').textContent=state.user?.role==='admin'
-      ?'Admin 可建立系統級 OpenAI、DeepSeek、Ollama Cloud、Ollama Local 與自訂 OpenAI-compatible 連線。'
-      :'Teacher 可建立自己的 OpenAI、DeepSeek、Ollama Cloud 與 Ollama Local 連線；Ollama Local 可指定 localhost / 私有網段 Base URL，自訂任意端點仍由 Admin 管理。';
+      ?'Admin 可建立系統級 OpenAI、DeepSeek、Ollama Cloud、Ollama Local、Dify API 與自訂 OpenAI-compatible 連線。'
+      :'Teacher 可建立自己的 OpenAI、DeepSeek、Ollama Cloud、Ollama Local 與 Dify API 連線；Dify 可使用官方端點或允許的私有端點。';
 
     $('aiConnectionList').innerHTML=(data.connections||[]).map(connection=>{
       const canManage=manageableAiConnection(connection);
@@ -410,6 +446,7 @@ async function renderAiSettings(){
       return '<section class="ai-route-card" data-agent="'+agent+'"><header><strong>'+AI_AGENT_LABELS[agent]+'</strong><small>'+(route?'已設定':'未設定')+'</small></header>'+
         '<label>Provider / Model<select class="ai-route-connection"><option value="">未設定（Rule-based / 系統預設）</option>'+options+'</select></label>'+
         promptTemplateEditor(agent,route,data.promptTemplates)+
+        difyRouteEditor(route,agent)+
         '<div class="ai-route-actions"><button class="secondary small-btn" type="button" data-ai-route-save="'+agent+'">儲存 Provider / Model / Prompt</button>'+
         (route?'<button class="small-btn danger-btn" type="button" data-ai-route-delete="'+route.id+'">移除</button>':'')+'</div></section>';
     }).join('');
@@ -417,6 +454,13 @@ async function renderAiSettings(){
     $('aiRouteGrid').querySelectorAll('[data-ai-route-delete]').forEach(button=>button.onclick=()=>deleteAiRoute(button.dataset.aiRouteDelete));
     $('aiRouteGrid').querySelectorAll('[data-prompt-example-agent]').forEach(button=>{
       button.onclick=()=>openPromptExample(button.dataset.promptExampleAgent,button.dataset.promptExampleKey);
+    });
+    $('aiRouteGrid').querySelectorAll('.ai-route-card').forEach(card=>{
+      const select=card.querySelector('.ai-route-connection');
+      if(select)select.onchange=()=>syncDifyRouteCard(card);
+      const execution=card.querySelector('[data-dify-execution-mode]');
+      if(execution)execution.onchange=()=>syncDifyRouteCard(card);
+      syncDifyRouteCard(card);
     });
   }catch{
     $('aiConnectionList').innerHTML='<p class="empty">AI 設定讀取失敗。</p>';
@@ -431,7 +475,7 @@ async function createAiConnection(event){
     action:'createConnection',name:$('aiConnectionName').value.trim(),preset,
     defaultModel:$('aiDefaultModel').value.trim(),apiKey:$('aiApiKey').value
   };
-  if(preset==='ollama'||(state.user?.role==='admin'&&preset==='custom'))payload.baseUrl=$('aiBaseUrl').value.trim();
+  if(['ollama','dify'].includes(preset)||(state.user?.role==='admin'&&preset==='custom'))payload.baseUrl=$('aiBaseUrl').value.trim();
   try{
     await post('/api/teacher/ai-settings',payload);
     $('aiConnectionForm').reset();$('aiApiKey').value='';await renderAiSettings();
@@ -443,13 +487,13 @@ async function editAiConnection(connectionId){
   if(!connection)return;
   const name=prompt('連線名稱',connection.name);
   if(name===null)return;
-  const model=prompt('預設模型',connection.defaultModel);
+  const model=prompt(connection.preset==='dify'?'Dify App 類型（chat / workflow / completion）':'預設模型',connection.defaultModel);
   if(model===null)return;
   const apiKey=prompt('新的 API Key（留空表示保留原本金鑰）','');
   const payload={action:'updateConnection',connectionId,name:name.trim(),preset:connection.preset,defaultModel:model.trim(),isActive:connection.isActive};
-  if(connection.preset==='ollama'||(state.user?.role==='admin'&&connection.preset==='custom')){
+  if(['ollama','dify'].includes(connection.preset)||(state.user?.role==='admin'&&connection.preset==='custom')){
     const baseUrl=prompt(
-      connection.preset==='ollama'?'Ollama Local Base URL':'Base URL',
+      connection.preset==='ollama'?'Ollama Local Base URL':connection.preset==='dify'?'Dify Base URL':'Base URL',
       connection.baseUrl||''
     );
     if(baseUrl===null)return;
@@ -520,6 +564,31 @@ async function saveAiRoute(agentType){
   card.querySelectorAll('[data-prompt-key]').forEach(field=>{
     config[field.dataset.promptKey]=field.value.trim();
   });
+  if(connection?.preset==='dify'){
+    config.difyInputKey=card.querySelector('[data-dify-input-key]')?.value.trim()||'prompt';
+    config.difyOutputKey=card.querySelector('[data-dify-output-key]')?.value.trim()||'text';
+    config.difyExecutionMode=card.querySelector('[data-dify-execution-mode]')?.value||'platform_managed';
+    if(config.difyExecutionMode==='stateful_chatflow'&&connection.defaultModel!=='chat'){
+      return alert('Stateful Chatflow 只適用於 Dify App 類型 chat。請把此 Dify Provider 的 App 類型設為 chat。');
+    }
+    const finalEnabled=Boolean(card.querySelector('[data-dify-final-trigger-enabled]')?.checked);
+    config.difyFinalTriggerEnabled=finalEnabled;
+    if(finalEnabled){
+      config.difyFinalTrigger=card.querySelector('[data-dify-final-trigger]')?.value.trim()||'問診結束';
+    }else{
+      delete config.difyFinalTrigger;
+    }
+    const inputsText=card.querySelector('[data-dify-inputs-json]')?.value.trim()||'{}';
+    try{
+      const parsed=JSON.parse(inputsText);
+      if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)) throw new Error('object');
+      config.difyInputs=parsed;
+    }catch{
+      return alert('Dify 固定 inputs 必須是 JSON object，例如：{"language":"zh-TW"}');
+    }
+  }else{
+    for(const key of ['difyInputKey','difyOutputKey','difyInputs','difyExecutionMode','difyFinalTriggerEnabled','difyFinalTrigger']) delete config[key];
+  }
   const payload={agentType,connectionId,model:connection?.defaultModel||'',config};
   if(state.user?.role==='admin')payload.action='setSystemRoute';
   else{payload.action='setCaseRoute';payload.caseId=caseId;}

@@ -64,6 +64,7 @@ test('Vercel demo API supports runtime, cases and patient chat without productio
   assert.ok(aiSettingsRes.body.connections.some(item=>item.preset==='deepseek'));
   assert.ok(aiSettingsRes.body.connections.some(item=>item.preset==='ollama_cloud'));
   assert.ok(aiSettingsRes.body.connections.some(item=>item.preset==='ollama'));
+  assert.ok(aiSettingsRes.body.connections.some(item=>item.preset==='dify'));
   assert.match(aiSettingsRes.body.promptTemplates.patient.fields[0].example,/1～3 句/);
 
   const aiSettingsWriteRes=response();

@@ -38,14 +38,14 @@ function inspect(dbPath){
   }
 }
 
-test('fresh SQLite database advances to schema version 7 with LLM provider foundation',()=>{
+test('fresh SQLite database advances to schema version 8 with LLM provider foundation',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-migrate-fresh-'));
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const info=openThroughApplication(dbPath);
     const state=inspect(dbPath);
-    assert.equal(info.schemaVersion,7);
-    for(const table of ['llm_provider_connections','llm_agent_routes','llm_usage_events']){
+    assert.equal(info.schemaVersion,8);
+    for(const table of ['llm_provider_connections','llm_agent_routes','llm_usage_events','llm_provider_session_state']){
       assert.equal(state.tables.has(table),true,table+' missing');
     }
     assert.equal(state.columns.has('llm_route_snapshot'),true);
@@ -63,7 +63,7 @@ test('fresh SQLite database advances to schema version 7 with LLM provider found
   }
 });
 
-test('existing schema version 1 database migrates to version 7 without losing data',()=>{
+test('existing schema version 1 database migrates to version 8 without losing data',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-migrate-v1-'));
   const dbPath=join(dir,'aisp.sqlite');
   try{
@@ -78,9 +78,9 @@ test('existing schema version 1 database migrates to version 7 without losing da
 
     const info=openThroughApplication(dbPath);
     const state=inspect(dbPath);
-    assert.equal(info.schemaVersion,7);
+    assert.equal(info.schemaVersion,8);
     assert.deepEqual(state.user,{id:'legacy-admin',email:'legacy@example.com'});
-    for(const table of ['llm_provider_connections','llm_agent_routes','llm_usage_events']){
+    for(const table of ['llm_provider_connections','llm_agent_routes','llm_usage_events','llm_provider_session_state']){
       assert.equal(state.tables.has(table),true,table+' missing');
     }
     assert.equal(state.columns.has('llm_route_snapshot'),true);
@@ -102,9 +102,9 @@ test('migrated SQLite database can reopen without replaying migration 002',()=>{
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const first=openThroughApplication(dbPath);
-    assert.equal(first.schemaVersion,7);
+    assert.equal(first.schemaVersion,8);
     const second=openThroughApplication(dbPath);
-    assert.equal(second.schemaVersion,7);
+    assert.equal(second.schemaVersion,8);
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }
@@ -115,7 +115,7 @@ test('database whose user_version was reset to 1 is reconciled from applied migr
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const first=openThroughApplication(dbPath);
-    assert.equal(first.schemaVersion,7);
+    assert.equal(first.schemaVersion,8);
 
     const damaged=new Database(dbPath);
     damaged.pragma('user_version = 1');
@@ -123,10 +123,10 @@ test('database whose user_version was reset to 1 is reconciled from applied migr
     damaged.close();
 
     const recovered=openThroughApplication(dbPath);
-    assert.equal(recovered.schemaVersion,7);
+    assert.equal(recovered.schemaVersion,8);
     const check=new Database(dbPath,{readonly:true});
     try{
-      assert.equal(check.pragma('user_version',{simple:true}),7);
+      assert.equal(check.pragma('user_version',{simple:true}),8);
       assert.equal(
         check.prepare("select count(*) as count from sqlite_master where type='table' and name='llm_provider_connections'").get().count,
         1
@@ -168,7 +168,7 @@ test('schema version 4 teacher routes are backfilled with route owner during v5 
     legacy.close();
 
     const info=openThroughApplication(dbPath);
-    assert.equal(info.schemaVersion,7);
+    assert.equal(info.schemaVersion,8);
 
     const upgraded=new Database(dbPath,{readonly:true});
     try{
@@ -204,7 +204,7 @@ test('schema version 5 pricing rules migrate to v6 time bands without losing cus
     legacy.close();
 
     const info=openThroughApplication(dbPath);
-    assert.equal(info.schemaVersion,7);
+    assert.equal(info.schemaVersion,8);
 
     const upgraded=new Database(dbPath,{readonly:true});
     try{
