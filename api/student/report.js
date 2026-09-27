@@ -66,8 +66,6 @@ export default async function handler(req,res){
          cached_input_tokens as "cachedInputTokens",
          output_tokens as "outputTokens",reasoning_tokens as "reasoningTokens",
          total_tokens as "totalTokens",success,error_code as "errorCode",
-         estimated_cost_microusd as "estimatedCostMicrousd",
-         estimated_cost_microntd as "estimatedCostMicrontd",
          pricing_status as "pricingStatus",created_at as at
        from llm_usage_events where session_id=$1 order by id`,
       [sessionId]
