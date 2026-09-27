@@ -58,7 +58,7 @@ test('OpenAI preset uses Responses API and normalizes text and usage',async()=>{
   assert.equal(result.preset,'openai');
   assert.equal(result.model,'gpt-test');
   assert.deepEqual(result.usage,{
-    inputTokens:120,cachedInputTokens:30,cacheWriteTokens:10,outputTokens:20,reasoningTokens:5,totalTokens:140
+    inputTokens:120,cachedInputTokens:30,cacheMissTokens:90,cacheReadStatus:'reported',cacheWriteTokens:10,outputTokens:20,reasoningTokens:5,totalTokens:140
   });
   assert.equal(result.serviceTier,'default');
   assert.equal(result.providerRequestId,'resp_123');
@@ -94,7 +94,7 @@ test('DeepSeek preset uses fixed OpenAI-compatible Chat Completions endpoint',as
   ]);
   assert.equal(result.text,'deepseek answer');
   assert.deepEqual(result.usage,{
-    inputTokens:90,cachedInputTokens:40,outputTokens:10,reasoningTokens:3,totalTokens:100
+    inputTokens:90,cachedInputTokens:40,cacheMissTokens:50,cacheReadStatus:'reported',outputTokens:10,reasoningTokens:3,totalTokens:100
   });
 });
 
@@ -117,6 +117,8 @@ test('Ollama preset is keyless by default and uses local OpenAI-compatible endpo
   assert.equal(calls[0].url,'http://127.0.0.1:11434/v1/chat/completions');
   assert.equal('Authorization' in calls[0].options.headers,false);
   assert.equal(result.text,'local answer');
+  assert.equal(result.usage.cacheReadStatus,'unreported');
+  assert.equal(result.usage.cacheMissTokens,0);
 });
 
 test('Ollama Cloud uses hosted OpenAI-compatible endpoint with bearer API key',async()=>{
@@ -290,7 +292,7 @@ test('Dify Chat/Chatflow uses blocking chat-messages and normalizes answer/usage
   assert.equal(result.preset,'dify');
   assert.equal(result.model,'chat');
   assert.deepEqual(result.usage,{
-    inputTokens:21,cachedInputTokens:0,outputTokens:7,reasoningTokens:0,totalTokens:28
+    inputTokens:21,cachedInputTokens:0,cacheMissTokens:0,cacheReadStatus:'unreported',outputTokens:7,reasoningTokens:0,totalTokens:28
   });
   assert.equal(result.providerRequestId,'dify-msg-1');
 });
@@ -424,4 +426,25 @@ test('Dify Stateful mode rejects Workflow because conversation_id is a Chatflow 
     },{fetchImpl:async()=>fakeResponse({json:{}})}),
     error=>error.code==='invalid_request'
   );
+});
+
+
+test('custom OpenAI-compatible endpoint preserves vLLM-style cached token telemetry',async()=>{
+  const {generateLlm}=await gateway();
+  const result=await generateLlm({
+    connection:{providerKind:'openai_compatible',preset:'custom',baseUrl:'http://vllm.internal/v1',apiKey:'',defaultModel:'qwen3'},
+    messages:[{role:'user',content:'shared-prefix then task'}]
+  },{fetchImpl:async()=>fakeResponse({json:{
+    id:'vllm-cache-1',model:'qwen3',
+    choices:[{message:{content:'ok'}}],
+    usage:{
+      prompt_tokens:100,
+      prompt_tokens_details:{cached_tokens:64},
+      completion_tokens:8,
+      total_tokens:108
+    }
+  }})});
+  assert.equal(result.usage.cacheReadStatus,'reported');
+  assert.equal(result.usage.cachedInputTokens,64);
+  assert.equal(result.usage.cacheMissTokens,36);
 });

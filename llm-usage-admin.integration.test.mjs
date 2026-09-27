@@ -65,7 +65,7 @@ test('usage/quota API enforces Admin and Teacher scope',()=>{
     const adminPricing=response();
     await handler(request('POST',{action:'createPricingRule',preset:'openai',modelPattern:'gpt-test',inputMicrousdPerMillion:1000000,outputMicrousdPerMillion:2000000,effectiveAt:'2026-01-01T00:00:00Z'},adminAuth),adminPricing);
 
-    await query("insert into llm_usage_events (user_id,agent_type,provider_kind,preset,model,input_tokens,output_tokens,total_tokens,latency_ms,success,usage_status,estimated_cost_microusd,estimated_cost_microntd,pricing_status,created_at) values ($1,'patient','openai','openai','gpt-test',10,5,15,2,true,'reported',20,638,'priced',$2)",[assigned.id,'2026-09-26T04:00:00.000Z']);
+    await query("insert into llm_usage_events (user_id,agent_type,provider_kind,preset,model,input_tokens,cached_input_tokens,cache_miss_tokens,cache_read_status,output_tokens,total_tokens,latency_ms,success,usage_status,estimated_cost_microusd,estimated_cost_microntd,cache_savings_microusd,cache_savings_microntd,pricing_status,created_at) values ($1,'patient','openai','openai','gpt-test',10,6,4,'reported',5,15,2,true,'reported',20,638,3,96,'priced',$2)",[assigned.id,'2026-09-26T04:00:00.000Z']);
     await query("insert into llm_usage_events (user_id,agent_type,provider_kind,preset,model,input_tokens,output_tokens,total_tokens,latency_ms,success,usage_status,estimated_cost_microusd,estimated_cost_microntd,pricing_status,created_at) values ($1,'coach','openai','openai','gpt-test',4,2,6,2,true,'reported',5,160,'partial',$2)",[assigned.id,'2026-09-26T05:00:00.000Z']);
     const teacherSummary=response();
     await handler(request('GET',null,teacherAuth,{action:'summary',userId:assigned.id,from:'2026-09-26T00:00:00.000Z',to:'2026-09-27T00:00:00.000Z'}),teacherSummary);
@@ -112,6 +112,11 @@ test('usage/quota API enforces Admin and Teacher scope',()=>{
     assert.equal(Number(data.teacherSummary.body.totals[0].estimatedCostMicrousd),25);
     assert.equal(Number(data.teacherSummary.body.totals[0].estimatedCostMicrontd),798);
     assert.equal(Number(data.teacherSummary.body.totals[0].partialPricingCalls),1);
+    assert.equal(Number(data.teacherSummary.body.totals[0].cachedInputTokens),6);
+    assert.equal(Number(data.teacherSummary.body.totals[0].cacheMissTokens),4);
+    assert.equal(Number(data.teacherSummary.body.totals[0].cacheReportedCalls),1);
+    assert.equal(Number(data.teacherSummary.body.totals[0].cacheSavingsMicrousd),3);
+    assert.equal(Number(data.teacherSummary.body.byProvider[0].cachedInputTokens),6);
     assert.equal(data.teacherSummary.body.fxRate.rate,31.9);
     assert.equal(data.teacherSummary.body.byDate[0].date,'2026-09-26');
     assert.equal(Number(data.teacherSummary.body.byDate[0].tokens),21);

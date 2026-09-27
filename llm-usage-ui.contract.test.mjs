@@ -50,3 +50,19 @@ test('Vercel/browser demo cannot enter usage dashboard API path',()=>{
   const app=readFileSync('formal-app.js','utf8');
   assert.match(app,/if\(!state\.serverMode\|\|!\['teacher','admin'\]\.includes\(state\.user\?\.role\)\)return/);
 });
+
+
+test('dashboard surfaces cache hit rate and historical savings without treating missing telemetry as zero hits',()=>{
+  const html=readFileSync('index.html','utf8');
+  const app=readFileSync('formal-app.js','utf8');
+  assert.match(html,/id="usageCacheHitTokens"/);
+  assert.match(html,/id="usageCacheHitRate"/);
+  assert.match(html,/id="usageCacheSavings"/);
+  assert.match(html,/id="usageCacheSavingsTwd"/);
+  assert.match(app,/function cacheRate/);
+  assert.match(app,/Cache telemetry 未回報/);
+  assert.match(app,/cacheReportedCalls/);
+  assert.match(app,/cachedInputTokens/);
+  assert.match(app,/cacheMissTokens/);
+  assert.match(app,/cacheSavingsMicrousd/);
+});

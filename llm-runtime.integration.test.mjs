@@ -31,7 +31,7 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
       let content='patient answer';
       if(system.includes('learning coach')) content='Ask one focused follow-up question.';
       if(body.response_format?.type==='json_object'){
-        const repairing=system.includes('JSON repair step');
+        const repairing=String(body.messages?.at(-1)?.content||'').includes('Repair the previous evaluator output');
         if(providerMode==='invalid-eval') content=repairing?JSON.stringify(evaluation):'{"totalScore":10}';
         else if(providerMode==='persistent-invalid-eval') content='{"totalScore":10}';
         else if(providerMode==='normalized-eval') content=JSON.stringify({

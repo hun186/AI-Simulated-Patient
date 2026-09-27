@@ -34,7 +34,7 @@
 - `api/` handlers 編排 `lib/` services；database access 經 `lib/db.js` facade，browser mode 不可誤用 DB adapter。
 - UI 隱藏不是授權；角色、owner、assignment、CSRF 與 origin 必須由 server 執行。
 - 學生 API 不得傳回完整 case ground truth；case 與 agent routes 在 session 建立時凍結，之後設定變更不得改變 active session。
-- Patient、Coach、Evaluator prompt/contract 分離；Patient 不接收 scoring/teacher-only feedback，Coach 不洩漏答案，Evaluator 以 transcript evidence 評分。
+- Patient、Coach、Evaluator prompt/contract 分離；Patient 不接收 scoring/teacher-only feedback，Coach 不洩漏答案，Evaluator 以 transcript evidence 評分。Prompt 組裝遵守 stable rules → educator/case context → transcript/history → current task 的 prefix-cache 順序；Evaluator repair 與 first-pass 共用相同 system prefix。
 - Production DB mode 缺 route、quota exceeded 或 provider failure 必須明確失敗，不得 silent fallback 到 mock；失敗的 Patient reply 不落 transcript，無效 evaluation 不完成 session。
 - Provider secret 只在 server 加解密；API 只回 masked suffix，secret 不進 browser state、prompt transcript、usage row 或 log。
 - Dify `conversation_id` 不是 credential，但必須限制在同一 interview session + connection；Stateful Evaluator final trigger 缺既有 state 時不得默默開新 conversation。
@@ -50,14 +50,14 @@
 | Cases | draft/published/archived；學生只見 public projection；session 留 snapshot；definition 內含 student report export policy |
 | Interview sessions/messages/evaluations | active→completed/abandoned；owner-scoped；正式 transcript/evaluation 在 DB；v9 保存 Teacher snapshot 與 per-turn Coach events，v10 保存失敗評量的 redacted support snapshot，v11 保存所有 Evaluator outcome 的 retained audit trace |
 | LLM connections/routes/provider state | system 或 teacher-owned connection；system/case route；session snapshot 不可變；Dify Stateful Chatflow 的 `conversation_id` 依 interview+connection 保存 |
-| Usage/pricing/quota | usage 保存 provider facts 與定價/FX snapshot；hard quota 在 provider call 前檢查 |
+| Usage/pricing/quota | usage 保存 provider facts、cache hit/miss/reporting state、cache-savings、定價/FX snapshot；hard quota 在 provider call 前檢查 |
 | Browser demo state | browser localStorage；與 production DB/security domain 隔離 |
 
 ## 錯誤、安全與營運邊界
 
 - API 以 HTTP status + JSON `error` 表示失敗；LLM upstream details 正規化／清理，timeout、not configured、quota 有分離語意。
 - 沒有通用 request idempotency contract；寫入重試需先檢查 handler/schema 行為，不可自行假定安全。
-- SQLite migration 以 `PRAGMA user_version` 依序、transaction 套用；目前 current schema 為 v11；backup 只由 SQLite adapter 支援。
+- SQLite migration 以 `PRAGMA user_version` 依序、transaction 套用；目前 current schema 為 v12；backup 只由 SQLite adapter 支援。
 - 密碼以 scrypt、session/CSRF token 只存 hash；production setup/master secrets 必須外部配置。
 - 可觀測性目前是 DB audit/usage events、health endpoint 與 server console；production 規模與 SLO 未定義。
 - SQLite 適合單一一般主機；多 application hosts／較高 concurrent writes 的升級路徑是 PostgreSQL/Neon。

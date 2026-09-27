@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildPatientPrompt,buildCoachPrompt,buildEvaluatorPrompt,buildEvaluatorRepairPrompt,evaluationResponseFormat,
+  buildPatientPrompt,buildCoachPrompt,buildCoachTask,
+  buildEvaluatorPrompt,buildEvaluatorTask,buildEvaluatorRepairPrompt,buildEvaluatorRepairTask,evaluationResponseFormat,
   validatePromptTemplate,renderPromptTemplate,getPromptTemplateCatalog
 } from './lib/llm/prompts.js';
 import {
@@ -43,8 +44,10 @@ function validEvaluation(){
 
 test('Patient, Coach, and Evaluator prompts keep distinct semantics',()=>{
   const patient=buildPatientPrompt({session});
-  const coach=buildCoachPrompt({session,transcript});
-  const evaluator=buildEvaluatorPrompt({session,transcript});
+  const coach=buildCoachPrompt({session});
+  const coachTask=buildCoachTask({transcript});
+  const evaluator=buildEvaluatorPrompt({session});
+  const evaluatorTask=buildEvaluatorTask({transcript});
 
   assert.match(patient,/Stay in character/);
   assert.match(patient,/left stroke/);
@@ -54,6 +57,10 @@ test('Patient, Coach, and Evaluator prompts keep distinct semantics',()=>{
   assert.match(coach,/Rubric/);
   assert.match(coach,/do not reveal hidden case answers/);
   assert.doesNotMatch(coach,/left stroke/);
+  assert.doesNotMatch(coach,/以前有住院過嗎？/);
+  assert.match(coachTask,/Transcript:/);
+  assert.match(coachTask,/以前有住院過嗎？/);
+  assert.ok(coachTask.indexOf('以前有住院過嗎？')<coachTask.indexOf('Task:'));
 
   assert.match(evaluator,/Return JSON only/);
   assert.match(evaluator,/covered, partial, missed/);
@@ -62,6 +69,9 @@ test('Patient, Coach, and Evaluator prompts keep distinct semantics',()=>{
   assert.match(evaluator,/"turn":2,"quote":"以前有住院過嗎？"/);
   assert.match(evaluator,/totalScore must equal the sum of item\.score/);
   assert.match(evaluator,/left stroke/);
+  assert.doesNotMatch(evaluator,/\nTranscript:\n/);
+  assert.match(evaluatorTask,/以前有住院過嗎？/);
+  assert.ok(evaluatorTask.indexOf('以前有住院過嗎？')<evaluatorTask.indexOf('Task:'));
 
   const format=evaluationResponseFormat();
   assert.equal(format.type,'json_schema');
@@ -375,11 +385,18 @@ test('evaluator repair agent converts malformed contract output into validated J
   assert.deepEqual(calls[0].thinking,{type:'disabled'});
   assert.equal(calls[0].response_format.type,'json_object');
   assert.equal(calls[0].max_tokens,8192);
-  const repairPrompt=buildEvaluatorRepairPrompt({session,transcript});
-  assert.match(repairPrompt,/JSON repair step/);
-  assert.match(repairPrompt,/Do not invent transcript evidence/);
-  assert.match(repairPrompt,/Each evidence entry must be an object exactly like/);
-  assert.match(repairPrompt,/Recalculate totalScore from item\.score values/);
+  const evaluatorPrompt=buildEvaluatorPrompt({session});
+  const repairPrompt=buildEvaluatorRepairPrompt({session});
+  const repairTask=buildEvaluatorRepairTask({
+    transcript,
+    invalidOutput:'{"totalScore":10,"items":[]}',
+    validationError:Object.assign(new Error('overall'),{code:'INVALID_EVALUATION_CONTRACT'})
+  });
+  assert.equal(repairPrompt,evaluatorPrompt);
+  assert.match(repairTask,/Repair the previous evaluator output/);
+  assert.match(repairTask,/Do not invent transcript evidence/);
+  assert.match(repairTask,/Recalculate totalScore, maxScore/);
+  assert.ok(repairTask.indexOf('以前有住院過嗎？')<repairTask.indexOf('Task:'));
 });
 
 test('evaluator repair agent reports repair-specific failure after a second invalid contract',async()=>{
@@ -402,4 +419,22 @@ test('evaluator repair agent reports repair-specific failure after a second inva
     ()=>repairEvaluatorAgent({session,transcript,route,fetchImpl,invalidOutput:'bad'}),
     error=>error.code==='EVALUATION_REPAIR_FAILED'&&Boolean(error.llmResult)
   );
+});
+
+
+test('Evaluator first pass and repair preserve an identical long cache prefix',()=>{
+  const custom='Stable evaluator customization for {{case_title}}.';
+  const feedback='Stable feedback customization.';
+  const cacheSession={...session,case_snapshot:{...caseDefinition,internalTitle:'Cache Case'}};
+  const firstSystem=buildEvaluatorPrompt({session:cacheSession,customTemplate:custom,feedbackTemplate:feedback});
+  const repairSystem=buildEvaluatorRepairPrompt({session:cacheSession,customTemplate:custom,feedbackTemplate:feedback});
+  const firstTask=buildEvaluatorTask({transcript});
+  const repairTask=buildEvaluatorRepairTask({
+    transcript,invalidOutput:'bad',validationError:new Error('item.evidence')
+  });
+  const sharedTranscriptPrefix='Transcript:\n'+transcript.map((item,index)=>`[${index+1}] ${item.role}: ${item.content}`).join('\n')+'\n\nTask:\n';
+  assert.equal(firstSystem,repairSystem);
+  assert.equal(firstTask.startsWith(sharedTranscriptPrefix),true);
+  assert.equal(repairTask.startsWith(sharedTranscriptPrefix),true);
+  assert.notEqual(firstTask,repairTask);
 });
