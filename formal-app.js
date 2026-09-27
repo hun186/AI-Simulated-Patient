@@ -271,9 +271,28 @@ function evaluationAuditFiles(audit){
   if(audit.attempts?.repair)files['repaired_ai_response.txt']=audit.attempts.repair.responseText||'';
   return files;
 }
-async function downloadSelectedEvaluationAudit(){
+function selectedRecordAuditSummary(){
   const record=state.records.find(item=>item.id===state.selectedRecordId);
-  const evaluationId=record?.evaluationAudit?.evaluationId;
+  if(!record)return null;
+  const audits=Array.isArray(record.evaluationAudits)&&record.evaluationAudits.length
+    ?record.evaluationAudits
+    :(record.evaluationAudit?[record.evaluationAudit]:[]);
+  const selectedId=$('recordEvaluationAuditSelect')?.value;
+  return audits.find(item=>item.evaluationId===selectedId)||audits[0]||null;
+}
+function renderSelectedRecordAuditMeta(){
+  const audit=selectedRecordAuditSummary();
+  const target=$('recordEvaluationAuditMeta');
+  if(!target)return;
+  if(!audit){target.textContent='';return;}
+  const normalize=audit.normalizationApplied?' · normalization '+Number(audit.normalizationCount||0)+' 項':'';
+  const repair=audit.repairUsed?' · 使用自動修復':'';
+  const expiry=audit.expiresAt?' · 保存至 '+new Date(audit.expiresAt).toLocaleString('zh-TW'):'';
+  target.textContent='Evaluation ID：'+(audit.evaluationId||'--')+' · '+evaluationAuditStatusLabel(audit.status)+normalize+repair+expiry;
+}
+async function downloadSelectedEvaluationAudit(){
+  const auditSummary=selectedRecordAuditSummary();
+  const evaluationId=auditSummary?.evaluationId;
   if(!evaluationId)return alert('這筆紀錄沒有可用的評量稽核資料。');
   try{
     const response=await fetch('/api/teacher/evaluation-audits?evaluationId='+encodeURIComponent(evaluationId));
@@ -346,16 +365,21 @@ function showRecord(id){
   const teacherNames=(r.teachers||[]).map(t=>t.displayName||t.name||t.id).filter(Boolean).join('、')||'未記錄';
   $('recordMeta').textContent=modeLabel(r.mode)+(r.mode==='training'?' · Coach '+(r.coachUsed?'曾開啟':'未使用'):'')+' · 教師 '+teacherNames+' · '+new Date(r.completedAt).toLocaleString('zh-TW')+' · '+r.evaluation.percentage+' 分';
   $('recordOverall').innerHTML='<strong>AI 總評</strong><p>'+esc(r.evaluation.overall?.comment||'')+'</p>';
-  const audit=r.evaluationAudit||null;
-  $('recordEvaluationAudit')?.classList.toggle('hidden',!audit);
-  if($('recordEvaluationAuditMeta')){
-    const normalize=audit?.normalizationApplied?' · normalization '+Number(audit.normalizationCount||0)+' 項':'';
-    const repair=audit?.repairUsed?' · 使用自動修復':'';
-    const expiry=audit?.expiresAt?' · 保存至 '+new Date(audit.expiresAt).toLocaleString('zh-TW'):'';
-    $('recordEvaluationAuditMeta').textContent=audit
-      ?'Evaluation ID：'+(audit.evaluationId||'--')+' · '+evaluationAuditStatusLabel(audit.status)+normalize+repair+expiry
-      :'';
+  const audits=Array.isArray(r.evaluationAudits)&&r.evaluationAudits.length
+    ?r.evaluationAudits
+    :(r.evaluationAudit?[r.evaluationAudit]:[]);
+  const auditPanel=$('recordEvaluationAudit');
+  const auditSelect=$('recordEvaluationAuditSelect');
+  auditPanel?.classList.toggle('hidden',audits.length===0);
+  if(auditSelect){
+    auditSelect.innerHTML=audits.map((audit,index)=>{
+      const when=audit.occurredAt||audit.createdAt;
+      const timestamp=when?new Date(when).toLocaleString('zh-TW'):'時間未知';
+      return '<option value="'+esc(audit.evaluationId||'')+'">'+esc((index===0?'最新 · ':'')+timestamp+' · '+evaluationAuditStatusLabel(audit.status)+' · '+(audit.evaluationId||'--'))+'</option>';
+    }).join('');
+    auditSelect.value=audits[0]?.evaluationId||'';
   }
+  renderSelectedRecordAuditMeta();
   $('recordTranscript').innerHTML=r.transcript.map(m=>'<div class="audit-turn '+m.role+'"><strong>'+(m.role==='student'?'學生':'病人')+'</strong><span>'+esc(m.content)+'</span></div>').join('');
   $('recordRubric').innerHTML=r.evaluation.items.map(i=>'<div class="teacher-item"><strong>'+esc(i.criterion)+'</strong><span>'+i.score+'/'+i.maxScore+' · '+(i.status==='covered'?'完整':i.status==='partial'?'部分':'未涵蓋')+'</span></div>').join('');
 }
@@ -662,7 +686,7 @@ async function setCoachEnabled(enabled){
   }
   save();renderMode();renderCoach();
 }
-$('finishBtn').onclick=finish;$('retryEvaluationBtn').onclick=finish;$('downloadEvaluationDebugBtn').onclick=downloadEvaluationDiagnostic;$('copyEvaluationErrorIdBtn').onclick=copyEvaluationErrorId;$('studentExportWordBtn').onclick=exportOwnStudentWord;$('studentExportPdfBtn').onclick=exportOwnStudentPdf;$('studentReportRecheckBtn').onclick=()=>refreshStudentReportAccess({silent:false});$('resetBtn').onclick=start;$('caseSelect').onchange=e=>switchCase(e.target.value);$('modeSelect').onchange=e=>switchMode(e.target.value);$('coachToggle').onchange=e=>setCoachEnabled(e.target.value==='on');$('studentName').oninput=e=>{if(state.serverMode)return;state.studentName=e.target.value;save();};$('exportRecordWordBtn').onclick=exportSelectedWord;$('exportRecordPdfBtn').onclick=exportSelectedPdf;$('downloadRecordEvaluationAuditBtn').onclick=downloadSelectedEvaluationAudit;$('closeRecordBtn').onclick=()=>{$('recordDetail').classList.add('hidden');state.selectedRecordId=null;};
+$('finishBtn').onclick=finish;$('retryEvaluationBtn').onclick=finish;$('downloadEvaluationDebugBtn').onclick=downloadEvaluationDiagnostic;$('copyEvaluationErrorIdBtn').onclick=copyEvaluationErrorId;$('studentExportWordBtn').onclick=exportOwnStudentWord;$('studentExportPdfBtn').onclick=exportOwnStudentPdf;$('studentReportRecheckBtn').onclick=()=>refreshStudentReportAccess({silent:false});$('resetBtn').onclick=start;$('caseSelect').onchange=e=>switchCase(e.target.value);$('modeSelect').onchange=e=>switchMode(e.target.value);$('coachToggle').onchange=e=>setCoachEnabled(e.target.value==='on');$('studentName').oninput=e=>{if(state.serverMode)return;state.studentName=e.target.value;save();};$('exportRecordWordBtn').onclick=exportSelectedWord;$('exportRecordPdfBtn').onclick=exportSelectedPdf;$('downloadRecordEvaluationAuditBtn').onclick=downloadSelectedEvaluationAudit;$('recordEvaluationAuditSelect').onchange=renderSelectedRecordAuditMeta;$('closeRecordBtn').onclick=()=>{$('recordDetail').classList.add('hidden');state.selectedRecordId=null;};
 const AI_AGENT_LABELS={patient:'Patient',coach:'Coach',evaluator:'Evaluator'};
 function promptTemplateEditor(agent,route,catalog){
   const spec=catalog?.[agent];
