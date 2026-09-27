@@ -102,3 +102,8 @@
 .record-evaluation-audit{margin:0 0 18px;padding:13px 14px;border:1px solid #dbe5f1;border-radius:12px;background:#f7faff;display:flex;justify-content:space-between;gap:12px;align-items:center}
 .record-evaluation-audit>div{display:grid;gap:3px}.record-evaluation-audit span{font-size:11px;color:#66748b;line-height:1.5}
 @media(max-width:700px){.record-evaluation-audit{align-items:flex-start;flex-direction:column}}
+
+.record-evaluation-audit-info{display:grid;gap:5px;min-width:0;flex:1}
+.record-evaluation-audit-info label{display:flex;align-items:center;gap:8px;font-size:11px;color:#66748b}
+.record-evaluation-audit-info select{min-width:min(520px,65vw);max-width:100%;border:1px solid #dbe2ee;border-radius:9px;padding:7px 9px;background:#fff;color:#40506a}
+@media(max-width:700px){.record-evaluation-audit-info label{align-items:flex-start;flex-direction:column}.record-evaluation-audit-info select{width:100%;min-width:0}}
