@@ -22,14 +22,14 @@ function openThroughApplication(dbPath){
   });
 }
 
-test('fresh SQLite database advances to schema version 10 with pricing and quota tables',()=>{
+test('fresh SQLite database advances to schema version 11 with pricing and quota tables',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-phase2-schema-'));
   const dbPath=join(dir,'aisp.sqlite');
   try{
     const result=openThroughApplication(dbPath);
     assert.equal(result.status,0,result.stderr);
     const data=JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1));
-    assert.equal(data.info.schemaVersion,10);
+    assert.equal(data.info.schemaVersion,11);
     assert.equal(data.quota.daily_token_limit,0);
     assert.equal(data.quota.monthly_token_limit,null);
     assert.equal(data.quota.monthly_cost_limit_microusd,2500000);
@@ -43,6 +43,7 @@ test('fresh SQLite database advances to schema version 10 with pricing and quota
     assert.equal(tables.has('llm_fx_rates'),true);
     assert.equal(tables.has('llm_provider_session_state'),true);
     assert.equal(tables.has('interview_coach_events'),true);
+    assert.equal(tables.has('evaluation_audits'),true);
     const sessionCols=new Set(db.prepare('pragma table_info(interview_sessions)').all().map(x=>x.name));
     assert.equal(sessionCols.has('teacher_snapshot'),true);
     for(const name of ['estimated_cost_microusd','pricing_status','pricing_rule_id','cache_write_tokens','service_tier','estimated_cost_microntd','fx_rate_microunits_per_usd','fx_rate_id'])assert.equal(usageCols.has(name),true,name);
@@ -71,4 +72,5 @@ test('PostgreSQL schema preserves Phase 2 usage cost/status constraints',()=>{
   assert.match(schema,/create table if not exists llm_provider_session_state/);
   assert.match(schema,/teacher_snapshot jsonb not null default/);
   assert.match(schema,/create table if not exists interview_coach_events/);
+  assert.match(schema,/create table if not exists evaluation_audits/);
 });
