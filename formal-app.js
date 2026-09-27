@@ -98,7 +98,7 @@ async function loadApplication(){
   state.caseData=state.cases[0];
   state.caseId=state.caseData?.id||'aphasia_001';
   $('caseSelect').innerHTML=state.cases.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.studentLabel||'臨床問診案例')+(c.source==='custom'?'（教師建立）':'')+'</option>').join('');
-  const staff=state.demoAuth?['teacher','admin'].includes(state.user?.role):(!state.serverMode||['teacher','admin'].includes(state.user?.role));document.querySelector('[data-tab="teacher"]').classList.toggle('hidden',!staff);document.querySelector('[data-view="users"]').classList.toggle('hidden',!state.serverMode||!staff);document.querySelector('[data-view="ai"]').classList.toggle('hidden',!state.serverMode||!staff);document.querySelector('[data-view="usage"]').classList.toggle('hidden',!state.serverMode||!staff);document.querySelector('[data-view="audit"]').classList.toggle('hidden',!state.serverMode||state.user?.role!=='admin');$('studentName').disabled=state.serverMode||state.demoAuth;
+  const staff=state.demoAuth?['teacher','admin'].includes(state.user?.role):(!state.serverMode||['teacher','admin'].includes(state.user?.role));document.querySelector('[data-tab="teacher"]').classList.toggle('hidden',!staff);document.querySelector('[data-view="users"]').classList.toggle('hidden',!state.serverMode||!staff);document.querySelector('[data-view="ai"]').classList.toggle('hidden',(!state.serverMode&&!state.demoAuth)||!staff);document.querySelector('[data-view="usage"]').classList.toggle('hidden',!state.serverMode||!staff);document.querySelector('[data-view="audit"]').classList.toggle('hidden',!state.serverMode||state.user?.role!=='admin');$('studentName').disabled=state.serverMode||state.demoAuth;
   $('runtimeStatus').textContent=state.serverMode
     ?'Server DB · '+(state.user?.displayName||'')+' · '+(state.user?.role||'')
     :state.demoAuth
@@ -345,14 +345,27 @@ function syncAiPresetFields(){
 function manageableAiConnection(connection){
   return state.user?.role==='admin'||(connection.scopeType==='teacher'&&connection.ownerUserId===state.user?.id);
 }
+function demoAiReadOnly(){
+  return Boolean(state.demoAuth||state.aiSettings?.demoReadOnly);
+}
+function blockDemoAiAction(){
+  if(!demoAiReadOnly())return false;
+  alert('Vercel Demo 僅展示 LLM Provider / Agent Route / Prompt Template 介面；不會儲存設定、測試連線或實際呼叫 LLM。');
+  return true;
+}
 async function renderAiSettings(){
-  if(!state.serverMode||!['teacher','admin'].includes(state.user?.role))return;
+  if((!state.serverMode&&!state.demoAuth)||!['teacher','admin'].includes(state.user?.role))return;
   if(!state.teacherCases.length)await loadTeacherCases();
   try{
     const response=await fetch('/api/teacher/ai-settings');
     if(!response.ok)throw new Error('ai-settings');
     const data=await response.json();
     state.aiSettings=data;
+    const demoReadOnly=Boolean(data.demoReadOnly||state.demoAuth);
+    $('aiDemoNotice').classList.toggle('hidden',!demoReadOnly);
+    $('aiDemoNotice').textContent=demoReadOnly
+      ?(data.demoNote||'Vercel Demo 僅展示 LLM Provider、Agent Route 與 Prompt Template 介面；設定不會儲存，也不會實際呼叫 LLM。')
+      :'';
     $('aiPreset').innerHTML=aiPresetOptions();
     syncAiPresetFields();
     $('aiRestrictionNote').textContent=state.user?.role==='admin'
@@ -385,7 +398,9 @@ async function renderAiSettings(){
       }
     }
 
-    const usable=(data.connections||[]).filter(connection=>connection.isActive&&(state.user?.role==='admin'?connection.scopeType==='system':connection.scopeType==='teacher'&&connection.ownerUserId===state.user?.id));
+    const usable=(data.connections||[]).filter(connection=>connection.isActive&&(demoReadOnly
+      ?true
+      :(state.user?.role==='admin'?connection.scopeType==='system':connection.scopeType==='teacher'&&connection.ownerUserId===state.user?.id)));
     $('aiRouteGrid').innerHTML=['patient','coach','evaluator'].map(agent=>{
       const caseId=teacher?$('aiCaseSelect').value:null;
       const route=(data.routes||[]).find(r=>r.agentType===agent&&(teacher
@@ -410,6 +425,7 @@ async function renderAiSettings(){
 }
 async function createAiConnection(event){
   event.preventDefault();
+  if(blockDemoAiAction())return;
   const preset=$('aiPreset').value;
   const payload={
     action:'createConnection',name:$('aiConnectionName').value.trim(),preset,
@@ -422,6 +438,7 @@ async function createAiConnection(event){
   }catch(error){alert('AI Provider 建立失敗：'+(error.message||'請檢查設定與權限。'));}
 }
 async function editAiConnection(connectionId){
+  if(blockDemoAiAction())return;
   const connection=(state.aiSettings?.connections||[]).find(c=>c.id===connectionId);
   if(!connection)return;
   const name=prompt('連線名稱',connection.name);
@@ -443,6 +460,7 @@ async function editAiConnection(connectionId){
   catch(error){alert('AI Provider 更新失敗：'+(error.message||'請檢查設定與權限。'));}
 }
 async function toggleAiConnection(connectionId){
+  if(blockDemoAiAction())return;
   const connection=(state.aiSettings?.connections||[]).find(c=>c.id===connectionId);
   if(!connection)return;
   const payload={
@@ -464,6 +482,7 @@ const AI_TEST_ERROR_LABELS={
   invalid_response:'Provider 回傳內容無法解析。'
 };
 async function testAiConnection(connectionId){
+  if(blockDemoAiAction())return;
   try{
     const data=await post('/api/teacher/ai-settings',{action:'testConnection',connectionId});
     alert(data.result?.ok?'連線測試成功。':'連線測試失敗。');
@@ -473,11 +492,13 @@ async function testAiConnection(connectionId){
   }
 }
 async function deleteAiConnection(connectionId){
+  if(blockDemoAiAction())return;
   if(!confirm('刪除此 AI Provider 連線？使用此連線的路由也會一併移除。'))return;
   try{await post('/api/teacher/ai-settings',{action:'deleteConnection',connectionId});await renderAiSettings();}
   catch{alert('刪除失敗或權限不足。');}
 }
 async function saveAiRoute(agentType){
+  if(blockDemoAiAction())return;
   const card=document.querySelector('[data-agent="'+agentType+'"]');
   const connectionId=card?.querySelector('.ai-route-connection')?.value;
   const teacher=state.user?.role==='teacher';
@@ -514,6 +535,7 @@ async function saveAiRoute(agentType){
   }
 }
 async function deleteAiRoute(routeId){
+  if(blockDemoAiAction())return;
   try{await post('/api/teacher/ai-settings',{action:'deleteRoute',routeId});await renderAiSettings();}
   catch{alert('路由移除失敗或權限不足。');}
 }
