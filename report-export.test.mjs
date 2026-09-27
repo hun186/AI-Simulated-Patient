@@ -124,7 +124,8 @@ test('Student report export UI follows per-case policy and keeps Teacher export 
   assert.match(teacherCases,/setStudentReportExportPolicy/);
   assert.match(studentReport,/STUDENT_REPORT_EXPORT_NOT_ALLOWED/);
   assert.match(studentReport,/s\.student_user_id=\$2/);
-  assert.doesNotMatch(studentReport,/estimated_cost_microusd/);
+  assert.match(studentReport,/estimated_cost_microusd/);
+  assert.match(studentReport,/estimated_cost_microntd/);
   assert.match(server,/\['\/api\/student\/report',studentReportHandler\]/);
   assert.match(server,/'\/report-export\.js'/);
 });
