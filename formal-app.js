@@ -115,7 +115,7 @@ function evaluationErrorMessage(error){
   return '評量失敗：'+(code||'請檢查 Evaluator AI 設定或稍後再試。');
 }
 function evaluationSupportInstruction(){
-  if(state.user?.role==='student') return '請下載「除錯資訊」，提供給授課教師或系統管理員。一般使用者不需要自行修改檔案內容。';
+  if(state.user?.role==='student') return '請下載「除錯資訊」，提供給授課教師或系統管理員。為避免洩漏評量內部資料，學生畫面不直接顯示完整 AI 原始回覆；管理端可依錯誤編號查閱。';
   if(state.user?.role==='teacher') return '請下載「除錯資訊」，提供給系統管理員或維運人員，並告知發生問題的案例與時間。';
   return '請下載「除錯資訊」交給系統管理或開發人員；可用錯誤編號比對伺服器紀錄。';
 }
@@ -145,8 +145,9 @@ function renderEvaluationFailure(error){
     ['自動修復驗證',repair.validation?.code||repair.validation?.message||'--']
   ];
   $('evaluationFailureMeta').innerHTML=rows.map(([label,value])=>'<div><span>'+esc(label)+'</span><strong>'+esc(value)+'</strong></div>').join('');
-  $('evaluationRawResponse').textContent=initial.responseText||'（沒有可顯示的 AI 原始回覆）';
-  $('evaluationRepairedResponse').textContent=repair.responseText||'（沒有可顯示的自動修復回覆）';
+  const restricted=diagnostic.access?.rawResponsesIncluded===false;
+  $('evaluationRawResponse').textContent=initial.responseText||(restricted?'（學生支援畫面不直接顯示 AI 原始回覆；請由系統管理員依錯誤編號查閱。）':'（沒有可顯示的 AI 原始回覆）');
+  $('evaluationRepairedResponse').textContent=repair.responseText||(restricted?'（學生支援畫面不直接顯示自動修復回覆；請由系統管理員依錯誤編號查閱。）':'（沒有可顯示的自動修復回覆）');
   $('evaluationValidationErrors').textContent=[
     '第一次：'+(initial.validation?.code||'--')+' · '+(initial.validation?.message||'--'),
     '自動修復：'+(repair.validation?.code||'--')+' · '+(repair.validation?.message||'--')
@@ -162,7 +163,8 @@ function evaluationDiagnosticDownloadPayload(){
     support:{
       title:'AI 模擬病人－評量失敗除錯資訊',
       instruction:evaluationSupportInstruction(),
-      note:'請將本檔完整提供給系統管理員。系統已排除常見憑證、prompt template 與 transcript 欄位。'
+      note:'請將本檔完整提供給系統管理員。系統已排除常見憑證、prompt template 與 transcript 欄位。',
+      staffLookupPath:state.evaluationDiagnostic.access?.staffLookupPath||null
     },
     diagnostic:state.evaluationDiagnostic
   };
