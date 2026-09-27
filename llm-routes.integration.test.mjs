@@ -80,6 +80,21 @@ test('LLM routes support teacher-owned built-in overrides without cross-teacher 
       config:{difyInputKey:'agent_prompt',difyOutputKey:'result_text',difyInputs:{locale:'zh-TW'}}
     });
     const difyResolved=await resolveAgentRoutes({caseId:'t1_case',routeOwnerUserId:t1.id});
+    let invalidStatefulWorkflowError='';
+    try{
+      await setCaseRoute(t1,{
+        caseId:'t1_case',agentType:'evaluator',connectionId:t1Dify.id,
+        config:{difyExecutionMode:'stateful_chatflow'}
+      });
+    }catch(error){invalidStatefulWorkflowError=error.code||error.message;}
+
+    let invalidPatientFinalTriggerError='';
+    try{
+      await setCaseRoute(t1,{
+        caseId:'t1_case',agentType:'patient',connectionId:t1Dify.id,
+        config:{difyFinalTriggerEnabled:true,difyFinalTrigger:'問診結束'}
+      });
+    }catch(error){invalidPatientFinalTriggerError=error.code||error.message;}
 
     const globalResolved=await resolveAgentRoutes({caseId:'aphasia_001'});
     const t1Resolved=await resolveAgentRoutes({caseId:'aphasia_001',routeOwnerUserId:t1.id});
@@ -146,6 +161,7 @@ test('LLM routes support teacher-owned built-in overrides without cross-teacher 
       systemRoute,globalCaseRoute,teacherBuiltinT1,teacherBuiltinT2,teacherOwnRoute,difyRoute,difyResolved,
       globalResolved,t1Resolved,t2Resolved,t1AfterDelete,globalAfterChange,
       teacherSystemError,teacherOtherCaseError,teacherOtherConnectionError,unsupportedPromptVariableError,
+      invalidStatefulWorkflowError,invalidPatientFinalTriggerError,
       teacherSnapshot,studentSnapshot,teacherSnapshotAfter,teacherVisible,missingProviderError,
       teacherSessionRuntime:teacherSession.runtime,studentSessionRuntime:studentSession.runtime,
       runtimeContainsSecret:/apiKey|encrypted|ciphertext|secret/i.test(JSON.stringify(teacherSession.runtime)),
@@ -180,6 +196,8 @@ test('LLM routes support teacher-owned built-in overrides without cross-teacher 
     assert.equal(data.difyResolved.evaluator.config.difyInputKey,'agent_prompt');
     assert.equal(data.difyResolved.evaluator.config.difyOutputKey,'result_text');
     assert.equal(data.difyResolved.evaluator.config.difyInputs.locale,'zh-TW');
+    assert.equal(data.invalidStatefulWorkflowError,'INVALID_DIFY_STATEFUL_APP_MODE');
+    assert.equal(data.invalidPatientFinalTriggerError,'INVALID_DIFY_FINAL_TRIGGER');
     assert.equal(data.teacherSystemError,'FORBIDDEN');
     assert.equal(data.teacherOtherCaseError,'FORBIDDEN_CASE');
     assert.equal(data.teacherOtherConnectionError,'FORBIDDEN_CONNECTION');
