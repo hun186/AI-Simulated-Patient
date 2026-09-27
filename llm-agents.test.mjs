@@ -212,6 +212,10 @@ test('custom prompt templates expand only safe variables and remain subordinate 
   const catalog=getPromptTemplateCatalog();
   assert.equal(catalog.maxChars,8000);
   assert.equal(catalog.evaluator.fields.some(field=>field.key==='feedbackTemplate'),true);
+  assert.match(catalog.patient.fields[0].example,/1～3 句/);
+  assert.match(catalog.coach.fields[0].example,/蘇格拉底式/);
+  assert.match(catalog.evaluator.fields.find(field=>field.key==='promptTemplate').example,/partial/);
+  assert.match(catalog.evaluator.fields.find(field=>field.key==='feedbackTemplate').example,/nextPracticeFocus/);
   assert.equal(catalog.placeholders.includes('{{hidden_facts}}'),false);
 });
 
