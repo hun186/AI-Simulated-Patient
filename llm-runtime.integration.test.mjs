@@ -34,6 +34,11 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
         const repairing=system.includes('JSON repair step');
         if(providerMode==='invalid-eval') content=repairing?JSON.stringify(evaluation):'{"totalScore":10}';
         else if(providerMode==='persistent-invalid-eval') content='{"totalScore":10}';
+        else if(providerMode==='normalized-eval') content=JSON.stringify({
+          ...evaluation,
+          totalScore:7,maxScore:100,percentage:7,
+          items:[{...evaluation.items[0],evidence:['[2] student: history?']}]
+        });
         else content=JSON.stringify(evaluation);
       }
       const payload={id:'provider-1',model:'test-model',choices:[{message:{content}}]};
@@ -100,7 +105,28 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     await evaluateHandler(request({sessionId},auth),repairedEvalRes);
     const completedAfterRepair=(await query('select status from interview_sessions where id=$1',[sessionId]))[0].status;
     const evalRows=await query('select * from evaluations where session_id=$1',[sessionId]);
+    const repairedAuditRows=await query(
+      'select evaluation_id as "evaluationId",status,audit_json as audit from evaluation_audits where session_id=$1 order by created_at desc',
+      [sessionId]
+    );
+    const repairedAudit=repairedAuditRows[0]
+      ?{...repairedAuditRows[0],audit:typeof repairedAuditRows[0].audit==='string'?JSON.parse(repairedAuditRows[0].audit):repairedAuditRows[0].audit}
+      :null;
     const usageRows=await query('select agent_type,success,error_code,total_tokens,usage_status from llm_usage_events where session_id=$1 order by id',[sessionId]);
+
+    const createNormalizedRes=response();
+    await sessionsHandler(request({caseId:'aphasia_001',mode:'training',coachEnabled:false},auth),createNormalizedRes);
+    const normalizedSessionId=createNormalizedRes.body.session.id;
+    providerMode='normalized-eval';
+    const normalizedEvalRes=response();
+    await evaluateHandler(request({sessionId:normalizedSessionId},auth),normalizedEvalRes);
+    const normalizedAuditRows=await query(
+      'select evaluation_id as "evaluationId",status,audit_json as audit from evaluation_audits where session_id=$1 order by created_at desc',
+      [normalizedSessionId]
+    );
+    const normalizedAudit=normalizedAuditRows[0]
+      ?{...normalizedAuditRows[0],audit:typeof normalizedAuditRows[0].audit==='string'?JSON.parse(normalizedAuditRows[0].audit):normalizedAuditRows[0].audit}
+      :null;
 
     const createPersistentRes=response();
     await sessionsHandler(request({caseId:'aphasia_001',mode:'training',coachEnabled:false},auth),createPersistentRes);
@@ -115,6 +141,13 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     );
     const persistedDiagnostic=diagnosticRows[0]
       ?(typeof diagnosticRows[0].diagnostic==='string'?JSON.parse(diagnosticRows[0].diagnostic):diagnosticRows[0].diagnostic)
+      :null;
+    const failedAuditRows=await query(
+      'select evaluation_id as "evaluationId",status,audit_json as audit from evaluation_audits where session_id=$1 order by created_at desc',
+      [persistentSessionId]
+    );
+    const failedAudit=failedAuditRows[0]
+      ?{...failedAuditRows[0],audit:typeof failedAuditRows[0].audit==='string'?JSON.parse(failedAuditRows[0].audit):failedAuditRows[0].audit}
       :null;
 
     await deleteRoute(admin,coachRoute.id);
@@ -132,8 +165,9 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
       chat:{status:chatRes.statusCode,body:chatRes.body,messages:afterSuccess},
       failure:{status:failRes.statusCode,body:failRes.body,beforeFail,afterFail:afterFail.length},
       coach:{status:coachRes.statusCode,body:coachRes.body},
-      repairedEvaluation:{status:repairedEvalRes.statusCode,body:repairedEvalRes.body,sessionStatus:completedAfterRepair,rows:evalRows.length},
-      persistentInvalid:{status:persistentInvalidRes.statusCode,body:persistentInvalidRes.body,sessionStatus:activeAfterPersistentInvalid},
+      repairedEvaluation:{status:repairedEvalRes.statusCode,body:repairedEvalRes.body,sessionStatus:completedAfterRepair,rows:evalRows.length,audit:repairedAudit},
+      normalizedEvaluation:{status:normalizedEvalRes.statusCode,body:normalizedEvalRes.body,audit:normalizedAudit},
+      persistentInvalid:{status:persistentInvalidRes.statusCode,body:persistentInvalidRes.body,sessionStatus:activeAfterPersistentInvalid,audit:failedAudit},
       persistedDiagnostic,
       enableMissingCoach:{status:enableMissingCoachRes.statusCode,body:enableMissingCoachRes.body,coachEnabled:Boolean(coachStateAfterRejectedEnable)},
       usage:usageRows
@@ -166,10 +200,31 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     assert.equal(data.repairedEvaluation.sessionStatus,'completed');
     assert.equal(data.repairedEvaluation.rows,1);
     assert.equal(data.repairedEvaluation.body.totalScore,10);
+    assert.equal(data.repairedEvaluation.body.audit.status,'success_repaired');
+    assert.equal(data.repairedEvaluation.body.audit.persisted,true);
+    assert.equal(data.repairedEvaluation.audit.status,'success_repaired');
+    assert.equal(data.repairedEvaluation.audit.audit.repairUsed,true);
+    assert.equal(data.repairedEvaluation.audit.audit.canonicalEvaluation.totalScore,10);
+
+    assert.equal(data.normalizedEvaluation.status,200);
+    assert.equal(data.normalizedEvaluation.body.totalScore,10);
+    assert.equal(data.normalizedEvaluation.body.maxScore,10);
+    assert.equal(data.normalizedEvaluation.body.percentage,100);
+    assert.equal(data.normalizedEvaluation.body.audit.status,'success_normalized');
+    assert.equal(data.normalizedEvaluation.audit.status,'success_normalized');
+    assert.equal(data.normalizedEvaluation.audit.audit.normalization.applied,true);
+    assert.equal(data.normalizedEvaluation.audit.audit.normalization.initial.actions.some(x=>x.type==='evidence_string_to_object'),true);
+    assert.equal(data.normalizedEvaluation.audit.audit.normalization.initial.actions.some(x=>x.type==='aggregate_score_recomputed'),true);
+    assert.match(data.normalizedEvaluation.audit.audit.attempts.initial.responseText,/\[2\] student: history\?/);
+
     assert.equal(data.persistentInvalid.status,502);
     assert.equal(data.persistentInvalid.body.code,'EVALUATION_REPAIR_FAILED');
     assert.equal(data.persistentInvalid.sessionStatus,'active');
     assert.equal(data.persistentInvalid.body.diagnostic.category,'evaluation_contract_repair_failed');
+    assert.equal(data.persistentInvalid.audit.status,'failed');
+    assert.equal(data.persistentInvalid.audit.audit.status,'failed');
+    assert.equal(data.persistentInvalid.audit.evaluationId,data.persistentInvalid.body.diagnostic.errorId);
+    assert.equal(data.persistentInvalid.body.diagnostic.audit.evaluationId,data.persistentInvalid.audit.evaluationId);
     assert.equal(data.persistentInvalid.body.diagnostic.session.id,data.persistedDiagnostic.session.id);
     assert.equal(data.persistentInvalid.body.diagnostic.session.userRole,'student');
     assert.equal(data.persistentInvalid.body.diagnostic.access.rawResponsesIncluded,false);
