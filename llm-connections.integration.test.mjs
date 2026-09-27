@@ -72,10 +72,17 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
     const teacherConnectionId=teacherCreate.body.connection.id;
 
     const teacherLocal=await call('POST',{
-      action:'createConnection',name:'My Local Ollama',preset:'ollama',
+      action:'createConnection',name:'My LAN Ollama',preset:'ollama',
+      baseUrl:'http://192.168.50.20:11434',
       defaultModel:'qwen3:latest'
     },t1Auth);
     const storedTeacherLocal=(await query('select preset,base_url,encrypted_api_key from llm_provider_connections where id=$1',[teacherLocal.body.connection.id]))[0];
+
+    const teacherPublicOllama=await call('POST',{
+      action:'createConnection',name:'Forbidden Public Ollama',preset:'ollama',
+      baseUrl:'https://public-ollama.example.com/v1',
+      defaultModel:'qwen3:latest'
+    },t1Auth);
 
     const teacherCloud=await call('POST',{
       action:'createConnection',name:'My Ollama Cloud',preset:'ollama_cloud',
@@ -147,6 +154,7 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
       },
       teacherCreate:{status:teacherCreate.statusCode,connection:teacherCreate.body.connection},
       teacherLocal:{status:teacherLocal.statusCode,connection:teacherLocal.body.connection,stored:storedTeacherLocal},
+      teacherPublicOllama:{status:teacherPublicOllama.statusCode,body:teacherPublicOllama.body},
       teacherCloud:{status:teacherCloud.statusCode,connection:teacherCloud.body.connection,stored:storedTeacherCloud},
       teacher2Id:teacher2Create.body.connection.id,
       teacherCustom:{status:teacherCustom.statusCode,body:teacherCustom.body},
@@ -189,8 +197,11 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
     assert.equal(data.teacherLocal.connection.scopeType,'teacher');
     assert.equal(data.teacherLocal.connection.apiKeyLast4,'');
     assert.equal(data.teacherLocal.stored.preset,'ollama');
-    assert.equal(data.teacherLocal.stored.base_url,'http://127.0.0.1:11434/v1');
+    assert.equal(data.teacherLocal.connection.baseUrl,'http://192.168.50.20:11434/v1');
+    assert.equal(data.teacherLocal.stored.base_url,'http://192.168.50.20:11434/v1');
     assert.equal(data.teacherLocal.stored.encrypted_api_key,null);
+    assert.equal(data.teacherPublicOllama.status,400);
+    assert.equal(data.teacherPublicOllama.body.error,'OLLAMA_LOCAL_ENDPOINT_NOT_ALLOWED');
 
     assert.equal(data.teacherCloud.status,201);
     assert.equal(data.teacherCloud.connection.preset,'ollama_cloud');
