@@ -352,6 +352,32 @@ create index if not exists llm_fx_rates_lookup_idx
   on llm_fx_rates(base_currency,quote_currency,is_active,effective_at desc);
 alter table llm_usage_events add column if not exists fx_rate_id uuid references llm_fx_rates(id) on delete set null;
 
+-- LLM prompt/KV cache telemetry (SQLite migration version 12 equivalent).
+alter table llm_usage_events add column if not exists cache_miss_tokens bigint not null default 0;
+alter table llm_usage_events add column if not exists cache_read_status text not null default 'unreported';
+alter table llm_usage_events add column if not exists cache_savings_microusd bigint;
+alter table llm_usage_events add column if not exists cache_savings_microntd bigint;
+
+do $
+begin
+  if not exists (select 1 from pg_constraint where conname='llm_usage_events_cache_miss_nonnegative') then
+    alter table llm_usage_events add constraint llm_usage_events_cache_miss_nonnegative
+      check (cache_miss_tokens >= 0);
+  end if;
+  if not exists (select 1 from pg_constraint where conname='llm_usage_events_cache_read_status_check') then
+    alter table llm_usage_events add constraint llm_usage_events_cache_read_status_check
+      check (cache_read_status in ('reported','unreported'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname='llm_usage_events_cache_savings_usd_nonnegative') then
+    alter table llm_usage_events add constraint llm_usage_events_cache_savings_usd_nonnegative
+      check (cache_savings_microusd is null or cache_savings_microusd >= 0);
+  end if;
+  if not exists (select 1 from pg_constraint where conname='llm_usage_events_cache_savings_twd_nonnegative') then
+    alter table llm_usage_events add constraint llm_usage_events_cache_savings_twd_nonnegative
+      check (cache_savings_microntd is null or cache_savings_microntd >= 0);
+  end if;
+end $;
+
 insert into llm_fx_rates
   (id,base_currency,quote_currency,rate_microunits_per_unit,source,effective_at,is_active)
 values
