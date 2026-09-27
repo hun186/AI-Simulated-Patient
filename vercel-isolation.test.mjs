@@ -16,7 +16,7 @@ test('Vercel deployment is isolated to demo API instead of production auth/datab
   assert.match(ignore,/^!\/api\/demo\.js$/m);
   assert.match(ignore,/^!\/lib\/cases\.js$/m);
   assert.match(ignore,/^!\/lib\/llm\/prompts\.js$/m);
-  assert.match(ignore,/^!\/report-export\.js$/m);
+  assert.match(ignore,/^!\/report-export\.js$/m);\n  assert.match(ignore,/^!\/support-bundle\.js$/m);
   assert.equal(rewrites.has('/api/student/report'),false);
   assert.equal(rewrites.has('/api/teacher/evaluation-diagnostics'),false);
   assert.doesNotMatch(ignore,/^!\/api\/student\/report\.js$/m);
