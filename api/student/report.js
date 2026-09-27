@@ -8,6 +8,21 @@ function parseJson(value,fallback){
   try{return JSON.parse(value);}catch{return fallback;}
 }
 
+function studentRouteProjection(value){
+  const snapshot=parseJson(value,{});
+  const projected={patient:null,coach:null,evaluator:null};
+  for(const agent of Object.keys(projected)){
+    const route=snapshot?.[agent];
+    if(!route) continue;
+    projected[agent]={
+      providerKind:route.providerKind??null,
+      preset:route.preset??null,
+      model:route.model??null
+    };
+  }
+  return projected;
+}
+
 export default async function handler(req,res){
   if(req.method!=='GET') return res.status(405).json({error:'Method not allowed'});
   if(!isDatabaseEnabled()) return res.status(409).json({error:'Database mode is not enabled'});
@@ -99,7 +114,7 @@ export default async function handler(req,res){
     maxScore:Number(row.maxScore||0),
     transcript:messages,
     coachEvents:coachEvents.map(event=>({...parseJson(event.payload,{}),at:event.at})),
-    llmRoutes:parseJson(row.llmRouteSnapshot,{}),
+    llmRoutes:studentRouteProjection(row.llmRouteSnapshot),
     llmUsage:usageEvents.map(event=>({...event,success:Boolean(event.success)})),
     evaluation:parseJson(row.evaluation,null),
     studentReportExportPolicy:policy

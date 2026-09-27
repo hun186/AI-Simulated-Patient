@@ -94,6 +94,17 @@ test('student report export policy enforces owner, completion, mode and current 
     });
     await appendMessage(training.id,'student','主訴是什麼？');
     await appendMessage(training.id,'patient','測試答案');
+    await query(
+      'update interview_sessions set llm_route_snapshot=$2::jsonb where id=$1',
+      [training.id,JSON.stringify({
+        patient:{
+          routeId:'internal-route-id',connectionId:'internal-connection-id',
+          providerKind:'openai',preset:'openai',model:'gpt-5-mini',
+          config:{promptTemplate:'INTERNAL_PROMPT_MUST_NOT_LEAK',difyInputs:{secret:'internal'}}
+        },
+        coach:null,evaluator:null
+      })]
+    );
     await completeSession(training.id,{
       totalScore:1,maxScore:1,percentage:100,
       items:[{id:'r1',criterion:'主訴',status:'covered',score:1,maxScore:1,evidence:[{turn:2,quote:'主訴是什麼？'}],reasoning:'已涵蓋'}],
@@ -165,6 +176,13 @@ test('student report export policy enforces owner, completion, mode and current 
     assert.equal(data.trainAllowed.body.record.studentName,'王同學');
     assert.equal(data.trainAllowed.body.record.studentReportExportPolicy,'training_only');
     assert.equal(data.trainAllowed.body.record.transcript.some(item=>item.content==='主訴是什麼？'),true);
+    assert.deepEqual(data.trainAllowed.body.record.llmRoutes.patient,{
+      providerKind:'openai',preset:'openai',model:'gpt-5-mini'
+    });
+    assert.equal('routeId' in data.trainAllowed.body.record.llmRoutes.patient,false);
+    assert.equal('connectionId' in data.trainAllowed.body.record.llmRoutes.patient,false);
+    assert.equal('config' in data.trainAllowed.body.record.llmRoutes.patient,false);
+    assert.equal(JSON.stringify(data.trainAllowed.body).includes('INTERNAL_PROMPT_MUST_NOT_LEAK'),false);
     assert.equal('estimatedCostMicrousd' in (data.trainAllowed.body.record.llmUsage[0]||{}),false);
 
     assert.equal(data.examDenied.status,403);
