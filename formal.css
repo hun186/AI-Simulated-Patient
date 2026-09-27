@@ -74,3 +74,8 @@
 .record-export-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .record-export-actions button{white-space:nowrap}
 @media(max-width:720px){.record-export-actions{justify-content:flex-start;width:100%}}
+
+.student-report-export{margin-top:16px;padding:14px 16px;border:1px solid #d8e5f2;border-radius:14px;background:#f5f9fd;display:flex;justify-content:space-between;gap:14px;align-items:center}
+.student-report-export>div:first-child{display:grid;gap:3px}.student-report-export span{font-size:12px;color:#6b788c}
+.case-report-policy{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}.case-report-policy select{min-width:210px;border:1px solid #dbe2ee;border-radius:9px;padding:7px 9px;background:#fff}.case-policy-row>div{min-width:0;flex:1}
+@media(max-width:720px){.student-report-export{align-items:flex-start;flex-direction:column}}

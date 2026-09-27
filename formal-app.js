@@ -1,6 +1,6 @@
 import { downloadWordReport,printPdfReport } from './report-export.js';
 const SKEY='aisp-formal-session-v1',RKEY='aisp-formal-records-v1',CKEY='aisp-formal-custom-cases-v1',DKEY='aisp-vercel-demo-user-v1';
-const state={serverMode:false,demoAuth:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,sessionRuntime:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[],aiSettings:null,usageDashboard:null,selectedRecordId:null};
+const state={serverMode:false,demoAuth:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,sessionRuntime:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[],aiSettings:null,usageDashboard:null,selectedRecordId:null,studentReport:null,studentReportSessionId:null,studentReportAllowed:false,studentReportAccess:null};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const uid=()=> 'session_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
@@ -8,6 +8,39 @@ const read=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{retur
 const write=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 const modeLabel=m=>m==='exam'?'考試評量':'訓練學習';
 const currentCaseDefinition=()=>state.customCases.find(c=>c.id===state.caseId)||null;
+const REPORT_SESSION_KEY='aisp-last-student-report-session-v1';
+const studentReportSessionKey=()=>REPORT_SESSION_KEY+':'+String(state.user?.id||'anonymous');
+function rememberStudentReportSession(sessionId){
+  state.studentReportSessionId=sessionId||null;
+  if(!state.user?.id)return;
+  if(sessionId)write(studentReportSessionKey(),sessionId);
+  else localStorage.removeItem(studentReportSessionKey());
+}
+const studentReportPolicy=value=>['disabled','training_only','all_completed'].includes(value)?value:'training_only';
+const studentReportPolicyLabel=value=>({
+  disabled:'不允許學生下載',
+  training_only:'僅訓練模式可下載',
+  all_completed:'訓練與考試完成後皆可下載'
+}[studentReportPolicy(value)]);
+function studentCanExport(caseData=state.caseData,mode=state.mode){
+  const policy=studentReportPolicy(caseData?.studentReportExportPolicy);
+  return policy==='all_completed'||(policy==='training_only'&&mode==='training');
+}
+function syncStudentReportActions(){
+  const student=state.user?.role==='student';
+  const hasReport=student&&Boolean(state.studentReportSessionId);
+  const allowed=hasReport&&Boolean(state.studentReportAllowed);
+  $('studentReportExportActions')?.classList.toggle('hidden',!hasReport);
+  $('studentReportAllowedActions')?.classList.toggle('hidden',!allowed);
+  $('studentReportRecheckBtn')?.classList.toggle('hidden',!hasReport||allowed);
+  if($('studentReportExportNote')){
+    $('studentReportExportNote').textContent=!hasReport
+      ?'尚無完成報告。'
+      :allowed
+        ?'最近完成的紀錄目前允許下載，可留存備查與複習。'
+        :'最近完成的紀錄目前未開放下載；若教師剛調整政策，可重新檢查。';
+  }
+}
 
 function save(){if(state.serverMode)return;write(SKEY,{caseId:state.caseId,mode:state.mode,studentName:state.studentName,transcript:state.transcript,revealedFactIds:state.revealedFactIds,sessionId:state.sessionId,coach:state.coach,coachEnabled:state.coachEnabled,coachUsed:state.coachUsed});}
 function sessionStartErrorMessage(error){
@@ -19,7 +52,7 @@ function sessionStartErrorMessage(error){
 }
 async function start(){
   state.revealedFactIds=[];state.coach=null;state.coachUsed=state.mode==='training'&&state.coachEnabled;
-  $('resultCard').classList.add('hidden');
+  $('resultCard').classList.add('hidden');syncStudentReportActions();
   try{
     if(state.serverMode){
       const d=await post('/api/sessions',{caseId:state.caseId,mode:state.mode,coachEnabled:state.coachEnabled});
@@ -69,7 +102,7 @@ async function post(url,payload){
   return data;
 }
 async function ask(q){state.transcript.push({role:'student',content:q,at:new Date().toISOString()});renderChat();$('sendBtn').disabled=true;try{const d=await post('/api/chat',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,message:q,revealedFactIds:state.serverMode?[]:state.revealedFactIds});if(!state.serverMode)state.revealedFactIds=d.revealedFactIds;state.transcript.push({role:'patient',content:d.reply,at:new Date().toISOString()});if(state.mode==='training'&&state.coachEnabled){state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds});state.coachUsed=true;}save();renderChat();renderMode();renderCoach();}catch{state.transcript.push({role:'patient',content:'（系統暫時無法取得回覆。）'});renderChat();}finally{$('sendBtn').disabled=false;}}
-function renderEvaluation(d){$('resultCard').classList.remove('hidden');$('scoreCircle').textContent=String(d.percentage);$('resultMode').textContent=modeLabel(d.mode)+' · '+d.totalScore+'/'+d.maxScore+' 分';$('overallComment').textContent=d.overall.comment;$('strengthList').innerHTML=d.overall.strengths.map(x=>'<li>'+esc(x)+'</li>').join('');$('improvementList').innerHTML=d.overall.improvements.map(x=>'<li>'+esc(x)+'</li>').join('');$('recommendationList').innerHTML=d.overall.recommendations.map(x=>'<li>'+esc(x)+'</li>').join('');$('nextPracticeFocus').textContent=d.overall.nextPracticeFocus;$('rubricTable').innerHTML=d.items.map(i=>'<div class="rubric-item"><div class="rubric-main"><strong>'+esc(i.criterion)+'</strong><span>'+i.score+'/'+i.maxScore+'</span><span class="status status-'+i.status+'">'+(i.status==='covered'?'完整涵蓋':i.status==='partial'?'部分涵蓋':'未涵蓋')+'</span></div><div class="rubric-detail"><span>'+esc(i.reasoning)+'</span>'+(i.evidence?.[0]?'<span class="evidence-quote">證據：「'+esc(i.evidence[0].quote)+'」</span>':'')+'</div></div>').join('');}
+function renderEvaluation(d){$('resultCard').classList.remove('hidden');syncStudentReportActions();$('scoreCircle').textContent=String(d.percentage);$('resultMode').textContent=modeLabel(d.mode)+' · '+d.totalScore+'/'+d.maxScore+' 分';$('overallComment').textContent=d.overall.comment;$('strengthList').innerHTML=d.overall.strengths.map(x=>'<li>'+esc(x)+'</li>').join('');$('improvementList').innerHTML=d.overall.improvements.map(x=>'<li>'+esc(x)+'</li>').join('');$('recommendationList').innerHTML=d.overall.recommendations.map(x=>'<li>'+esc(x)+'</li>').join('');$('nextPracticeFocus').textContent=d.overall.nextPracticeFocus;$('rubricTable').innerHTML=d.items.map(i=>'<div class="rubric-item"><div class="rubric-main"><strong>'+esc(i.criterion)+'</strong><span>'+i.score+'/'+i.maxScore+'</span><span class="status status-'+i.status+'">'+(i.status==='covered'?'完整涵蓋':i.status==='partial'?'部分涵蓋':'未涵蓋')+'</span></div><div class="rubric-detail"><span>'+esc(i.reasoning)+'</span>'+(i.evidence?.[0]?'<span class="evidence-quote">證據：「'+esc(i.evidence[0].quote)+'」</span>':'')+'</div></div>').join('');}
 function evaluationErrorMessage(error){
   const code=error?.details?.code||error?.details?.error||error?.message||'';
   if(code==='AI_EVALUATOR_PROVIDER_NOT_CONFIGURED') return '評量失敗：此 session 沒有設定 Evaluator AI。請重新開始病例並先完成 Evaluator route 設定。';
@@ -81,13 +114,149 @@ function evaluationErrorMessage(error){
   if(code==='DIFY_CONVERSATION_STATE_MISSING'||code==='dify_conversation_state_missing') return '評量失敗：此 Dify Stateful Evaluator 找不到本場問診的 conversation_id。請確認 Patient 與 Evaluator 使用同一個 Dify 連線，且 Patient 已至少完成一輪 Dify 對話。';
   return '評量失敗：'+(code||'請檢查 Evaluator AI 設定或稍後再試。');
 }
-async function finish(){try{const d=await post('/api/evaluate',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.revealedFactIds,mode:state.mode});renderEvaluation(d);if(state.serverMode){if(['teacher','admin'].includes(state.user?.role))await renderRecords();return;}const rec={id:state.sessionId,studentName:state.studentName||'未填姓名',caseTitle:state.caseData.studentLabel||state.caseData.title||'臨床問診案例',mode:state.mode,coachUsed:state.mode==='training'&&state.coachUsed,completedAt:new Date().toISOString(),transcript:state.transcript,evaluation:d};state.records=read(RKEY,[]);const ix=state.records.findIndex(x=>x.id===rec.id);if(ix>=0)state.records[ix]=rec;else state.records.unshift(rec);write(RKEY,state.records);renderRecords();}catch(error){alert(evaluationErrorMessage(error));}}
-function renderCases(){const list=state.teacherCases.length?state.teacherCases:state.customCases;$('teacherCaseList').innerHTML=list.length?list.map(c=>'<div class="manage-row"><div><strong>'+esc(c.internalTitle||c.title||'未命名病例')+'</strong><small>學生看到：'+esc(c.studentLabel||'臨床問診案例')+' · '+esc(c.patient?.name||'')+' · '+esc(c.difficulty||'')+' · '+(c.learningGoals||[]).length+' 個學習目標</small></div><span class="readonly-pill">'+(c.source==='custom'?'教師建立':'系統內建')+'</span></div>').join(''):'<p class="empty">尚無病例。</p>';}
+async function finish(){
+  try{
+    const completedSessionId=state.sessionId;
+    const d=await post('/api/evaluate',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.revealedFactIds,mode:state.mode});
+    renderEvaluation(d);
+    if(state.serverMode){
+      if(state.user?.role==='student'){
+        state.studentReport=null;state.studentReportAllowed=false;state.studentReportAccess=null;
+        rememberStudentReportSession(completedSessionId);
+        await refreshStudentReportAccess({silent:true});
+      }else if(['teacher','admin'].includes(state.user?.role)){
+        await renderRecords();
+      }
+      return;
+    }
+    const rec={
+      id:completedSessionId,caseId:state.caseId,
+      studentReportExportPolicy:studentReportPolicy(state.caseData?.studentReportExportPolicy),
+      studentName:state.studentName||'未填姓名',
+      caseTitle:state.caseData.studentLabel||state.caseData.title||'臨床問診案例',
+      mode:state.mode,coachEnabled:state.coachEnabled,coachUsed:state.mode==='training'&&state.coachUsed,
+      completedAt:new Date().toISOString(),startedAt:state.transcript[0]?.at||new Date().toISOString(),
+      endedAt:new Date().toISOString(),transcript:state.transcript,
+      coachEvents:state.coach?[{...state.coach,at:new Date().toISOString()}]:[],
+      llmRoutes:{patient:state.sessionRuntime?.patient||null},llmUsage:[],teachers:[],teacherSource:'none',evaluation:d
+    };
+    state.studentReport=rec;rememberStudentReportSession(rec.id);
+    state.studentReportAllowed=studentCanExport(state.caseData,rec.mode);
+    state.studentReportAccess={policy:studentReportPolicy(state.caseData?.studentReportExportPolicy),mode:rec.mode};
+    state.records=read(RKEY,[]);
+    const ix=state.records.findIndex(x=>x.id===rec.id);
+    if(ix>=0)state.records[ix]=rec;else state.records.unshift(rec);
+    write(RKEY,state.records);renderRecords();syncStudentReportActions();
+  }catch(error){alert(evaluationErrorMessage(error));}
+}
+function renderCases(){const list=state.teacherCases.length?state.teacherCases:state.customCases;$('teacherCaseList').innerHTML=list.length?list.map(c=>{const canManage=!state.serverMode||state.user?.role==='admin'||c.createdBy===state.user?.id;const policy=studentReportPolicy(c.studentReportExportPolicy);const policyControl=canManage?'<div class="case-report-policy"><select data-case-report-policy="'+esc(c.id)+'"><option value="disabled" '+(policy==='disabled'?'selected':'')+'>不允許學生下載</option><option value="training_only" '+(policy==='training_only'?'selected':'')+'>僅訓練模式可下載</option><option value="all_completed" '+(policy==='all_completed'?'selected':'')+'>訓練與考試皆可下載</option></select><button type="button" class="secondary small-btn" data-save-case-report-policy="'+esc(c.id)+'">儲存下載政策</button></div>':'<span class="hint">學生報告：'+esc(studentReportPolicyLabel(policy))+(c.createdBy?'':'（系統內建由 Admin 控制）')+'</span>';return '<div class="manage-row case-policy-row"><div><strong>'+esc(c.internalTitle||c.title||'未命名病例')+'</strong><small>學生看到：'+esc(c.studentLabel||'臨床問診案例')+' · '+esc(c.patient?.name||'')+' · '+esc(c.difficulty||'')+' · '+(c.learningGoals||[]).length+' 個學習目標</small>'+policyControl+'</div><span class="readonly-pill">'+(c.createdBy?'教師建立':'系統內建')+'</span></div>';}).join(''):'<p class="empty">尚無病例。</p>';$('teacherCaseList').querySelectorAll('[data-save-case-report-policy]').forEach(button=>button.onclick=()=>saveCaseReportPolicy(button.dataset.saveCaseReportPolicy));}
 async function renderRecords(){if(state.serverMode){if(!['teacher','admin'].includes(state.user?.role))return;try{
   const rows=(await fetch('/api/teacher/records').then(r=>r.json())).records||[];
   state.records=rows.map(r=>({...r,percentage:Number(r.percentage),completedAt:r.endedAt||r.startedAt,coachUsed:Boolean(r.coachUsed),evaluation:r.evaluation||{percentage:Number(r.percentage),items:[]},transcript:r.transcript||[]}));
 }catch{state.records=[];}}else state.records=read(RKEY,[]);$('recordCount').textContent=state.records.length;$('trainingCount').textContent=state.records.filter(r=>r.mode==='training').length;$('examCount').textContent=state.records.filter(r=>r.mode==='exam').length;const scored=state.records.filter(r=>Number.isFinite(r.evaluation?.percentage));$('averageScore').textContent=scored.length?Math.round(scored.reduce((a,r)=>a+r.evaluation.percentage,0)/scored.length)+'%':'--';$('recordList').innerHTML=state.records.length?state.records.map(r=>'<button class="record-row" data-id="'+esc(r.id)+'"><span><strong>'+esc(r.studentName)+'</strong><small>'+esc(r.caseTitle)+'</small></span><span class="record-mode '+r.mode+'">'+(r.mode==='training'?'訓練':'考試')+'</span><span>'+new Date(r.completedAt).toLocaleString('zh-TW')+'</span><b>'+(r.evaluation?.percentage??'--')+'%</b></button>').join(''):'<p class="empty">尚無完成紀錄。</p>';$('recordList').querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>showRecord(b.dataset.id));}
 function showRecord(id){const r=state.records.find(x=>x.id===id);if(!r)return;state.selectedRecordId=id;$('recordDetail').classList.remove('hidden');$('recordDetailTitle').textContent=r.studentName+' · '+r.caseTitle;const teacherNames=(r.teachers||[]).map(t=>t.displayName||t.name||t.id).filter(Boolean).join('、')||'未記錄';$('recordMeta').textContent=modeLabel(r.mode)+(r.mode==='training'?' · Coach '+(r.coachUsed?'曾開啟':'未使用'):'')+' · 教師 '+teacherNames+' · '+new Date(r.completedAt).toLocaleString('zh-TW')+' · '+r.evaluation.percentage+' 分';$('recordOverall').innerHTML='<strong>AI 總評</strong><p>'+esc(r.evaluation.overall?.comment||'')+'</p>';$('recordTranscript').innerHTML=r.transcript.map(m=>'<div class="audit-turn '+m.role+'"><strong>'+(m.role==='student'?'學生':'病人')+'</strong><span>'+esc(m.content)+'</span></div>').join('');$('recordRubric').innerHTML=r.evaluation.items.map(i=>'<div class="teacher-item"><strong>'+esc(i.criterion)+'</strong><span>'+i.score+'/'+i.maxScore+' · '+(i.status==='covered'?'完整':i.status==='partial'?'部分':'未涵蓋')+'</span></div>').join('');}
+async function loadOwnStudentReport({force=false}={}){
+  const reportSessionId=state.studentReportSessionId;
+  if(!reportSessionId)return null;
+  if(!state.serverMode){
+    const record=(state.studentReport?.id===reportSessionId?state.studentReport:null)
+      ||read(RKEY,[]).find(item=>item.id===reportSessionId)||null;
+    if(!record)return null;
+    const caseData=state.cases.find(item=>item.id===record.caseId)||state.caseData;
+    state.studentReport=record;
+    state.studentReportAllowed=studentCanExport(caseData,record.mode);
+    state.studentReportAccess={
+      policy:studentReportPolicy(caseData?.studentReportExportPolicy??record.studentReportExportPolicy),
+      mode:record.mode
+    };
+    syncStudentReportActions();
+    if(!state.studentReportAllowed){
+      const error=new Error('STUDENT_REPORT_EXPORT_NOT_ALLOWED');
+      error.details={error:'STUDENT_REPORT_EXPORT_NOT_ALLOWED',...state.studentReportAccess};
+      throw error;
+    }
+    return record;
+  }
+  if(!force&&state.studentReport&&state.studentReportAllowed)return state.studentReport;
+  const response=await fetch('/api/student/report?sessionId='+encodeURIComponent(reportSessionId));
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok){
+    state.studentReport=null;state.studentReportAllowed=false;
+    state.studentReportAccess={
+      policy:data.studentReportExportPolicy||null,
+      mode:data.mode||null
+    };
+    if(response.status===404)rememberStudentReportSession(null);
+    syncStudentReportActions();
+    const error=new Error(data.error||('HTTP '+response.status));
+    error.status=response.status;error.details=data;
+    throw error;
+  }
+  state.studentReport=data.record;
+  state.studentReportAllowed=true;
+  state.studentReportAccess={
+    policy:data.record?.studentReportExportPolicy||null,
+    mode:data.record?.mode||null
+  };
+  syncStudentReportActions();
+  return state.studentReport;
+}
+async function refreshStudentReportAccess({silent=false}={}){
+  if(state.user?.role!=='student'||!state.studentReportSessionId){syncStudentReportActions();return false;}
+  try{
+    await loadOwnStudentReport({force:true});
+    return true;
+  }catch(error){
+    const denied=error?.details?.error==='STUDENT_REPORT_EXPORT_NOT_ALLOWED';
+    if(!silent)alert(denied?'教師目前尚未開放最近完成紀錄的下載。':'報告權限檢查失敗，請稍後再試。');
+    return false;
+  }
+}
+async function exportOwnStudentWord(){
+  try{
+    const record=await loadOwnStudentReport({force:true});
+    if(!record)return alert('尚無可匯出的完成報告。');
+    downloadWordReport(record);
+  }catch(error){
+    alert(error?.details?.error==='STUDENT_REPORT_EXPORT_NOT_ALLOWED'?'教師目前未開放此模式的學生報告下載。':'報告載入失敗，請稍後再試。');
+  }
+}
+async function exportOwnStudentPdf(){
+  try{
+    const record=await loadOwnStudentReport({force:true});
+    if(!record)return alert('尚無可匯出的完成報告。');
+    printPdfReport(record);
+  }catch(error){
+    alert(error?.message==='POPUP_BLOCKED'?'瀏覽器阻擋了 PDF 列印視窗，請允許開啟新視窗後再試。':error?.details?.error==='STUDENT_REPORT_EXPORT_NOT_ALLOWED'?'教師目前未開放此模式的學生報告下載。':'報告載入失敗，請稍後再試。');
+  }
+}
+async function saveCaseReportPolicy(caseId){
+  const select=$('teacherCaseList').querySelector('[data-case-report-policy="'+CSS.escape(caseId)+'"]');
+  const policy=select?.value||'training_only';
+  if(state.serverMode){
+    try{
+      await post('/api/teacher/cases',{action:'setStudentReportExportPolicy',caseId,studentReportExportPolicy:policy});
+      state.teacherCases=[];await loadTeacherCases();
+      const student=await fetch('/api/cases').then(r=>r.json());
+      state.cases=student.cases.map(x=>({...x,source:'builtin'}));
+      if(state.caseId===caseId)state.caseData=state.cases.find(x=>x.id===caseId)||state.caseData;
+      syncStudentReportActions();
+      alert('學生報告下載政策已更新。');
+    }catch(error){
+      alert(error.status===403?'只有病例建立者或 Admin 可以修改此案例的學生下載政策。':'下載政策儲存失敗。');
+    }
+    return;
+  }
+  const targets=[state.teacherCases,state.customCases,state.cases];
+  for(const list of targets){
+    const item=list.find(x=>x.id===caseId);
+    if(item)item.studentReportExportPolicy=policy;
+  }
+  const custom=state.customCases.find(x=>x.id===caseId);
+  if(custom)write(CKEY,state.customCases);
+  if(state.caseId===caseId)state.caseData=state.cases.find(x=>x.id===caseId)||state.caseData;
+  renderCases();syncStudentReportActions();
+}
 function selectedRecord(){
   return state.records.find(record=>record.id===state.selectedRecordId)||null;
 }
@@ -126,7 +295,19 @@ async function loadApplication(){
       :'Demo · Browser local';
   $('logoutBtn').classList.toggle('hidden',!state.serverMode&&!state.demoAuth);$('changePasswordBtn').classList.toggle('hidden',!state.serverMode);
   if(state.user?.displayName) state.studentName=state.user.displayName;
+  if(state.user?.role==='student'){
+    if(state.serverMode){
+      state.studentReportSessionId=read(studentReportSessionKey(),null);
+    }else{
+      const latest=state.records[0]||null;
+      state.studentReport=latest;
+      state.studentReportSessionId=latest?.id||null;
+      state.studentReportAllowed=latest?studentCanExport(state.cases.find(item=>item.id===latest.caseId)||state.caseData,latest.mode):false;
+    }
+  }
   renderRecords();await start();
+  if(state.user?.role==='student'&&state.studentReportSessionId)await refreshStudentReportAccess({silent:true});
+  else syncStudentReportActions();
 }
 function hideAuthCards(){
   ['demoLoginForm','loginForm','registerForm','bootstrapForm'].forEach(id=>$(id)?.classList.add('hidden'));
@@ -277,7 +458,7 @@ async function setCoachEnabled(enabled){
   }
   save();renderMode();renderCoach();
 }
-$('finishBtn').onclick=finish;$('resetBtn').onclick=start;$('caseSelect').onchange=e=>switchCase(e.target.value);$('modeSelect').onchange=e=>switchMode(e.target.value);$('coachToggle').onchange=e=>setCoachEnabled(e.target.value==='on');$('studentName').oninput=e=>{if(state.serverMode)return;state.studentName=e.target.value;save();};$('exportRecordWordBtn').onclick=exportSelectedWord;$('exportRecordPdfBtn').onclick=exportSelectedPdf;$('closeRecordBtn').onclick=()=>{$('recordDetail').classList.add('hidden');state.selectedRecordId=null;};
+$('finishBtn').onclick=finish;$('studentExportWordBtn').onclick=exportOwnStudentWord;$('studentExportPdfBtn').onclick=exportOwnStudentPdf;$('studentReportRecheckBtn').onclick=()=>refreshStudentReportAccess({silent:false});$('resetBtn').onclick=start;$('caseSelect').onchange=e=>switchCase(e.target.value);$('modeSelect').onchange=e=>switchMode(e.target.value);$('coachToggle').onchange=e=>setCoachEnabled(e.target.value==='on');$('studentName').oninput=e=>{if(state.serverMode)return;state.studentName=e.target.value;save();};$('exportRecordWordBtn').onclick=exportSelectedWord;$('exportRecordPdfBtn').onclick=exportSelectedPdf;$('closeRecordBtn').onclick=()=>{$('recordDetail').classList.add('hidden');state.selectedRecordId=null;};
 const AI_AGENT_LABELS={patient:'Patient',coach:'Coach',evaluator:'Evaluator'};
 function promptTemplateEditor(agent,route,catalog){
   const spec=catalog?.[agent];
@@ -861,7 +1042,7 @@ function addBuilderFactRow(){
   row.querySelector('.link-danger').onclick=()=>row.remove();$('builderFacts').append(row);
 }
 function openBuilder(){$('caseBuilder').classList.remove('hidden');$('builderFacts').innerHTML='';addBuilderFactRow();$('caseBuilder').scrollIntoView({behavior:'smooth'});}
-async function saveBuilder(e){e.preventDefault();const facts=[...$('builderFacts').querySelectorAll('.fact-editor-row')].map((r,i)=>({id:'fact_'+Date.now()+'_'+i,label:r.querySelector('.bf-label').value.trim(),category:'teacher_defined',value:r.querySelector('.bf-value').value.trim(),triggers:r.querySelector('.bf-triggers').value.split(/[、,，]/).map(x=>x.trim()).filter(Boolean),mayVolunteer:false,points:Number(r.querySelector('.bf-points').value)||0})).filter(f=>f.label&&f.value&&f.triggers.length);if(!facts.length)return alert('至少需要一個完整病例資訊項目。');const id='case_'+Date.now();const c={id,title:$('builderTitle').value.trim(),studentLabel:$('builderStudentLabel').value.trim()||'自訂臨床問診案例',difficulty:$('builderDifficulty').value.trim()||'自訂',studentBrief:$('builderBrief').value.trim(),learningGoals:$('builderGoals').value.split(/\n/).map(x=>x.trim()).filter(Boolean),patient:{name:$('builderPatient').value.trim(),age:Number($('builderAge').value)||0,gender:'',persona:$('builderPersona').value.trim()},opening:$('builderOpening').value.trim(),facts:facts.map(({points,...f})=>f),rubric:facts.filter(f=>f.points>0).map(f=>({id:'rubric_'+f.id,label:f.label,factIds:[f.id],points:f.points})),source:'custom'};if(!c.title||!c.patient.name||!c.opening)return alert('請填寫病例名稱、病人姓名與開場白。');if(state.serverMode){
+async function saveBuilder(e){e.preventDefault();const facts=[...$('builderFacts').querySelectorAll('.fact-editor-row')].map((r,i)=>({id:'fact_'+Date.now()+'_'+i,label:r.querySelector('.bf-label').value.trim(),category:'teacher_defined',value:r.querySelector('.bf-value').value.trim(),triggers:r.querySelector('.bf-triggers').value.split(/[、,，]/).map(x=>x.trim()).filter(Boolean),mayVolunteer:false,points:Number(r.querySelector('.bf-points').value)||0})).filter(f=>f.label&&f.value&&f.triggers.length);if(!facts.length)return alert('至少需要一個完整病例資訊項目。');const id='case_'+Date.now();const c={id,title:$('builderTitle').value.trim(),studentLabel:$('builderStudentLabel').value.trim()||'自訂臨床問診案例',difficulty:$('builderDifficulty').value.trim()||'自訂',studentBrief:$('builderBrief').value.trim(),studentReportExportPolicy:studentReportPolicy($('builderStudentReportPolicy').value),learningGoals:$('builderGoals').value.split(/\n/).map(x=>x.trim()).filter(Boolean),patient:{name:$('builderPatient').value.trim(),age:Number($('builderAge').value)||0,gender:'',persona:$('builderPersona').value.trim()},opening:$('builderOpening').value.trim(),facts:facts.map(({points,...f})=>f),rubric:facts.filter(f=>f.points>0).map(f=>({id:'rubric_'+f.id,label:f.label,factIds:[f.id],points:f.points})),source:'custom'};if(!c.title||!c.patient.name||!c.opening)return alert('請填寫病例名稱、病人姓名與開場白。');if(state.serverMode){
   try{
     await post('/api/teacher/cases',{definition:c,status:'published'});
     state.teacherCases=[];await loadTeacherCases();

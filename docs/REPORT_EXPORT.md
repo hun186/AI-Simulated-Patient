@@ -94,3 +94,33 @@ When the full documentation is written, include:
 - the limitation for old sessions that did not retain per-turn Coach feedback;
 - LLM Provider/Model and cost provenance rules;
 - privacy guidance for exported student records.
+
+
+## Student self-download policy
+
+Completed reports can also be exposed to the student who owns the interview session.
+
+Each case has a `studentReportExportPolicy`:
+
+- `disabled` — students cannot download their own report.
+- `training_only` — students may download completed **training** reports only. This is the default for cases that do not explicitly define a policy.
+- `all_completed` — students may download both completed training and exam reports.
+
+Teacher/Admin export from **Teacher Console → Student Records** is unaffected by this student policy.
+
+For custom cases, the case creator can change the policy. Admin can change any case, including built-in system cases. Built-in cases default to `training_only`; ordinary Teachers do not globally change a shared built-in case owned by the system.
+
+The student endpoint enforces all of the following server-side:
+
+- authenticated user;
+- session belongs to that user;
+- session is completed;
+- current case policy permits the session mode.
+
+The UI hiding the download buttons is only a convenience and is not the security boundary.
+
+The policy is evaluated when the student requests the report. Therefore a later Teacher/Admin change can revoke or grant student download access for an already completed session.
+
+Student reports include Provider / Model and usage/token provenance needed for learning records, but omit internal estimated Provider cost fields. Teacher/Admin reports retain the existing cost information.
+
+In browser-local/Vercel Demo mode the same policy options are presented locally, without enabling production database APIs.
