@@ -468,3 +468,18 @@ create table if not exists interview_coach_events (
 
 create index if not exists interview_coach_events_session_idx
   on interview_coach_events(session_id,id);
+
+
+-- Evaluation failure diagnostics (SQLite migration version 10 equivalent).
+create table if not exists evaluation_failure_diagnostics (
+  error_id text primary key,
+  session_id uuid not null references interview_sessions(id) on delete cascade,
+  student_user_id uuid not null references app_users(id) on delete cascade,
+  diagnostic_json jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists evaluation_failure_diagnostics_session_idx
+  on evaluation_failure_diagnostics(session_id,created_at desc);
+create index if not exists evaluation_failure_diagnostics_student_idx
+  on evaluation_failure_diagnostics(student_user_id,created_at desc);
