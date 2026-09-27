@@ -58,7 +58,7 @@ test('OpenAI preset uses Responses API and normalizes text and usage',async()=>{
   assert.equal(result.preset,'openai');
   assert.equal(result.model,'gpt-test');
   assert.deepEqual(result.usage,{
-    inputTokens:120,cachedInputTokens:30,cacheWriteTokens:10,outputTokens:20,reasoningTokens:5,totalTokens:140
+    inputTokens:120,cachedInputTokens:30,cacheMissTokens:90,cacheReadStatus:'reported',cacheWriteTokens:10,outputTokens:20,reasoningTokens:5,totalTokens:140
   });
   assert.equal(result.serviceTier,'default');
   assert.equal(result.providerRequestId,'resp_123');
@@ -94,7 +94,7 @@ test('DeepSeek preset uses fixed OpenAI-compatible Chat Completions endpoint',as
   ]);
   assert.equal(result.text,'deepseek answer');
   assert.deepEqual(result.usage,{
-    inputTokens:90,cachedInputTokens:40,outputTokens:10,reasoningTokens:3,totalTokens:100
+    inputTokens:90,cachedInputTokens:40,cacheMissTokens:50,cacheReadStatus:'reported',outputTokens:10,reasoningTokens:3,totalTokens:100
   });
 });
 
@@ -290,7 +290,7 @@ test('Dify Chat/Chatflow uses blocking chat-messages and normalizes answer/usage
   assert.equal(result.preset,'dify');
   assert.equal(result.model,'chat');
   assert.deepEqual(result.usage,{
-    inputTokens:21,cachedInputTokens:0,outputTokens:7,reasoningTokens:0,totalTokens:28
+    inputTokens:21,cachedInputTokens:0,cacheMissTokens:0,cacheReadStatus:'unreported',outputTokens:7,reasoningTokens:0,totalTokens:28
   });
   assert.equal(result.providerRequestId,'dify-msg-1');
 });
