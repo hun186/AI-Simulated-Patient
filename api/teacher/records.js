@@ -1,6 +1,7 @@
 import { isDatabaseEnabled,query } from '../../lib/db.js';
 import { requireUser } from '../../lib/server-auth.js';
 import { ROLE_ADMIN,ROLE_TEACHER } from '../../lib/authz.js';
+import { getEvaluationAuditSummariesForSessions } from '../../lib/evaluation-audit-store.js';
 
 const SELECT_BASE=`select s.id,s.mode,s.coach_enabled as "coachEnabled",s.coach_used as "coachUsed",
  s.started_at as "startedAt",s.ended_at as "endedAt",u.id as "studentUserId",
@@ -34,7 +35,7 @@ async function attachDetails(rows){
   const studentIds=[...new Set(rows.map(row=>row.studentUserId).filter(Boolean))];
   const studentPlaceholders=placeholders(studentIds);
 
-  const [messages,coachEvents,usageEvents,currentTeachers]=await Promise.all([
+  const [messages,coachEvents,usageEvents,currentTeachers,auditsBySession]=await Promise.all([
     query(
       `select session_id as "sessionId",role,content,created_at as at
        from interview_messages where session_id in (${sessionPlaceholders})
@@ -70,7 +71,8 @@ async function attachDetails(rows){
          order by a.student_user_id,u.display_name,u.id`,
         studentIds
       )
-      :Promise.resolve([])
+      :Promise.resolve([]),
+    getEvaluationAuditSummariesForSessions(ids)
   ]);
 
   const transcriptBySession=new Map();
@@ -116,7 +118,9 @@ async function attachDetails(rows){
       llmRoutes:parseJson(row.llmRouteSnapshot,{}),
       llmUsage:usageBySession.get(row.id)||[],
       teachers:hasSnapshot?snapshot:current,
-      teacherSource:hasSnapshot?'session_snapshot':(current.length?'current_assignment':'none')
+      teacherSource:hasSnapshot?'session_snapshot':(current.length?'current_assignment':'none'),
+      evaluationAudits:auditsBySession.get(row.id)||[],
+      evaluationAudit:(auditsBySession.get(row.id)||[])[0]||null
     };
   });
 }

@@ -483,3 +483,23 @@ create index if not exists evaluation_failure_diagnostics_session_idx
   on evaluation_failure_diagnostics(session_id,created_at desc);
 create index if not exists evaluation_failure_diagnostics_student_idx
   on evaluation_failure_diagnostics(student_user_id,created_at desc);
+
+
+-- Evaluation audit traces (SQLite migration version 11 equivalent).
+create table if not exists evaluation_audits (
+  evaluation_id text primary key,
+  session_id uuid not null references interview_sessions(id) on delete cascade,
+  student_user_id uuid not null references app_users(id) on delete cascade,
+  status text not null check (status in ('success','success_normalized','success_repaired','failed')),
+  audit_json jsonb not null,
+  occurred_at timestamptz not null,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists evaluation_audits_session_idx
+  on evaluation_audits(session_id,occurred_at desc,created_at desc);
+create index if not exists evaluation_audits_student_idx
+  on evaluation_audits(student_user_id,created_at desc);
+create index if not exists evaluation_audits_expiry_idx
+  on evaluation_audits(expires_at);

@@ -9,7 +9,7 @@
 | Browser UI | training/exam 訪談、mock login 或 production auth、Teacher Console | `index.html`, `app.js`, `formal-app.js` |
 | Local/Vercel HTTP edge | static allowlist、body parsing、API routing、安全 headers；Vercel 只 rewrites 到 demo | `scripts/dev-server.mjs`, `api/`, `vercel.json` |
 | Auth／authorization | opaque cookie session、CSRF/origin、throttling、RBAC、teacher assignment、audit | `lib/server-auth.js`, `lib/authz.js`, `lib/request-security.js`, `lib/auth-throttle.js` |
-| Interview domain | case public projection、session ownership、frozen case/route snapshots、messages、evaluation、evaluation failure support snapshot | `lib/server-cases.js`, `lib/server-sessions.js`, `lib/assessment-utils.js`, `lib/evaluation-diagnostics.js` |
+| Interview domain | case public projection、session ownership、frozen case/route snapshots、messages、evaluation、evaluation audit/support snapshots | `lib/server-cases.js`, `lib/server-sessions.js`, `lib/assessment-utils.js`, `lib/evaluation-audit.js`, `lib/evaluation-diagnostics.js` |
 | LLM subsystem | provider connections、encrypted secrets、routing、prompts/adapters、provider session state、usage/pricing/quota | `lib/llm/` |
 | Report export | Teacher/Admin records、student-owned report projection、DOCX/print rendering | `api/teacher/records.js`, `api/student/report.js`, `report-export.js`, `lib/report-policy.js` |
 | Persistence | driver selection與統一 query facade；SQLite default、PostgreSQL option | `lib/db.js`, `lib/db-sqlite.js`, `lib/db-postgres.js`, `db/` |
@@ -24,7 +24,7 @@
 3. 學生取得不含 ground truth 的 published case projection，建立 training/exam session；server 凍結 case 定義與 Patient/Coach/Evaluator route snapshot。
 4. Chat 先驗證 session owner/status與 quota，再用 snapshot route 呼叫 Patient adapter；成功才保存訊息與 usage。Training 可選 Coach；exam 禁用 Coach/live guidance。
 5. Dify Stateful Chatflow（若選用）會把 `conversation_id` 依 interview session + Dify connection 保存並重用；新 interview 不沿用舊 state。
-6. Evaluate 讀完整正式 transcript、case snapshot 與 rubric，驗證結構化 evaluation contract 後才完成 session 並保存 evaluation；provider／contract 失敗時 session 保持 active。若第一次輸出與自動修復都無效，伺服器保存已遮罩的 failure snapshot 與錯誤編號；學生只取得非洩題 metadata，Teacher/Admin 可在權限範圍內查閱完整 redacted Evaluator/repair outputs。
+6. Evaluate 讀完整正式 transcript、case snapshot 與 rubric；provider JSON 先做有限 deterministic normalization，再經嚴格 contract validation，通過後才完成 session 並保存 canonical evaluation。每次 Evaluator 執行另保存 90-day audit trace，區分 success / normalized / repaired / failed；失敗時 session 保持 active，學生只取得非洩題 metadata，Teacher/Admin 可在權限範圍內查閱 redacted raw/repair/canonical outputs。
 7. Teacher/Admin 依角色與 teacher-student assignment 管理 cases、users、records、provider routing、usage/quota；安全相關動作寫 audit events。
 8. Completed production sessions 可由 Teacher/Admin records 取得；若 case policy 允許，session owner 亦可透過 student report endpoint 取得已清除內部成本欄位的報告資料。Browser 端以相同 report model 產生真實 DOCX 或 A4 print view。
 9. Browser/Vercel demo 改走 deterministic mock 與 localStorage，沒有 production auth tables、credentials 或 server transcript persistence；可使用靜態 report exporter 處理 browser-local demo records，但沒有 production student-report API。
@@ -39,7 +39,7 @@
 - Provider secret 只在 server 加解密；API 只回 masked suffix，secret 不進 browser state、prompt transcript、usage row 或 log。
 - Dify `conversation_id` 不是 credential，但必須限制在同一 interview session + connection；Stateful Evaluator final trigger 缺既有 state 時不得默默開新 conversation。
 - Student report 是否可下載由 server 依 session ownership、completed status、case policy 與 mode 重新判定；UI 按鈕不是 security boundary。
-- Evaluation failure diagnostics 也以 server RBAC 為 security boundary：學生不得取得 raw Evaluator/repair text；Teacher 只可查自己或 assigned students，Admin 可全域查閱。
+- Evaluation audits/support diagnostics 以 server RBAC 為 security boundary：學生不得取得 raw Evaluator/repair/canonical text；Teacher 只可查自己或 assigned students，Admin 可全域查閱；ZIP 只是按需匯出格式，不是 primary persistence。
 - Vercel bundle allowlist 排除 production auth、DB、teacher/student APIs、native SQLite 與 production LLM credentials。
 
 ## 核心資料與狀態
@@ -48,7 +48,7 @@
 | --- | --- |
 | Users, auth sessions, throttle, audit, assignments | `db/sqlite-schema.sql`／`db/schema.sql`; server auth services |
 | Cases | draft/published/archived；學生只見 public projection；session 留 snapshot；definition 內含 student report export policy |
-| Interview sessions/messages/evaluations | active→completed/abandoned；owner-scoped；正式 transcript/evaluation 在 DB；v9 保存 Teacher snapshot 與 per-turn Coach events，v10 另保存失敗評量的 redacted support snapshot |
+| Interview sessions/messages/evaluations | active→completed/abandoned；owner-scoped；正式 transcript/evaluation 在 DB；v9 保存 Teacher snapshot 與 per-turn Coach events，v10 保存失敗評量的 redacted support snapshot，v11 保存所有 Evaluator outcome 的 retained audit trace |
 | LLM connections/routes/provider state | system 或 teacher-owned connection；system/case route；session snapshot 不可變；Dify Stateful Chatflow 的 `conversation_id` 依 interview+connection 保存 |
 | Usage/pricing/quota | usage 保存 provider facts 與定價/FX snapshot；hard quota 在 provider call 前檢查 |
 | Browser demo state | browser localStorage；與 production DB/security domain 隔離 |
@@ -57,7 +57,7 @@
 
 - API 以 HTTP status + JSON `error` 表示失敗；LLM upstream details 正規化／清理，timeout、not configured、quota 有分離語意。
 - 沒有通用 request idempotency contract；寫入重試需先檢查 handler/schema 行為，不可自行假定安全。
-- SQLite migration 以 `PRAGMA user_version` 依序、transaction 套用；目前 current schema 為 v10；backup 只由 SQLite adapter 支援。
+- SQLite migration 以 `PRAGMA user_version` 依序、transaction 套用；目前 current schema 為 v11；backup 只由 SQLite adapter 支援。
 - 密碼以 scrypt、session/CSRF token 只存 hash；production setup/master secrets 必須外部配置。
 - 可觀測性目前是 DB audit/usage events、health endpoint 與 server console；production 規模與 SLO 未定義。
 - SQLite 適合單一一般主機；多 application hosts／較高 concurrent writes 的升級路徑是 PostgreSQL/Neon。
@@ -67,7 +67,7 @@
 | 能力 | 優先查看 | 主要驗證 |
 | --- | --- | --- |
 | Auth／帳號／權限 | `api/auth/`, `api/teacher/users.js`, `lib/server-auth.js`, `lib/authz.js` | `registration.integration.test.mjs`, `mock.test.mjs` |
-| 訪談／評量 | `api/{sessions,chat,coach,evaluate}.js`, `api/teacher/evaluation-diagnostics.js`, `lib/server-sessions.js`, `lib/evaluation-diagnostics.js` | `mock.test.mjs`, `llm-runtime.integration.test.mjs`, `evaluation-diagnostics*.test.mjs` |
+| 訪談／評量 | `api/{sessions,chat,coach,evaluate}.js`, `api/teacher/evaluation-{diagnostics,audits}.js`, `lib/server-sessions.js`, `lib/evaluation-{diagnostics,audit}.js` | `mock.test.mjs`, `llm-runtime.integration.test.mjs`, `evaluation-diagnostics*.test.mjs` |
 | LLM provider／route／secret | `lib/llm/`, `api/teacher/ai-settings.js` | `llm-*.test.mjs` |
 | Dify stateful integration | `lib/llm/providers/dify.js`, `lib/llm/provider-state.js`, `lib/llm/routes.js`, `lib/llm/agents.js` | `dify-stateful.integration.test.mjs`, Dify provider/route tests |
 | Cost／quota | `lib/llm/{usage,pricing,quota,usage-admin}.js` | pricing/quota/usage integration tests |

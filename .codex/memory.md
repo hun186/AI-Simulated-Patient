@@ -6,12 +6,19 @@
 
 - 初始化狀態：`INITIALIZED`；2026-09-26 依 commit `f04bc8c` 的實際程式、測試、manifest/lockfile、schema/migrations、README 與 docs 完成 bootstrap。
 - 目前產品基線：SQLite-first 的 AI 模擬病人教育原型；production auth/RBAC、native LLM providers、usage pricing/quota、Dify Stateful Chatflow、Teacher/Admin report export 與 case-level student report policy 已存在。
-- Current SQLite schema 由 v1 base + ordered migrations 推進至 `user_version=10`；v8 加入 provider session state，v9 加入 Teacher snapshot 與 Coach events，v10 加入 evaluation failure diagnostics。
+- Current SQLite schema 由 v1 base + ordered migrations 推進至 `user_version=11`；v8 加入 provider session state，v9 加入 Teacher snapshot 與 Coach events，v10 加入 evaluation failure diagnostics，v11 加入所有 Evaluator outcome 的 retained audit traces。
 - Vercel 必須維持 deterministic browser demo 隔離，不可把 production DB/auth/LLM code 或 credentials 納入 bundle；browser-local demo 可使用靜態 report exporter，但 production student-report API 不進 Vercel demo surface。
 - 修改 session/LLM 時維持 case/route snapshot、server-side ownership/RBAC、production no-mock-fallback 與 evaluator-before-completion 不變量。
 - Canonical 整體驗證是 `npm test`；hosted CI 定義於 `.github/workflows/ci.yml`，目前使用 Node 22、syntax checks 與 `npm test`。
 
 ## Recent Outcomes
+
+### 2026-09-27 — Retained evaluation audit traces
+
+- 每次已開始的 Evaluator 執行都建立 `EVL-...` audit trace，區分 `success`、`success_normalized`、`success_repaired`、`failed`；raw/repaired output、normalization actions、canonical evaluation 與 provider metadata 保存在 server-side audit record。
+- audit 預設保留 90 天（可由 `EVALUATION_AUDIT_RETENTION_DAYS` 調整），過期資料不再由查詢 API 回傳，並在新 audit 寫入時 opportunistic pruning；ZIP 只在教師／Admin 需要時即時產生。
+- Teacher/Admin 依既有 assignment RBAC 查閱 raw/canonical audit；學生只看到安全 Evaluation ID/狀態摘要。Teacher record 保留同一 session 的完整 audit history，可選任一執行下載技術診斷包。
+- v11 新增 `evaluation_audits`；Vercel deterministic demo 不暴露 production audit API。
 
 ### 2026-09-27 — Evaluator evidence compatibility fix
 

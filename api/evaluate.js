@@ -9,31 +9,65 @@ import { getProviderSessionState,setProviderSessionState } from '../lib/llm/prov
 import { isProductionEnv } from '../lib/request-security.js';
 import { buildEvaluationFailureDiagnostic,projectEvaluationFailureDiagnostic } from '../lib/evaluation-diagnostics.js';
 import { saveEvaluationFailureDiagnostic } from '../lib/evaluation-diagnostic-store.js';
+import { buildEvaluationAudit,evaluationAuditSummary } from '../lib/evaluation-audit.js';
+import { saveEvaluationAudit } from '../lib/evaluation-audit-store.js';
 
 function parseJson(value,fallback={}){
   if(value==null) return fallback;
   if(typeof value==='string'){try{return JSON.parse(value);}catch{return fallback;}}
   return value&&typeof value==='object'?value:fallback;
 }
-function providerFailure(res,error){
+async function persistEvaluationAudit({session,user,route,status,initialResult=null,initialError=null,repairResult=null,repairError=null,canonicalEvaluation=null}){
+  const audit=buildEvaluationAudit({
+    session,user,route,status,initialResult,initialError,repairResult,repairError,canonicalEvaluation
+  });
+  try{
+    audit.storage={persisted:true};
+    await saveEvaluationAudit({
+      audit,sessionId:session.id,studentUserId:session.student_user_id
+    });
+  }catch(storeError){
+    audit.storage={persisted:false};
+    console.warn('evaluation_audit_store_failed',audit.evaluationId,storeError?.message||storeError);
+  }
+  return audit;
+}
+function evaluationResponse(evaluation,audit){
+  return {
+    ...evaluation,
+    audit:{
+      ...evaluationAuditSummary(audit),
+      persisted:Boolean(audit?.storage?.persisted)
+    }
+  };
+}
+
+function safeAuditResponse(audit){
+  return audit?{
+    ...evaluationAuditSummary(audit),
+    persisted:Boolean(audit?.storage?.persisted)
+  }:null;
+}
+function providerFailure(res,error,{audit=null}={}){
+  const auditSummary=safeAuditResponse(audit);
   if(error?.code==='AI_USAGE_QUOTA_EXCEEDED'){
-    res.status(429).json({error:error.code,dimension:error.dimension});
+    res.status(429).json({error:error.code,dimension:error.dimension,...(auditSummary?{audit:auditSummary}:{})});
     return true;
   }
   if(error?.code==='AI_PROVIDER_NOT_CONFIGURED'){
-    res.status(503).json({error:'AI_EVALUATOR_PROVIDER_NOT_CONFIGURED'});
+    res.status(503).json({error:'AI_EVALUATOR_PROVIDER_NOT_CONFIGURED',...(auditSummary?{audit:auditSummary}:{})});
     return true;
   }
   if(error?.code==='dify_conversation_state_missing'){
-    res.status(409).json({error:'DIFY_CONVERSATION_STATE_MISSING'});
+    res.status(409).json({error:'DIFY_CONVERSATION_STATE_MISSING',...(auditSummary?{audit:auditSummary}:{})});
     return true;
   }
   if(error?.code==='timeout'){
-    res.status(504).json({error:'AI_PROVIDER_TIMEOUT'});
+    res.status(504).json({error:'AI_PROVIDER_TIMEOUT',...(auditSummary?{audit:auditSummary}:{})});
     return true;
   }
   if(error?.code){
-    res.status(502).json({error:'AI_PROVIDER_FAILURE',code:error.code});
+    res.status(502).json({error:'AI_PROVIDER_FAILURE',code:error.code,...(auditSummary?{audit:auditSummary}:{})});
     return true;
   }
   return false;
@@ -73,7 +107,15 @@ export default async function handler(req,res){
         revealedFactIds:revealed,mode:session.mode
       });
       await completeSession(sessionId,result);
-      return res.status(200).json(result);
+      const audit=await persistEvaluationAudit({
+        session,user,route,status:'success',
+        initialResult:{
+          text:JSON.stringify(result),provider:'mock',preset:'mock',model:'deterministic-mock',
+          normalization:{applied:false,actions:[]}
+        },
+        canonicalEvaluation:result
+      });
+      return res.status(200).json(evaluationResponse(result,audit));
     }
 
     try{await enforceLlmQuota({userId:user.id});}catch(error){if(providerFailure(res,error)) return;throw error;}
@@ -90,14 +132,26 @@ export default async function handler(req,res){
       await persistProviderState(result);
       await recordAttempt({started,result});
       await completeSession(sessionId,result.evaluation);
-      return res.status(200).json(result.evaluation);
+      const audit=await persistEvaluationAudit({
+        session,user,route,
+        status:result.normalization?.applied?'success_normalized':'success',
+        initialResult:result,
+        canonicalEvaluation:result.evaluation
+      });
+      return res.status(200).json(evaluationResponse(result.evaluation,audit));
     }catch(error){
       if(error?.llmResult)await persistProviderState(error.llmResult);
       await recordAttempt({started,error});
 
       if(error?.code==='INVALID_EVALUATION_CONTRACT' && error?.llmResult){
         try{await enforceLlmQuota({userId:user.id});}
-        catch(quotaError){if(providerFailure(res,quotaError)) return;throw quotaError;}
+        catch(quotaError){
+          const audit=await persistEvaluationAudit({
+            session,user,route,status:'failed',initialError:error,repairError:quotaError
+          });
+          if(providerFailure(res,quotaError,{audit})) return;
+          throw quotaError;
+        }
 
         const repairStarted=Date.now();
         try{
@@ -111,14 +165,32 @@ export default async function handler(req,res){
           await persistProviderState(repaired);
           await recordAttempt({started:repairStarted,result:repaired});
           await completeSession(sessionId,repaired.evaluation);
-          return res.status(200).json(repaired.evaluation);
+          const audit=await persistEvaluationAudit({
+            session,user,route,status:'success_repaired',
+            initialError:error,repairResult:repaired,
+            canonicalEvaluation:repaired.evaluation
+          });
+          return res.status(200).json(evaluationResponse(repaired.evaluation,audit));
         }catch(repairError){
           if(repairError?.llmResult)await persistProviderState(repairError.llmResult);
           await recordAttempt({started:repairStarted,error:repairError});
           if(repairError?.code==='EVALUATION_REPAIR_FAILED' && repairError?.llmResult){
+            const audit=await persistEvaluationAudit({
+              session,user,route,status:'failed',
+              initialError:error,repairError
+            });
             const diagnostic=buildEvaluationFailureDiagnostic({
               session,user,route,initialError:error,repairError
             });
+            diagnostic.errorId=audit.evaluationId;
+            diagnostic.occurredAt=audit.occurredAt;
+            diagnostic.downloadFilename='evaluation-debug-'+audit.evaluationId+'.zip';
+            diagnostic.audit={
+              evaluationId:audit.evaluationId,
+              status:audit.status,
+              expiresAt:audit.expiresAt,
+              persisted:Boolean(audit.storage?.persisted)
+            };
             try{
               diagnostic.storage={persisted:true};
               await saveEvaluationFailureDiagnostic({
@@ -134,13 +206,19 @@ export default async function handler(req,res){
               diagnostic:projectEvaluationFailureDiagnostic(diagnostic,{role:user.role})
             });
           }
-          const mappedRepair=providerFailure(res,repairError);
+          const audit=await persistEvaluationAudit({
+            session,user,route,status:'failed',initialError:error,repairError
+          });
+          const mappedRepair=providerFailure(res,repairError,{audit});
           if(mappedRepair) return mappedRepair;
           throw repairError;
         }
       }
 
-      const mapped=providerFailure(res,error);
+      const audit=await persistEvaluationAudit({
+        session,user,route,status:'failed',initialError:error
+      });
+      const mapped=providerFailure(res,error,{audit});
       if(mapped) return mapped;
       throw error;
     }
