@@ -117,6 +117,8 @@ test('Ollama preset is keyless by default and uses local OpenAI-compatible endpo
   assert.equal(calls[0].url,'http://127.0.0.1:11434/v1/chat/completions');
   assert.equal('Authorization' in calls[0].options.headers,false);
   assert.equal(result.text,'local answer');
+  assert.equal(result.usage.cacheReadStatus,'unreported');
+  assert.equal(result.usage.cacheMissTokens,0);
 });
 
 test('Ollama Cloud uses hosted OpenAI-compatible endpoint with bearer API key',async()=>{
@@ -424,4 +426,25 @@ test('Dify Stateful mode rejects Workflow because conversation_id is a Chatflow 
     },{fetchImpl:async()=>fakeResponse({json:{}})}),
     error=>error.code==='invalid_request'
   );
+});
+
+
+test('custom OpenAI-compatible endpoint preserves vLLM-style cached token telemetry',async()=>{
+  const {generateLlm}=await gateway();
+  const result=await generateLlm({
+    connection:{providerKind:'openai_compatible',preset:'custom',baseUrl:'http://vllm.internal/v1',apiKey:'',defaultModel:'qwen3'},
+    messages:[{role:'user',content:'shared-prefix then task'}]
+  },{fetchImpl:async()=>fakeResponse({json:{
+    id:'vllm-cache-1',model:'qwen3',
+    choices:[{message:{content:'ok'}}],
+    usage:{
+      prompt_tokens:100,
+      prompt_tokens_details:{cached_tokens:64},
+      completion_tokens:8,
+      total_tokens:108
+    }
+  }})});
+  assert.equal(result.usage.cacheReadStatus,'reported');
+  assert.equal(result.usage.cachedInputTokens,64);
+  assert.equal(result.usage.cacheMissTokens,36);
 });
