@@ -11,6 +11,7 @@
 | `HTTP-003` | Interview lifecycle | server ↔ student UI | `api/sessions.js`, `api/chat.js`, `api/coach.js`, `api/evaluate.js` | product-critical |
 | `HTTP-004` | Teacher management | server ↔ Teacher Console | `api/teacher/*.js` | RBAC-sensitive |
 | `HTTP-005` | Isolated Vercel demo | `api/demo.js` ↔ public demo UI | `vercel.json`, `.vercelignore`, Vercel tests | intentionally reduced |
+| `HTTP-006` | Student report export | server → owning student | `api/student/report.js`, `lib/report-policy.js`, report tests | privacy/RBAC-sensitive |
 | `DB-001` | Relational schema/migrations | DB adapters/services | `db/schema.sql`, `db/sqlite-schema.sql`, `db/migrations/*.sql` | versioned |
 | `LLM-001` | Provider gateway result/error | adapters ↔ agents/routes/usage | `lib/llm/provider-gateway.js`, provider tests | normalized internal contract |
 | `EVAL-001` | Structured evaluation | evaluator/mock ↔ session/UI | `lib/llm/evaluation-contract.js`, `lib/mock-evaluator.js`, tests | validated before persistence |
@@ -43,29 +44,38 @@
 
 - Cases: `GET/POST /api/teacher/cases`; Teacher/Admin only; definition validated, write status limited to draft/published.
 - Users/records: `GET/POST /api/teacher/users`, `GET /api/teacher/records`; Admin global scope, Teacher assigned-student scope. POST actions are defined in handler and require CSRF.
-- AI settings: `GET/POST /api/teacher/ai-settings`; actions manage/test connections and system/case routes. Teacher owns only allowed preset connections/cases; custom/private endpoints and system scope are Admin-only; secret responses remain masked/write-only.
+- AI settings: `GET/POST /api/teacher/ai-settings`; actions manage/test connections and system/case routes. Teacher owns only allowed preset connections/cases; arbitrary Custom endpoints and system scope are Admin-only, while Teacher-owned Ollama Local/Dify endpoints remain constrained by endpoint-safety rules; secret responses remain masked/write-only.
 - Usage: `GET/POST /api/teacher/llm-usage`; GET summary/users/quota/pricing and POST quota/pricing actions. Admin sees/manages global scope; Teacher sees self+assigned students and edits assigned-student quota only; pricing is Admin-only.
 
 ### `HTTP-005` Vercel demo
 
-- `vercel.json` rewrites only runtime, health, cases, chat, coach, evaluate and teacher-cases to `api/demo.js`.
-- `.vercelignore` allowlists static assets, deterministic mock dependencies and the single demo function; production auth, DB, sessions, audit and teacher-account/LLM APIs must not enter the bundle.
+- `vercel.json` rewrites only runtime, health, cases, chat, coach, evaluate, teacher-cases and the read-only AI-settings preview to `api/demo.js`.
+- `.vercelignore` allowlists static assets, deterministic mock dependencies and the single demo function; production auth, DB, sessions, audit and production teacher/student APIs must not enter the bundle.
 - Demo identities/state are browser-local and must not be represented as production authentication or durable persistence.
+- Static report-export code may be present for browser-local demo records, but the production `/api/student/report` endpoint is intentionally not part of the Vercel demo API surface.
+
+### `HTTP-006` student report export
+
+- `GET /api/student/report?sessionId=...` is database-mode and student-only.
+- The handler requires an authenticated student, a completed session owned by that student, and a case policy that permits export for the session mode.
+- Policy values are `disabled`, `training_only` (default), and `all_completed`; authorization is enforced server-side, not by button visibility.
+- Student projections include transcript/evaluation and sanitized Provider/Model plus token/usage provenance, but omit internal Provider cost fields and all credentials/secrets.
 
 ## Data and LLM contracts
 
 ### `DB-001` schema and migration
 
-- `db/sqlite-schema.sql` is v1 base schema; lexically ordered `db/migrations/NNN_*.sql` advance SQLite to current `user_version=4` transactionally. Never edit an already-deployed migration without an explicit compatibility decision.
+- `db/sqlite-schema.sql` is the v1 base schema; lexically ordered `db/migrations/NNN_*.sql` advance SQLite to current `user_version=9` transactionally. Never edit an already-deployed migration without an explicit compatibility decision.
 - `db/schema.sql` keeps the PostgreSQL structure aligned. Query callers use PostgreSQL-style `$n` placeholders; SQLite facade translates them.
-- Core constraints cover role/status/mode/session state; v2 adds encrypted LLM connections/routes/usage and route snapshots, v3 usage status, v4 pricing snapshot and user quotas.
+- Core evolution: v2 encrypted LLM connections/routes/usage and route snapshots; v3 usage status; v4 pricing snapshot and user quotas; v5 Teacher-owned case routes; v6 time/context pricing, FX and TWD snapshots; v7 Ollama Cloud pricing seed; v8 provider session state for Dify `conversation_id`; v9 Teacher snapshot and persisted Coach events for report export.
 - Timestamps are stored as UTC-like text generated by DB/application conventions; costs are non-negative integer micro-USD, not floating USD.
 
 ### `LLM-001` provider normalization
 
-- Gateway input comprises preset/endpoint/model, rendered messages and server-loaded credential; OpenAI uses Responses API, DeepSeek/Ollama/custom use OpenAI-compatible Chat Completions.
+- Gateway input comprises preset/endpoint/model, rendered messages and server-loaded credential; OpenAI uses Responses API, DeepSeek/Ollama/Custom use OpenAI-compatible Chat Completions, and Dify uses its Application API for Chat/Chatflow, Workflow or Completion.
 - Normalized success supplies text, provider/preset/model, usage token dimensions, latency/request metadata as available; errors expose normalized codes without upstream bodies, endpoints or secrets.
 - Route precedence and supported scopes are defined in `lib/llm/routes.js`; snapshot stored on interview session is authoritative during that session.
+- Dify Stateful Chatflow is valid only for Chat mode. Its `conversation_id` is persisted per `(interview session, connection)` in `llm_provider_session_state`, reused within that interview, and never reused by a new interview. A configured Evaluator final trigger requires the existing provider state instead of silently opening a new Dify conversation.
 
 ### `EVAL-001` evaluation
 
