@@ -24,7 +24,7 @@ test('AI Settings respects provider scope and keeps stored keys masked/write-onl
 
   assert.match(app,/\['ollama_cloud','Ollama Cloud'\]/);
   assert.match(app,/\['ollama','Ollama Local'\]/);
-  assert.match(app,/Teacher 可建立自己的 OpenAI、DeepSeek、Ollama Cloud 與 Ollama Local/);
+  assert.match(app,/Teacher 可建立自己的 OpenAI、DeepSeek、Ollama Cloud、Ollama Local 與 Dify API/);
   assert.match(app,/connection\.apiKeyLast4\?'••••'/);
   assert.match(app,/data-ai-edit/);
   assert.match(app,/data-ai-toggle/);
@@ -84,7 +84,7 @@ test('runtime UI explains missing Evaluator routes and evaluation provider failu
 test('Ollama Cloud is API-key based while Ollama Local keeps its local endpoint workflow',()=>{
   const app=readFileSync('formal-app.js','utf8');
   const connections=readFileSync('lib/llm/connections.js','utf8');
-  assert.match(app,/\['openai','deepseek','ollama_cloud'\]\.includes\(preset\)/);
+  assert.match(app,/\['openai','deepseek','ollama_cloud','dify'\]\.includes\(preset\)/);
   assert.match(app,/deepseek-v4-pro 或 deepseek-v4\.1-flash/);
   assert.match(connections,/ollama_cloud:\{providerKind:'openai_compatible',baseUrl:'https:\/\/ollama\.com\/v1'/);
   assert.match(connections,/storedPreset:'ollama'/);
@@ -114,7 +114,7 @@ test('AI Settings exposes safe customizable Patient Coach Evaluator and Final Fe
 test('Teacher AI Settings includes free Ollama Local while arbitrary Custom endpoints remain Admin-only',()=>{
   const app=readFileSync('formal-app.js','utf8');
   const connections=readFileSync('lib/llm/connections.js','utf8');
-  assert.match(app,/:\[\['openai','OpenAI'\],\['deepseek','DeepSeek'\],\['ollama_cloud','Ollama Cloud'\],\['ollama','Ollama Local（OpenAI 相容端點）'\]\]/);
+  assert.match(app,/:\[\['openai','OpenAI'\],\['deepseek','DeepSeek'\],\['ollama_cloud','Ollama Cloud'\],\['ollama','Ollama Local（OpenAI 相容端點）'\],\['dify','Dify API'\]\]/);
   assert.match(app,/Teacher 可建立自己的 OpenAI、DeepSeek、Ollama Cloud 與 Ollama Local/);
   assert.match(connections,/ollama:\{providerKind:'openai_compatible',baseUrl:'http:\/\/127\.0\.0\.1:11434\/v1',teacherAllowed:true,keyRequired:false\}/);
   assert.match(connections,/custom:\{providerKind:'openai_compatible',baseUrl:null,teacherAllowed:false/);
@@ -124,10 +124,10 @@ test('Teacher AI Settings includes free Ollama Local while arbitrary Custom endp
 test('Teacher can configure a private-network Ollama Local Base URL',()=>{
   const app=readFileSync('formal-app.js','utf8');
   const connections=readFileSync('lib/llm/connections.js','utf8');
-  assert.match(app,/const showBase=preset==='ollama'\|\|\(state\.user\?\.role==='admin'&&preset==='custom'\)/);
+  assert.match(app,/const showBase=\['ollama','dify'\]\.includes\(preset\)\|\|\(state\.user\?\.role==='admin'&&preset==='custom'\)/);
   assert.match(app,/http:\/\/192\.168\.1\.50:11434\/v1/);
-  assert.match(app,/if\(preset==='ollama'\|\|\(state\.user\?\.role==='admin'&&preset==='custom'\)\)payload\.baseUrl=/);
-  assert.match(app,/connection\.preset==='ollama'/);
+  assert.match(app,/if\(\['ollama','dify'\]\.includes\(preset\)\|\|\(state\.user\?\.role==='admin'&&preset==='custom'\)\)payload\.baseUrl=/);
+  assert.match(app,/\['ollama','dify'\]\.includes\(connection\.preset\)/);
   assert.match(connections,/normalizeOllamaLocalBaseUrl/);
   assert.match(connections,/OLLAMA_LOCAL_ENDPOINT_NOT_ALLOWED/);
   assert.match(connections,/a===10/);
