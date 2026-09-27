@@ -13,7 +13,7 @@ test('Teacher Console AI Settings UI exposes provider and agent routing controls
   assert.match(html,/id="aiRouteGrid"/);
 
   assert.match(app,/document\.querySelector\('\[data-view="ai"\]'\)\.classList\.toggle\('hidden',\(!state\.serverMode&&!state\.demoAuth\)\|\|!staff\)/);
-  assert.match(app,/async function renderAiSettings\(\)\{\s*if\(!state\.serverMode\|\|!\['teacher','admin'\]\.includes\(state\.user\?\.role\)\)return;/);
+  assert.match(app,/async function renderAiSettings\(\)\{\s*if\(\(!state\.serverMode&&!state\.demoAuth\)\|\|!\['teacher','admin'\]\.includes\(state\.user\?\.role\)\)return;/);
   assert.match(app,/fetch\('\/api\/teacher\/ai-settings'\)/);
 });
 
