@@ -143,3 +143,33 @@ test('saving an empty Agent route selection restores the unconfigured fallback s
   assert.match(app,/已恢復為未設定（Rule-based \/ 系統預設）/);
   assert.doesNotMatch(app,/if\(!connectionId\)return alert\('請先選擇 Provider 連線。'\)/);
 });
+
+
+test('Prompt template editors provide modal examples with copy and one-click apply',()=>{
+  const html=readFileSync('index.html','utf8');
+  const app=readFileSync('formal-app.js','utf8');
+  const css=readFileSync('formal.css','utf8');
+  const prompts=readFileSync('lib/llm/prompts.js','utf8');
+
+  assert.match(html,/id="promptExampleDialog"/);
+  assert.match(html,/id="promptExampleText"/);
+  assert.match(html,/id="promptExampleCopyBtn"/);
+  assert.match(html,/id="promptExampleApplyBtn"/);
+
+  assert.match(app,/data-prompt-example-agent/);
+  assert.match(app,/function openPromptExample/);
+  assert.match(app,/function copyPromptExample/);
+  assert.match(app,/function applyPromptExample/);
+  assert.match(app,/promptExampleTarget\.value=\$\('promptExampleText'\)\.value/);
+  assert.match(app,/navigator\.clipboard\.writeText/);
+
+  assert.match(css,/\.prompt-example-dialog/);
+  assert.match(css,/#promptExampleText/);
+
+  assert.match(prompts,/exampleTitle:'自然、簡短、漸進揭露'/);
+  assert.match(prompts,/exampleTitle:'蘇格拉底式、少量提示'/);
+  assert.match(prompts,/exampleTitle:'證據導向、避免關鍵字式給分'/);
+  assert.match(prompts,/exampleTitle:'鼓勵但具體的教學回饋'/);
+  assert.match(prompts,/\{\{patient_name\}\}/);
+  assert.match(prompts,/\{\{learning_goals\}\}/);
+});
