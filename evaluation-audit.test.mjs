@@ -36,7 +36,7 @@ test('evaluation audit retains redacted evaluator evidence and deterministic nor
   assert.equal(audit.normalization.initial.actions.length,2);
   assert.equal(audit.canonicalEvaluation.totalScore,28);
   assert.equal(audit.attempts.initial.responseText.includes('abcdefghijklmnop'),false);
-  assert.match(audit.attempts.initial.responseText,/[REDACTED]/);
+  assert.match(audit.attempts.initial.responseText,/\[REDACTED\]/);
   const serialized=JSON.stringify(audit);
   assert.equal(serialized.includes('DO NOT STORE'),false);
   assert.equal(serialized.includes('SECRET TITLE'),false);
@@ -53,7 +53,7 @@ test('evaluation audit retains redacted evaluator evidence and deterministic nor
   const teacher=projectEvaluationAudit(audit,{role:'teacher'});
   assert.equal(teacher.access.rawResponsesIncluded,true);
   assert.equal(teacher.canonicalEvaluation.totalScore,28);
-  assert.match(teacher.access.staffLookupPath,/evaluation-audits?evaluationId=EVL-/);
+  assert.match(teacher.access.staffLookupPath,/evaluation-audits\?evaluationId=EVL-/);
 
   const summary=evaluationAuditSummary(audit);
   assert.equal(summary.status,'success_normalized');
