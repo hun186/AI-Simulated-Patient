@@ -21,7 +21,7 @@ test('evaluation diagnostics keep useful metadata while excluding route secrets 
   };
 
   const diagnostic=buildEvaluationFailureDiagnostic({
-    session:{id:'session-1',case_id:'case-1',mode:'training'},
+    session:{id:'session-1',case_id:'case-1',case_snapshot:JSON.stringify({studentLabel:'案例 A｜成人溝通初診',title:'INTERNAL TITLE'}),mode:'training'},
     user:{id:'student-secret-id',role:'student'},
     route:{
       connectionId:'connection-1',preset:'ollama',model:'qwen-test',
@@ -34,6 +34,8 @@ test('evaluation diagnostics keep useful metadata while excluding route secrets 
   assert.match(diagnostic.errorId,/^EVL-20260927-[A-F0-9]{8}$/);
   assert.equal(diagnostic.session.id,'session-1');
   assert.equal(diagnostic.session.userRole,'student');
+  assert.equal(diagnostic.session.caseLabel,'案例 A｜成人溝通初診');
+  assert.equal(JSON.stringify(diagnostic).includes('INTERNAL TITLE'),false);
   assert.equal('userId' in diagnostic.session,false);
   assert.equal(diagnostic.evaluatorRoute.connectionId,'connection-1');
   assert.equal(diagnostic.evaluatorRoute.preset,'ollama');
@@ -74,6 +76,7 @@ test('student projection hides evaluator text while staff projection keeps it',(
   const student=projectEvaluationFailureDiagnostic(diagnostic,{role:'student'});
   assert.equal(student.access.rawResponsesIncluded,false);
   assert.equal(student.attempts.initial.responseText,'');
+  assert.equal('connectionId' in student.evaluatorRoute,false);
   assert.equal(student.attempts.initial.responseRestricted,true);
   assert.equal(student.attempts.repair.responseText,'');
   assert.match(student.access.staffLookupPath,/\/api\/teacher\/evaluation-diagnostics\?errorId=EVL-20260927-/);
