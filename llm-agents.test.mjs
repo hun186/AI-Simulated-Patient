@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildPatientPrompt,buildCoachPrompt,buildEvaluatorPrompt,evaluationResponseFormat
+  buildPatientPrompt,buildCoachPrompt,buildEvaluatorPrompt,evaluationResponseFormat,
+  validatePromptTemplate,renderPromptTemplate,getPromptTemplateCatalog
 } from './lib/llm/prompts.js';
 import {
   validateEvaluationContract,parseAndValidateEvaluation
@@ -175,4 +176,76 @@ test('Evaluator prompt includes a concrete JSON example for compatible JSON-outp
   assert.match(evaluator,/Example JSON shape/);
   assert.match(evaluator,/"totalScore":0/);
   assert.match(evaluator,/"status":"missed"/);
+});
+
+
+test('custom prompt templates expand only safe variables and remain subordinate to locked rules',()=>{
+  const templatedSession={
+    ...session,mode:'training',
+    case_snapshot:{...caseDefinition,internalTitle:'Aphasia Practice',learningGoals:['history','communication']}
+  };
+  const patient=buildPatientPrompt({
+    session:templatedSession,
+    customTemplate:'Use gentle wording for {{patient_name}} in {{case_title}}. Goals: {{learning_goals}}. Mode={{mode}}.'
+  });
+  assert.match(patient,/Stay in character/);
+  assert.match(patient,/Educator Patient customization/);
+  assert.match(patient,/Use gentle wording for 王先生 in Aphasia Practice/);
+  assert.ok(patient.indexOf('Stay in character')<patient.indexOf('Educator Patient customization'));
+
+  const evaluator=buildEvaluatorPrompt({
+    session:templatedSession,transcript,
+    customTemplate:'Be strict about evidence for {{case_title}}.',
+    feedbackTemplate:'Give concise, supportive feedback to guide the next practice.'
+  });
+  assert.match(evaluator,/Educator Evaluator scoring customization/);
+  assert.match(evaluator,/Be strict about evidence for Aphasia Practice/);
+  assert.match(evaluator,/overall\.comment/);
+  assert.match(evaluator,/Give concise, supportive feedback/);
+  assert.ok(evaluator.indexOf('Evaluate only evidence')<evaluator.indexOf('Educator Evaluator scoring customization'));
+
+  assert.throws(
+    ()=>validatePromptTemplate('Leak {{hidden_facts}}'),
+    error=>error.code==='UNSUPPORTED_PROMPT_VARIABLE'
+  );
+  assert.equal(renderPromptTemplate('{{patient_age}}',{session:templatedSession}),'68');
+  const catalog=getPromptTemplateCatalog();
+  assert.equal(catalog.maxChars,8000);
+  assert.equal(catalog.evaluator.fields.some(field=>field.key==='feedbackTemplate'),true);
+  assert.equal(catalog.placeholders.includes('{{hidden_facts}}'),false);
+});
+
+test('agents send snapshotted route prompt customizations to provider system prompts',async()=>{
+  const bodies=[];
+  const fetchImpl=async(_url,options)=>{
+    const body=JSON.parse(options.body);
+    bodies.push(body);
+    const isEvaluator=body.response_format?.type==='json_object';
+    return {
+      ok:true,status:200,headers:{get:()=>null},
+      async json(){return {
+        id:'custom-prompt-test',model:'local-model',
+        choices:[{message:{content:isEvaluator?JSON.stringify(validEvaluation()):'ok'}}],
+        usage:{prompt_tokens:10,completion_tokens:5,total_tokens:15}
+      };}
+    };
+  };
+  const connection={providerKind:'openai_compatible',preset:'custom',baseUrl:'https://llm.example/v1',apiKey:'x',defaultModel:'local-model'};
+  await runPatientAgent({
+    session,message:'hi',transcript:[],fetchImpl,
+    route:{connection,providerKind:'openai_compatible',preset:'custom',model:'local-model',config:{promptTemplate:'Patient custom {{patient_name}}'}}
+  });
+  await runCoachAgent({
+    session,transcript,fetchImpl,
+    route:{connection,providerKind:'openai_compatible',preset:'custom',model:'local-model',config:{promptTemplate:'Coach custom instruction'}}
+  });
+  await runEvaluatorAgent({
+    session,transcript,fetchImpl,
+    route:{connection,providerKind:'openai_compatible',preset:'custom',model:'local-model',config:{promptTemplate:'Score custom',feedbackTemplate:'Feedback custom'}}
+  });
+
+  assert.match(bodies[0].messages[0].content,/Patient custom 王先生/);
+  assert.match(bodies[1].messages[0].content,/Coach custom instruction/);
+  assert.match(bodies[2].messages[0].content,/Score custom/);
+  assert.match(bodies[2].messages[0].content,/Feedback custom/);
 });
