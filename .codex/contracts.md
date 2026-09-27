@@ -11,7 +11,8 @@
 | `HTTP-003` | Interview lifecycle | server ↔ student UI | `api/sessions.js`, `api/chat.js`, `api/coach.js`, `api/evaluate.js` | product-critical |
 | `HTTP-004` | Teacher management | server ↔ Teacher Console | `api/teacher/*.js` | RBAC-sensitive |
 | `HTTP-005` | Isolated Vercel demo | `api/demo.js` ↔ public demo UI | `vercel.json`, `.vercelignore`, Vercel tests | intentionally reduced |
-| `HTTP-006` | Student report export | server → owning student | `api/student/report.js`, `lib/report-policy.js`, report tests | privacy/RBAC-sensitive |\n| `HTTP-007` | Evaluation failure support | evaluator → student/staff support UI | `api/evaluate.js`, `api/teacher/evaluation-diagnostics.js`, `lib/evaluation-diagnostics.js` | privacy/RBAC-sensitive |
+| `HTTP-006` | Student report export | server → owning student | `api/student/report.js`, `lib/report-policy.js`, report tests | privacy/RBAC-sensitive |
+| `HTTP-007` | Evaluation failure support | evaluator → student/staff support UI | `api/evaluate.js`, `api/teacher/evaluation-diagnostics.js`, `lib/evaluation-diagnostics.js` | privacy/RBAC-sensitive |
 | `DB-001` | Relational schema/migrations | DB adapters/services | `db/schema.sql`, `db/sqlite-schema.sql`, `db/migrations/*.sql` | versioned |
 | `LLM-001` | Provider gateway result/error | adapters ↔ agents/routes/usage | `lib/llm/provider-gateway.js`, provider tests | normalized internal contract |
 | `EVAL-001` | Structured evaluation | evaluator/mock ↔ session/UI | `lib/llm/evaluation-contract.js`, `lib/mock-evaluator.js`, tests | validated before persistence |
@@ -60,6 +61,13 @@
 - The handler requires an authenticated student, a completed session owned by that student, and a case policy that permits export for the session mode.
 - Policy values are `disabled`, `training_only` (default), and `all_completed`; authorization is enforced server-side, not by button visibility.
 - Student projections include transcript/evaluation and sanitized Provider/Model plus token/usage provenance, but omit internal Provider cost fields and all credentials/secrets.
+
+### `HTTP-007` evaluation failure support
+
+- Failed Evaluator contract repair receives an opaque `EVL-...` error ID, safe route/runtime metadata, validation codes and support instructions; the session stays active for retry.
+- The server persists the redacted first Evaluator output and redacted repair output in `evaluation_failure_diagnostics`. API keys, Authorization/cookies/passwords, provider Base URL, prompt templates and transcript are excluded from this snapshot.
+- Student responses/downloads deliberately omit the raw Evaluator outputs to avoid leaking rubric/case-ground-truth material, especially in exam mode. The support package still includes the error ID and staff lookup path.
+- `GET /api/teacher/evaluation-diagnostics?errorId=...` is Teacher/Admin-only. Admin scope is global; Teacher scope is self/assigned-student only. This production DB endpoint is not part of the Vercel demo surface.
 
 ## Data and LLM contracts
 
