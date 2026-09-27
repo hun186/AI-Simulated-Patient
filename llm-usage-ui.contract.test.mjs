@@ -93,6 +93,8 @@ test('usage analytics exposes time, dimensional, outcome and cache filters',()=>
   assert.match(app,/params\.set\('caseId'/);
   assert.match(app,/params\.set\('outcome'/);
   assert.match(app,/params\.set\('cacheStatus'/);
+  assert.match(app,/usageRows\('使用者'/);
+  assert.match(app,/usageRows\('病例'/);
 });
 
 test('cache KPI distinguishes hit rate from telemetry coverage',()=>{
