@@ -64,7 +64,7 @@ test('fresh SQLite database advances to schema version 10 with LLM provider foun
   }
 });
 
-test('existing schema version 1 database migrates to version 9 without losing data',()=>{
+test('existing schema version 1 database migrates to version 10 without losing data',()=>{
   const dir=mkdtempSync(join(tmpdir(),'aisp-migrate-v1-'));
   const dbPath=join(dir,'aisp.sqlite');
   try{
@@ -127,7 +127,7 @@ test('database whose user_version was reset to 1 is reconciled from applied migr
     assert.equal(recovered.schemaVersion,10);
     const check=new Database(dbPath,{readonly:true});
     try{
-      assert.equal(check.pragma('user_version',{simple:true}),9);
+      assert.equal(check.pragma('user_version',{simple:true}),10);
       assert.equal(
         check.prepare("select count(*) as count from sqlite_master where type='table' and name='llm_provider_connections'").get().count,
         1
