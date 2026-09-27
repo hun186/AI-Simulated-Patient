@@ -290,3 +290,76 @@ test('usage snapshots USD and TWD costs with the effective FX reference rate',()
     assert.equal(row.cache_write_tokens,100000);
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+
+test('Ollama Cloud pricing follows UTC weekday peak window and keeps local inference free',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'aisp-pricing-ollama-cloud-'));
+  const dbPath=join(dir,'aisp.sqlite');
+  try{
+    const script=`
+      const {ollamaCloudPricingBand,resolvePricingRule,estimateUsageCost}=await import('./lib/llm/pricing.js');
+      const peakBand=ollamaCloudPricingBand('2026-09-28T12:00:00Z');
+      const offBand=ollamaCloudPricingBand('2026-09-28T18:00:00Z');
+      const weekend=ollamaCloudPricingBand('2026-10-03T13:00:00Z');
+      const peak=await resolvePricingRule({preset:'ollama',model:'cloud::deepseek-v4-pro',at:'2026-09-28T13:00:00Z'});
+      const off=await resolvePricingRule({preset:'ollama',model:'cloud::deepseek-v4-pro',at:'2026-09-28T19:00:00Z'});
+      const proxied=await resolvePricingRule({preset:'ollama',model:'deepseek-v4-pro:cloud',at:'2026-09-28T13:00:00Z'});
+      const local=await resolvePricingRule({preset:'ollama',model:'deepseek-v4-pro',at:'2026-09-28T13:00:00Z'});
+      const usage={inputTokens:1000000,cachedInputTokens:250000,outputTokens:100000,reasoningTokens:0,totalTokens:1100000};
+      console.log(JSON.stringify({
+        peakBand,offBand,weekend,peak,off,proxied,local,
+        peakCost:estimateUsageCost({usage,usageStatus:'reported',rule:peak}),
+        offCost:estimateUsageCost({usage,usageStatus:'reported',rule:off}),
+        localCost:estimateUsageCost({usage,usageStatus:'reported',rule:local})
+      }));
+    `;
+    const result=run(script,dbPath);
+    assert.equal(result.status,0,result.stderr);
+    const data=JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1));
+    assert.equal(data.peakBand,'peak');
+    assert.equal(data.offBand,'off_peak');
+    assert.equal(data.weekend,'off_peak');
+    assert.equal(data.peak.inputMicrousdPerMillion,1320000);
+    assert.equal(data.peak.cachedInputMicrousdPerMillion,44000);
+    assert.equal(data.peak.outputMicrousdPerMillion,3960000);
+    assert.equal(data.off.inputMicrousdPerMillion,660000);
+    assert.equal(data.off.cachedInputMicrousdPerMillion,22000);
+    assert.equal(data.off.outputMicrousdPerMillion,1980000);
+    assert.equal(data.proxied.inputMicrousdPerMillion,1320000);
+    assert.equal(data.local.inputMicrousdPerMillion,0);
+    assert.equal(data.peakCost.estimatedCostMicrousd,1417000);
+    assert.equal(data.offCost.estimatedCostMicrousd,708500);
+    assert.equal(data.localCost.estimatedCostMicrousd,0);
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('recordLlmUsage prices direct Ollama Cloud and snapshots TWD cost',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'aisp-pricing-ollama-cloud-usage-'));
+  const dbPath=join(dir,'aisp.sqlite');
+  try{
+    const script=`
+      const {query}=await import('./lib/db.js');
+      const {recordLlmUsage}=await import('./lib/llm/usage.js');
+      await recordLlmUsage({
+        userId:null,sessionId:null,caseId:null,agentType:'patient',
+        route:{connectionId:null,providerKind:'openai_compatible',preset:'ollama_cloud',model:'deepseek-v4-pro'},
+        result:{
+          model:'deepseek-v4-pro',preset:'ollama',usageStatus:'reported',
+          usage:{inputTokens:1000000,cachedInputTokens:250000,outputTokens:100000,reasoningTokens:0,totalTokens:1100000},
+          latencyMs:5
+        },
+        occurredAt:'2026-09-28T13:00:00Z'
+      });
+      console.log(JSON.stringify((await query(
+        'select preset,estimated_cost_microusd,estimated_cost_microntd,pricing_rule_id from llm_usage_events order by id'
+      ))[0]));
+    `;
+    const result=run(script,dbPath);
+    assert.equal(result.status,0,result.stderr);
+    const row=JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1));
+    assert.equal(row.preset,'ollama_cloud');
+    assert.equal(row.estimated_cost_microusd,1417000);
+    assert.equal(row.estimated_cost_microntd,45030260);
+    assert.match(row.pricing_rule_id,/ollama-direct-deepseek-v4-pro-peak/);
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
