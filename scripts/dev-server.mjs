@@ -94,7 +94,7 @@ http.createServer(async(req,res)=>{
     const path=parsedUrl.pathname;
     if(routes.has(path)){req.body=await parseBody(req);return await routes.get(path)(req,makeResponse(res));}
     const filePath=path==='/'?'/index.html':path;
-    if(!['/index.html','/styles.css','/formal.css','/app.js','/formal-app.js','/report-export.js'].includes(filePath)){res.writeHead(404);return res.end('Not found');}
+    if(!['/index.html','/styles.css','/formal.css','/app.js','/formal-app.js','/report-export.js','/support-bundle.js'].includes(filePath)){res.writeHead(404);return res.end('Not found');}
     const file=await readFile(join(root,filePath));
     res.writeHead(200,{'content-type':mime[extname(filePath)]||'application/octet-stream'});res.end(file);
   }catch(error){
