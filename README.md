@@ -112,7 +112,7 @@ Supported presets are OpenAI, DeepSeek, Ollama, and generic OpenAI-compatible en
 
 Session routes are snapshotted when an interview starts, so later route edits do not silently change an active interview. Provider usage and failures are recorded in `llm_usage_events`.
 
-The Vercel PoC remains an isolated deterministic Mock demonstration and receives no production LLM credentials.
+The Vercel PoC remains an isolated deterministic Mock demonstration and receives no production LLM credentials. Teacher/Admin demo roles may open the LLM Provider / Agent Route / Prompt Template settings UI as a read-only product preview; those controls do not persist settings, test connections, or invoke external LLMs.
 
 See `docs/LLM_PROVIDERS.md`.
 
