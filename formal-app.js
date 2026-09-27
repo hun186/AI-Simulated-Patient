@@ -9,20 +9,35 @@ const modeLabel=m=>m==='exam'?'考試評量':'訓練學習';
 const currentCaseDefinition=()=>state.customCases.find(c=>c.id===state.caseId)||null;
 
 function save(){if(state.serverMode)return;write(SKEY,{caseId:state.caseId,mode:state.mode,studentName:state.studentName,transcript:state.transcript,revealedFactIds:state.revealedFactIds,sessionId:state.sessionId,coach:state.coach,coachEnabled:state.coachEnabled,coachUsed:state.coachUsed});}
+function sessionStartErrorMessage(error){
+  const code=error?.details?.error||error?.message||'';
+  if(code==='AI_PROVIDER_NOT_CONFIGURED') return '此病例尚未設定 Patient AI，請先到 AI 設定指定 Patient Provider / Model。';
+  if(code==='AI_EVALUATOR_PROVIDER_NOT_CONFIGURED') return '此病例尚未設定 Evaluator AI，請先到 AI 設定指定 Evaluator Provider / Model，否則無法完成評量。';
+  if(code==='AI_COACH_PROVIDER_NOT_CONFIGURED') return 'AI Coach 已開啟，但此病例尚未設定 Coach AI。請先到 AI 設定指定 Coach Provider / Model，或先關閉 Coach。';
+  return '無法開始病例：'+(code||'請檢查 AI 設定。');
+}
 async function start(){
   state.revealedFactIds=[];state.coach=null;state.coachUsed=state.mode==='training'&&state.coachEnabled;
   $('resultCard').classList.add('hidden');
-  if(state.serverMode){
-    const d=await post('/api/sessions',{caseId:state.caseId,mode:state.mode,coachEnabled:state.coachEnabled});
-    state.sessionId=d.session.id;
-    state.sessionRuntime=d.session.runtime||null;
-    state.transcript=[{role:'patient',content:d.session.opening,at:new Date().toISOString()}];
-  }else{
-    state.sessionId=uid();
-    state.sessionRuntime={patient:{providerKind:'mock',preset:'mock',model:'deterministic-mock'}};
-    state.transcript=[{role:'patient',content:state.caseData.opening,at:new Date().toISOString()}];
+  try{
+    if(state.serverMode){
+      const d=await post('/api/sessions',{caseId:state.caseId,mode:state.mode,coachEnabled:state.coachEnabled});
+      state.sessionId=d.session.id;
+      state.sessionRuntime=d.session.runtime||null;
+      state.transcript=[{role:'patient',content:d.session.opening,at:new Date().toISOString()}];
+    }else{
+      state.sessionId=uid();
+      state.sessionRuntime={patient:{providerKind:'mock',preset:'mock',model:'deterministic-mock'}};
+      state.transcript=[{role:'patient',content:state.caseData.opening,at:new Date().toISOString()}];
+    }
+    save();renderAll();
+    return true;
+  }catch(error){
+    state.sessionId=null;state.sessionRuntime=null;state.transcript=[];
+    renderAll();
+    alert(sessionStartErrorMessage(error));
+    return false;
   }
-  save();renderAll();
 }
 function renderAll(){renderHeader();renderMode();renderChat();renderCoach();}
 function providerLabel(route){
@@ -54,7 +69,16 @@ async function post(url,payload){
 }
 async function ask(q){state.transcript.push({role:'student',content:q,at:new Date().toISOString()});renderChat();$('sendBtn').disabled=true;try{const d=await post('/api/chat',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,message:q,revealedFactIds:state.serverMode?[]:state.revealedFactIds});if(!state.serverMode)state.revealedFactIds=d.revealedFactIds;state.transcript.push({role:'patient',content:d.reply,at:new Date().toISOString()});if(state.mode==='training'&&state.coachEnabled){state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds});state.coachUsed=true;}save();renderChat();renderMode();renderCoach();}catch{state.transcript.push({role:'patient',content:'（系統暫時無法取得回覆。）'});renderChat();}finally{$('sendBtn').disabled=false;}}
 function renderEvaluation(d){$('resultCard').classList.remove('hidden');$('scoreCircle').textContent=String(d.percentage);$('resultMode').textContent=modeLabel(d.mode)+' · '+d.totalScore+'/'+d.maxScore+' 分';$('overallComment').textContent=d.overall.comment;$('strengthList').innerHTML=d.overall.strengths.map(x=>'<li>'+esc(x)+'</li>').join('');$('improvementList').innerHTML=d.overall.improvements.map(x=>'<li>'+esc(x)+'</li>').join('');$('recommendationList').innerHTML=d.overall.recommendations.map(x=>'<li>'+esc(x)+'</li>').join('');$('nextPracticeFocus').textContent=d.overall.nextPracticeFocus;$('rubricTable').innerHTML=d.items.map(i=>'<div class="rubric-item"><div class="rubric-main"><strong>'+esc(i.criterion)+'</strong><span>'+i.score+'/'+i.maxScore+'</span><span class="status status-'+i.status+'">'+(i.status==='covered'?'完整涵蓋':i.status==='partial'?'部分涵蓋':'未涵蓋')+'</span></div><div class="rubric-detail"><span>'+esc(i.reasoning)+'</span>'+(i.evidence?.[0]?'<span class="evidence-quote">證據：「'+esc(i.evidence[0].quote)+'」</span>':'')+'</div></div>').join('');}
-async function finish(){try{const d=await post('/api/evaluate',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.revealedFactIds,mode:state.mode});renderEvaluation(d);if(state.serverMode){if(['teacher','admin'].includes(state.user?.role))await renderRecords();return;}const rec={id:state.sessionId,studentName:state.studentName||'未填姓名',caseTitle:state.caseData.studentLabel||state.caseData.title||'臨床問診案例',mode:state.mode,coachUsed:state.mode==='training'&&state.coachUsed,completedAt:new Date().toISOString(),transcript:state.transcript,evaluation:d};state.records=read(RKEY,[]);const ix=state.records.findIndex(x=>x.id===rec.id);if(ix>=0)state.records[ix]=rec;else state.records.unshift(rec);write(RKEY,state.records);renderRecords();}catch{alert('評量失敗');}}
+function evaluationErrorMessage(error){
+  const code=error?.details?.code||error?.details?.error||error?.message||'';
+  if(code==='AI_EVALUATOR_PROVIDER_NOT_CONFIGURED') return '評量失敗：此 session 沒有設定 Evaluator AI。請重新開始病例並先完成 Evaluator route 設定。';
+  if(code==='timeout'||code==='AI_PROVIDER_TIMEOUT') return '評量失敗：Evaluator 回應逾時，請稍後再試。';
+  if(code==='invalid_response') return '評量失敗：AI Provider 沒有回傳可用的評量內容。';
+  if(code==='INVALID_EVALUATION_CONTRACT'||code==='INVALID_EVALUATION_JSON') return '評量失敗：AI 回傳的評量格式不符合要求，session 仍保持未完成，可再次嘗試。';
+  if(code==='AI_USAGE_QUOTA_EXCEEDED') return '評量失敗：此帳號已達 LLM 使用上限。';
+  return '評量失敗：'+(code||'請檢查 Evaluator AI 設定或稍後再試。');
+}
+async function finish(){try{const d=await post('/api/evaluate',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.revealedFactIds,mode:state.mode});renderEvaluation(d);if(state.serverMode){if(['teacher','admin'].includes(state.user?.role))await renderRecords();return;}const rec={id:state.sessionId,studentName:state.studentName||'未填姓名',caseTitle:state.caseData.studentLabel||state.caseData.title||'臨床問診案例',mode:state.mode,coachUsed:state.mode==='training'&&state.coachUsed,completedAt:new Date().toISOString(),transcript:state.transcript,evaluation:d};state.records=read(RKEY,[]);const ix=state.records.findIndex(x=>x.id===rec.id);if(ix>=0)state.records[ix]=rec;else state.records.unshift(rec);write(RKEY,state.records);renderRecords();}catch(error){alert(evaluationErrorMessage(error));}}
 function renderCases(){const list=state.teacherCases.length?state.teacherCases:state.customCases;$('teacherCaseList').innerHTML=list.length?list.map(c=>'<div class="manage-row"><div><strong>'+esc(c.internalTitle||c.title||'未命名病例')+'</strong><small>學生看到：'+esc(c.studentLabel||'臨床問診案例')+' · '+esc(c.patient?.name||'')+' · '+esc(c.difficulty||'')+' · '+(c.learningGoals||[]).length+' 個學習目標</small></div><span class="readonly-pill">'+(c.source==='custom'?'教師建立':'系統內建')+'</span></div>').join(''):'<p class="empty">尚無病例。</p>';}
 async function renderRecords(){if(state.serverMode){if(!['teacher','admin'].includes(state.user?.role))return;try{
   const rows=(await fetch('/api/teacher/records').then(r=>r.json())).records||[];

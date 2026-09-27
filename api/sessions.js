@@ -22,6 +22,7 @@ export default async function handler(req,res){
     if(error.message==='CASE_NOT_FOUND') return res.status(404).json({error:'Case not found'});
     if(error.code==='AI_PROVIDER_NOT_CONFIGURED') return res.status(503).json({error:error.code});
     if(error.code==='AI_COACH_PROVIDER_NOT_CONFIGURED') return res.status(503).json({error:error.code});
+    if(error.code==='AI_EVALUATOR_PROVIDER_NOT_CONFIGURED') return res.status(503).json({error:error.code});
     throw error;
   }
 }
