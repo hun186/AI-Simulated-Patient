@@ -150,6 +150,20 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
       ?{...failedAuditRows[0],audit:typeof failedAuditRows[0].audit==='string'?JSON.parse(failedAuditRows[0].audit):failedAuditRows[0].audit}
       :null;
 
+    const createProviderFailRes=response();
+    await sessionsHandler(request({caseId:'aphasia_001',mode:'training',coachEnabled:false},auth),createProviderFailRes);
+    const providerFailSessionId=createProviderFailRes.body.session.id;
+    providerMode='http-fail';
+    const providerFailEvalRes=response();
+    await evaluateHandler(request({sessionId:providerFailSessionId},auth),providerFailEvalRes);
+    const providerFailAuditRows=await query(
+      'select evaluation_id as "evaluationId",status,audit_json as audit from evaluation_audits where session_id=$1 order by created_at desc',
+      [providerFailSessionId]
+    );
+    const providerFailAudit=providerFailAuditRows[0]
+      ?{...providerFailAuditRows[0],audit:typeof providerFailAuditRows[0].audit==='string'?JSON.parse(providerFailAuditRows[0].audit):providerFailAuditRows[0].audit}
+      :null;
+
     await deleteRoute(admin,coachRoute.id);
     const createNoCoachRes=response();
     await sessionsHandler(request({caseId:'aphasia_001',mode:'training',coachEnabled:false},auth),createNoCoachRes);
@@ -168,6 +182,7 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
       repairedEvaluation:{status:repairedEvalRes.statusCode,body:repairedEvalRes.body,sessionStatus:completedAfterRepair,rows:evalRows.length,audit:repairedAudit},
       normalizedEvaluation:{status:normalizedEvalRes.statusCode,body:normalizedEvalRes.body,audit:normalizedAudit},
       persistentInvalid:{status:persistentInvalidRes.statusCode,body:persistentInvalidRes.body,sessionStatus:activeAfterPersistentInvalid,audit:failedAudit},
+      providerFailureEvaluation:{status:providerFailEvalRes.statusCode,body:providerFailEvalRes.body,audit:providerFailAudit},
       persistedDiagnostic,
       enableMissingCoach:{status:enableMissingCoachRes.statusCode,body:enableMissingCoachRes.body,coachEnabled:Boolean(coachStateAfterRejectedEnable)},
       usage:usageRows
@@ -240,6 +255,16 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     assert.equal(data.persistedDiagnostic.session.id,data.persistentInvalid.body.diagnostic.session.id);
     assert.equal(data.persistedDiagnostic.attempts.initial.responseText,'{"totalScore":10}');
     assert.equal(data.persistedDiagnostic.attempts.repair.responseText,'{"totalScore":10}');
+
+    assert.equal(data.providerFailureEvaluation.status,502);
+    assert.equal(data.providerFailureEvaluation.body.error,'AI_PROVIDER_FAILURE');
+    assert.equal(data.providerFailureEvaluation.body.audit.status,'failed');
+    assert.equal(data.providerFailureEvaluation.body.audit.persisted,true);
+    assert.equal(data.providerFailureEvaluation.audit.status,'failed');
+    assert.equal(data.providerFailureEvaluation.audit.audit.attempts.initial.validation.code,'http_error');
+    assert.equal(data.providerFailureEvaluation.audit.audit.attempts.initial.responseText,'');
+    assert.equal(JSON.stringify(data.providerFailureEvaluation.audit.audit).includes('secret upstream body'),false);
+
     assert.equal(data.enableMissingCoach.status,503);
     assert.equal(data.enableMissingCoach.body.error,'AI_COACH_PROVIDER_NOT_CONFIGURED');
     assert.equal(data.enableMissingCoach.coachEnabled,false);
