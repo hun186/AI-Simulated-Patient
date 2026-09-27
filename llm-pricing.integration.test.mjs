@@ -363,3 +363,38 @@ test('recordLlmUsage prices direct Ollama Cloud and snapshots TWD cost',()=>{
     assert.match(row.pricing_rule_id,/ollama-direct-deepseek-v4-pro-peak/);
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+
+test('cache savings snapshot uses the same effective pricing rule as the usage event',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'aisp-cache-savings-'));
+  const dbPath=join(dir,'aisp.sqlite');
+  try{
+    const script=`
+      const {query}=await import('./lib/db.js');
+      const {recordLlmUsage}=await import('./lib/llm/usage.js');
+      const route={connectionId:null,providerKind:'openai_compatible',preset:'deepseek',model:'deepseek-flash'};
+      const result={
+        model:'deepseek-flash',preset:'deepseek',usageStatus:'reported',
+        usage:{
+          inputTokens:1000000,cachedInputTokens:250000,cacheMissTokens:750000,
+          cacheReadStatus:'reported',outputTokens:100000,reasoningTokens:0,totalTokens:1100000
+        },latencyMs:5
+      };
+      await recordLlmUsage({
+        userId:null,sessionId:null,caseId:null,agentType:'evaluator',route,result,
+        occurredAt:'2026-09-28T01:30:00Z'
+      });
+      console.log(JSON.stringify((await query(
+        'select cached_input_tokens,cache_miss_tokens,cache_read_status,cache_savings_microusd,cache_savings_microntd from llm_usage_events order by id'
+      ))[0]));
+    `;
+    const result=run(script,dbPath);
+    assert.equal(result.status,0,result.stderr);
+    const row=JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1));
+    assert.equal(row.cached_input_tokens,250000);
+    assert.equal(row.cache_miss_tokens,750000);
+    assert.equal(row.cache_read_status,'reported');
+    assert.equal(row.cache_savings_microusd,73500);
+    assert.equal(row.cache_savings_microntd,2335830);
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
