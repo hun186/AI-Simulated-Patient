@@ -102,3 +102,29 @@ test('Teacher record UI wires Word and PDF export actions',()=>{
   assert.match(html,/id="exportRecordWordBtn"/);
   assert.match(html,/id="exportRecordPdfBtn"/);
 });
+
+
+test('Student report export UI follows per-case policy and keeps Teacher export separate',()=>{
+  const app=readFileSync('formal-app.js','utf8');
+  const html=readFileSync('index.html','utf8');
+  const server=readFileSync('scripts/dev-server.mjs','utf8');
+  const teacherCases=readFileSync('api/teacher/cases.js','utf8');
+  const studentReport=readFileSync('api/student/report.js','utf8');
+
+  assert.match(app,/training_only:'僅訓練模式可下載'/);
+  assert.match(app,/all_completed:'訓練與考試完成後皆可下載'/);
+  assert.match(app,/function studentCanExport/);
+  assert.match(app,/function exportOwnStudentWord/);
+  assert.match(app,/function exportOwnStudentPdf/);
+  assert.match(app,/action:'setStudentReportExportPolicy'/);
+  assert.match(html,/id="studentReportExportActions"/);
+  assert.match(html,/id="studentExportWordBtn"/);
+  assert.match(html,/id="studentExportPdfBtn"/);
+  assert.match(html,/id="builderStudentReportPolicy"/);
+  assert.match(teacherCases,/setStudentReportExportPolicy/);
+  assert.match(studentReport,/STUDENT_REPORT_EXPORT_NOT_ALLOWED/);
+  assert.match(studentReport,/s\.student_user_id=\$2/);
+  assert.doesNotMatch(studentReport,/estimated_cost_microusd/);
+  assert.match(server,/\['\/api\/student\/report',studentReportHandler\]/);
+  assert.match(server,/'\/report-export\.js'/);
+});
