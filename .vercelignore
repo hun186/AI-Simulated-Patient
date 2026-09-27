@@ -8,6 +8,7 @@
 !/formal.css
 !/formal-app.js
 !/report-export.js
+!/support-bundle.js
 !/api
 /api/*
 !/api/demo.js
