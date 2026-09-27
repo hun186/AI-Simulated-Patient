@@ -38,7 +38,8 @@
 - Production DB mode 缺 route、quota exceeded 或 provider failure 必須明確失敗，不得 silent fallback 到 mock；失敗的 Patient reply 不落 transcript，無效 evaluation 不完成 session。
 - Provider secret 只在 server 加解密；API 只回 masked suffix，secret 不進 browser state、prompt transcript、usage row 或 log。
 - Dify `conversation_id` 不是 credential，但必須限制在同一 interview session + connection；Stateful Evaluator final trigger 缺既有 state 時不得默默開新 conversation。
-- Student report 是否可下載由 server 依 session ownership、completed status、case policy 與 mode 重新判定；UI 按鈕不是 security boundary。\n- Evaluation failure diagnostics 也以 server RBAC 為 security boundary：學生不得取得 raw Evaluator/repair text；Teacher 只可查自己或 assigned students，Admin 可全域查閱。
+- Student report 是否可下載由 server 依 session ownership、completed status、case policy 與 mode 重新判定；UI 按鈕不是 security boundary。
+- Evaluation failure diagnostics 也以 server RBAC 為 security boundary：學生不得取得 raw Evaluator/repair text；Teacher 只可查自己或 assigned students，Admin 可全域查閱。
 - Vercel bundle allowlist 排除 production auth、DB、teacher/student APIs、native SQLite 與 production LLM credentials。
 
 ## 核心資料與狀態
