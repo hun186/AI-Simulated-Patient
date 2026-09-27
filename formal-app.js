@@ -321,27 +321,46 @@ function applyPromptExample(){
 
 function aiPresetOptions(){
   const items=state.user?.role==='admin'
-    ?[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local'],['custom','OpenAI-compatible / Custom']]
-    :[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local（OpenAI 相容端點）']];
+    ?[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local'],['dify','Dify API'],['custom','OpenAI-compatible / Custom']]
+    :[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local（OpenAI 相容端點）'],['dify','Dify API']];
   return items.map(([value,label])=>'<option value="'+value+'">'+label+'</option>').join('');
 }
 function syncAiPresetFields(){
   const preset=$('aiPreset').value;
-  const showBase=preset==='ollama'||(state.user?.role==='admin'&&preset==='custom');
+  const showBase=['ollama','dify'].includes(preset)||(state.user?.role==='admin'&&preset==='custom');
   $('aiBaseUrlRow').classList.toggle('hidden',!showBase);
-  $('aiApiKey').required=['openai','deepseek','ollama_cloud'].includes(preset);
+  $('aiApiKey').required=['openai','deepseek','ollama_cloud','dify'].includes(preset);
   const placeholders={
     openai:'例如：gpt-5-mini',
     deepseek:'例如：deepseek-flash 或 deepseek-v4-pro',
     ollama_cloud:'例如：deepseek-v4-pro 或 deepseek-v4.1-flash',
     ollama:'例如：qwen3:latest 或 deepseek-v4-pro:cloud',
+    dify:'chat、workflow 或 completion',
     custom:'Provider 的 model id'
   };
   $('aiDefaultModel').placeholder=placeholders[preset]||'模型名稱';
   $('aiBaseUrl').placeholder=preset==='ollama'
     ?'例如：http://192.168.1.50:11434/v1'
-    :'https://.../v1';
+    :preset==='dify'
+      ?'預設：https://api.dify.ai/v1；自架 Dify 可改網址'
+      :'https://.../v1';
 }
+function difyRouteEditor(route){
+  const config=route?.config||{};
+  const inputsJson=JSON.stringify(config.difyInputs||{},null,2);
+  return '<div class="dify-route-config hidden">'+
+    '<div class="dify-route-note"><strong>Dify Route 設定</strong><span>Chat/Chatflow 會把完整 system prompt 與 transcript 放進 query；Workflow 會放進指定 input key。</span></div>'+
+    '<label>Workflow input key<input data-dify-input-key value="'+esc(config.difyInputKey||'prompt')+'" placeholder="prompt"></label>'+
+    '<label>Workflow output key<input data-dify-output-key value="'+esc(config.difyOutputKey||'text')+'" placeholder="text"></label>'+
+    '<label>Dify 固定 inputs JSON<textarea data-dify-inputs-json placeholder="{}">'+esc(inputsJson)+'</textarea></label>'+
+    '</div>';
+}
+function syncDifyRouteCard(card){
+  const connectionId=card?.querySelector('.ai-route-connection')?.value;
+  const connection=(state.aiSettings?.connections||[]).find(item=>item.id===connectionId);
+  card?.querySelector('.dify-route-config')?.classList.toggle('hidden',connection?.preset!=='dify');
+}
+
 function manageableAiConnection(connection){
   return state.user?.role==='admin'||(connection.scopeType==='teacher'&&connection.ownerUserId===state.user?.id);
 }
@@ -369,8 +388,8 @@ async function renderAiSettings(){
     $('aiPreset').innerHTML=aiPresetOptions();
     syncAiPresetFields();
     $('aiRestrictionNote').textContent=state.user?.role==='admin'
-      ?'Admin 可建立系統級 OpenAI、DeepSeek、Ollama Cloud、Ollama Local 與自訂 OpenAI-compatible 連線。'
-      :'Teacher 可建立自己的 OpenAI、DeepSeek、Ollama Cloud 與 Ollama Local 連線；Ollama Local 可指定 localhost / 私有網段 Base URL，自訂任意端點仍由 Admin 管理。';
+      ?'Admin 可建立系統級 OpenAI、DeepSeek、Ollama Cloud、Ollama Local、Dify API 與自訂 OpenAI-compatible 連線。'
+      :'Teacher 可建立自己的 OpenAI、DeepSeek、Ollama Cloud、Ollama Local 與 Dify API 連線；Dify 可使用官方端點或允許的私有端點。';
 
     $('aiConnectionList').innerHTML=(data.connections||[]).map(connection=>{
       const canManage=manageableAiConnection(connection);
@@ -410,6 +429,7 @@ async function renderAiSettings(){
       return '<section class="ai-route-card" data-agent="'+agent+'"><header><strong>'+AI_AGENT_LABELS[agent]+'</strong><small>'+(route?'已設定':'未設定')+'</small></header>'+
         '<label>Provider / Model<select class="ai-route-connection"><option value="">未設定（Rule-based / 系統預設）</option>'+options+'</select></label>'+
         promptTemplateEditor(agent,route,data.promptTemplates)+
+        difyRouteEditor(route)+
         '<div class="ai-route-actions"><button class="secondary small-btn" type="button" data-ai-route-save="'+agent+'">儲存 Provider / Model / Prompt</button>'+
         (route?'<button class="small-btn danger-btn" type="button" data-ai-route-delete="'+route.id+'">移除</button>':'')+'</div></section>';
     }).join('');
@@ -417,6 +437,11 @@ async function renderAiSettings(){
     $('aiRouteGrid').querySelectorAll('[data-ai-route-delete]').forEach(button=>button.onclick=()=>deleteAiRoute(button.dataset.aiRouteDelete));
     $('aiRouteGrid').querySelectorAll('[data-prompt-example-agent]').forEach(button=>{
       button.onclick=()=>openPromptExample(button.dataset.promptExampleAgent,button.dataset.promptExampleKey);
+    });
+    $('aiRouteGrid').querySelectorAll('.ai-route-card').forEach(card=>{
+      const select=card.querySelector('.ai-route-connection');
+      if(select)select.onchange=()=>syncDifyRouteCard(card);
+      syncDifyRouteCard(card);
     });
   }catch{
     $('aiConnectionList').innerHTML='<p class="empty">AI 設定讀取失敗。</p>';
@@ -431,7 +456,7 @@ async function createAiConnection(event){
     action:'createConnection',name:$('aiConnectionName').value.trim(),preset,
     defaultModel:$('aiDefaultModel').value.trim(),apiKey:$('aiApiKey').value
   };
-  if(preset==='ollama'||(state.user?.role==='admin'&&preset==='custom'))payload.baseUrl=$('aiBaseUrl').value.trim();
+  if(['ollama','dify'].includes(preset)||(state.user?.role==='admin'&&preset==='custom'))payload.baseUrl=$('aiBaseUrl').value.trim();
   try{
     await post('/api/teacher/ai-settings',payload);
     $('aiConnectionForm').reset();$('aiApiKey').value='';await renderAiSettings();
@@ -443,13 +468,13 @@ async function editAiConnection(connectionId){
   if(!connection)return;
   const name=prompt('連線名稱',connection.name);
   if(name===null)return;
-  const model=prompt('預設模型',connection.defaultModel);
+  const model=prompt(connection.preset==='dify'?'Dify App 類型（chat / workflow / completion）':'預設模型',connection.defaultModel);
   if(model===null)return;
   const apiKey=prompt('新的 API Key（留空表示保留原本金鑰）','');
   const payload={action:'updateConnection',connectionId,name:name.trim(),preset:connection.preset,defaultModel:model.trim(),isActive:connection.isActive};
-  if(connection.preset==='ollama'||(state.user?.role==='admin'&&connection.preset==='custom')){
+  if(['ollama','dify'].includes(connection.preset)||(state.user?.role==='admin'&&connection.preset==='custom')){
     const baseUrl=prompt(
-      connection.preset==='ollama'?'Ollama Local Base URL':'Base URL',
+      connection.preset==='ollama'?'Ollama Local Base URL':connection.preset==='dify'?'Dify Base URL':'Base URL',
       connection.baseUrl||''
     );
     if(baseUrl===null)return;
@@ -520,6 +545,18 @@ async function saveAiRoute(agentType){
   card.querySelectorAll('[data-prompt-key]').forEach(field=>{
     config[field.dataset.promptKey]=field.value.trim();
   });
+  if(connection?.preset==='dify'){
+    config.difyInputKey=card.querySelector('[data-dify-input-key]')?.value.trim()||'prompt';
+    config.difyOutputKey=card.querySelector('[data-dify-output-key]')?.value.trim()||'text';
+    const inputsText=card.querySelector('[data-dify-inputs-json]')?.value.trim()||'{}';
+    try{
+      const parsed=JSON.parse(inputsText);
+      if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)) throw new Error('object');
+      config.difyInputs=parsed;
+    }catch{
+      return alert('Dify 固定 inputs 必須是 JSON object，例如：{"language":"zh-TW"}');
+    }
+  }
   const payload={agentType,connectionId,model:connection?.defaultModel||'',config};
   if(state.user?.role==='admin')payload.action='setSystemRoute';
   else{payload.action='setCaseRoute';payload.caseId=caseId;}
