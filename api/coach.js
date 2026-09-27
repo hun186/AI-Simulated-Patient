@@ -2,7 +2,7 @@ import { mockCoach } from '../lib/mock-coach.js';
 import { assessCriterion,questionQuality,studentTurns } from '../lib/assessment-utils.js';
 import { isDatabaseEnabled } from '../lib/db.js';
 import { requireUser,requireCsrf } from '../lib/server-auth.js';
-import { getOwnedSession,getTranscript } from '../lib/server-sessions.js';
+import { getOwnedSession,getTranscript,appendCoachEvent } from '../lib/server-sessions.js';
 import { runCoachAgent } from '../lib/llm/agents.js';
 import { recordLlmUsage } from '../lib/llm/usage.js';
 import { enforceLlmQuota } from '../lib/llm/quota.js';
@@ -69,9 +69,11 @@ export default async function handler(req,res){
     const route=routes.coach||null;
 
     if(!isProductionEnv() && route?.preset==='mock'){
-      return res.status(200).json(mockCoach({
+      const payload=mockCoach({
         caseId:session.case_id,caseDefinition:caseSnapshot,transcript:serverTranscript,revealedFactIds:revealed
-      }));
+      });
+      await appendCoachEvent(sessionId,{provider:'mock',model:'deterministic-mock',...payload});
+      return res.status(200).json(payload);
     }
 
     const providerState=route?.connectionId
@@ -100,9 +102,11 @@ export default async function handler(req,res){
       userId:user.id,sessionId,caseId:session.case_id,agentType:'coach',route,result,
       occurredAt:new Date(started).toISOString()
     });
-    return res.status(200).json({
+    const payload={
       provider:result.preset,model:result.model,...coachShape(caseSnapshot,serverTranscript,result.guidance)
-    });
+    };
+    await appendCoachEvent(sessionId,payload);
+    return res.status(200).json(payload);
   }catch(error){
     console.error(error);return res.status(500).json({error:'Unexpected error'});
   }
