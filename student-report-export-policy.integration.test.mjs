@@ -70,9 +70,9 @@ test('student report export policy enforces owner, completion, mode and current 
       rubric:[{id:'r1',label:'主訴',factIds:['fact1'],points:1}]
     };
     await query(
-      `insert into cases
-        (id,version,internal_title,student_label,difficulty,student_brief,definition_json,status,created_by)
-       values ($1,1,$2,$3,$4,$5,$6::jsonb,'published',$7)`,
+      'insert into cases '+
+      '(id,version,internal_title,student_label,difficulty,student_brief,definition_json,status,created_by) '+
+      "values ($1,1,$2,$3,$4,$5,$6::jsonb,'published',$7)",
       [definition.id,definition.title,definition.studentLabel,definition.difficulty,definition.studentBrief,JSON.stringify(definition),teacher.id]
     );
 
