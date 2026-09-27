@@ -75,13 +75,13 @@ function whereSql(scope){
   return scope.where.length?' where '+scope.where.join(' and '):'';
 }
 
-function userProjection(row,prefix){
+function userProjection(row,prefix,{viewerId,canViewAll}){
   const id=row[prefix+'UserId'];
   if(!id) return null;
   return {
     id,
-    displayName:row[prefix+'DisplayName']||'',
-    email:row[prefix+'Email']||''
+    displayName:canViewAll||id===viewerId?(row[prefix+'DisplayName']||''):'',
+    email:canViewAll||id===viewerId?(row[prefix+'Email']||''):''
   };
 }
 
@@ -111,7 +111,7 @@ export default async function handler(req,res){
   try{
     const isRestrictedToSelf=!hasPermission(user.role,PERMISSIONS.SECURITY_AUDIT_ALL);
     const requestedPage=boundedInt(req.query?.page,{fallback:1,min:1,max:1000000});
-    const pageSize=boundedInt(req.query?.pageSize??req.query?.limit,{fallback:25,min:10,max:100});
+    const pageSize=boundedInt(req.query?.pageSize??req.query?.limit,{fallback:25,min:10,max:200});
     const from=isoParam(req.query?.from,'INVALID_AUDIT_FROM');
     const to=isoParam(req.query?.to,'INVALID_AUDIT_TO');
     if(from&&to&&from>=to) throw fail('INVALID_AUDIT_RANGE');
@@ -160,15 +160,15 @@ export default async function handler(req,res){
       events:rows.map(row=>({
         ...row,
         success:Boolean(row.success),
-        actor:userProjection(row,'actor'),
-        target:userProjection(row,'target'),
+        actor:userProjection(row,'actor',{viewerId:user.id,canViewAll:!isRestrictedToSelf}),
+        target:userProjection(row,'target',{viewerId:user.id,canViewAll:!isRestrictedToSelf}),
         metadata:parseMetadata(row.metadata)
       })),
       pagination:{page,pageSize,total,totalPages},
       filters:{
         actions:actions.map(row=>row.value),
-        actors:actorRows,
-        targets:targetRows
+        actors:isRestrictedToSelf?actorRows.filter(row=>row.userId===user.id):actorRows,
+        targets:isRestrictedToSelf?targetRows.filter(row=>row.userId===user.id):targetRows
       },
       isRestrictedToSelf
     });
