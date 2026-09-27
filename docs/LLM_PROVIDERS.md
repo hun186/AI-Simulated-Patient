@@ -1,6 +1,6 @@
 # LLM Providers
 
-Phase 1 adds native Patient, Coach, and Evaluator LLM routing to production database mode.
+Production database mode supports native Patient, Coach, and Evaluator LLM routing.
 
 ## Deployment boundary
 
@@ -24,7 +24,8 @@ Do not commit this value. Losing or changing the key makes previously stored pro
 |---|---|---|---|
 | OpenAI | Responses API | fixed OpenAI endpoint | Yes |
 | DeepSeek | OpenAI-compatible Chat Completions | fixed DeepSeek endpoint | Yes |
-| Ollama | OpenAI-compatible Chat Completions | localhost/private endpoint | No |
+| Ollama Local | OpenAI-compatible Chat Completions | localhost/private endpoint | Yes, private/local targets only |
+| Ollama Cloud | OpenAI-compatible Chat Completions | `https://ollama.com/v1` | Yes |
 | Dify | Dify Application API (`chat-messages`, `workflows/run`, `completion-messages`) | Dify Cloud or allowed self-hosted endpoint | Yes |
 | Custom | OpenAI-compatible Chat Completions | Admin supplied | No |
 
@@ -87,7 +88,7 @@ Each priced usage event also snapshots the effective USD/TWD reference rate and 
 
 - Provider API keys are not returned by GET endpoints.
 - Browser UI never stores the API key after submission.
-- Teacher cannot configure arbitrary custom/private endpoints.
+- Teacher cannot configure arbitrary Custom endpoints; Teacher-owned Ollama Local and Dify endpoints remain constrained by endpoint-safety rules.
 - Production provider credentials must not be configured on the Vercel PoC; its AI Settings surface is read-only.
 - Teacher-owned Ollama Local and Dify connections are restricted to approved official/private endpoints; arbitrary Custom endpoints remain Admin-only.
 
@@ -156,4 +157,4 @@ For Workflow routes, the route config supports:
 
 Dify token usage is recorded when the Dify response reports it. Because the actual underlying model and billing policy are managed inside Dify, the platform does not invent a native model price for Dify calls; unmatched Dify usage remains explicitly unpriced until a dedicated pricing policy is configured.
 
-For the compatibility contract with existing Dify Chatflows that depend on `conversation_id` and Conversation Variables, see [`DIFY_INTEGRATION_CONTRACT.md`](./DIFY_INTEGRATION_CONTRACT.md). Stateful Chatflow support is implemented in PR #22 and covered by adapter, route-validation, schema-migration, and interview-lifecycle integration tests.
+For the compatibility contract with existing Dify Chatflows that depend on `conversation_id` and Conversation Variables, see [`DIFY_INTEGRATION_CONTRACT.md`](./DIFY_INTEGRATION_CONTRACT.md). Stateful Chatflow support was merged via PR #22 and is covered by adapter, route-validation, schema-migration, and interview-lifecycle integration tests.
