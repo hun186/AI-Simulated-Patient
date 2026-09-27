@@ -170,7 +170,7 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     assert.equal(data.persistentInvalid.body.code,'EVALUATION_REPAIR_FAILED');
     assert.equal(data.persistentInvalid.sessionStatus,'active');
     assert.equal(data.persistentInvalid.body.diagnostic.category,'evaluation_contract_repair_failed');
-    assert.equal(data.persistentInvalid.body.diagnostic.session.id,persistentSessionId);
+    assert.equal(data.persistentInvalid.body.diagnostic.session.id,data.persistedDiagnostic.session.id);
     assert.equal(data.persistentInvalid.body.diagnostic.session.userRole,'student');
     assert.equal(data.persistentInvalid.body.diagnostic.access.rawResponsesIncluded,false);
     assert.equal(data.persistentInvalid.body.diagnostic.attempts.initial.responseText,'');
