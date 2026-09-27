@@ -13,6 +13,12 @@
 
 ## Recent Outcomes
 
+### 2026-09-27 — Evaluation failure support diagnostics
+
+- Evaluator JSON 首次驗證與自動修復都失敗時，session 維持 active，系統產生 `EVL-...` 錯誤編號並保存 redacted failure snapshot。
+- 學生只取得可交給教師／Admin 的安全 metadata，不直接取得 raw Evaluator text；Teacher/Admin 依 assignment/RBAC 可用錯誤編號查閱完整 redacted first/repair outputs。
+- UI 提供重試、查看技術資訊、複製錯誤編號與下載 JSON 支援包；Vercel demo 隔離邊界不變。
+
 ### 2026-09-27 — Dify stateful + report/export baseline
 
 - Dify Application API 已支援 Platform-managed 與 Stateful Chatflow；Stateful 僅適用 Chat/Chatflow，`conversation_id` 依 interview session + connection 保存，新 interview 不沿用舊 state。
