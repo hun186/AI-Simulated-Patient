@@ -267,13 +267,58 @@ function promptTemplateEditor(agent,route,catalog){
   const locked=(spec.lockedRules||[]).map(rule=>'<li>'+esc(rule)+'</li>').join('');
   const fields=(spec.fields||[]).map(field=>{
     const value=route?.config?.[field.key]||'';
-    return '<label class="ai-prompt-field"><span>'+esc(field.label)+'</span>'+
+    const exampleButton=field.example
+      ?'<button type="button" class="prompt-example-btn" data-prompt-example-agent="'+esc(agent)+'" data-prompt-example-key="'+esc(field.key)+'">查看範例</button>'
+      :'';
+    return '<label class="ai-prompt-field"><span class="ai-prompt-field-head"><span>'+esc(field.label)+'</span>'+exampleButton+'</span>'+
       '<textarea data-prompt-key="'+esc(field.key)+'" maxlength="'+maxChars+'" placeholder="留空＝使用系統預設">'+esc(value)+'</textarea></label>';
   }).join('');
   return '<div class="ai-prompt-editor"><div class="ai-prompt-title"><strong>'+esc(spec.title)+'</strong><small>'+esc(spec.description)+'</small></div>'+
     '<details><summary>系統鎖定規則（唯讀）</summary><ul>'+locked+'</ul></details>'+
     '<small class="ai-prompt-vars">可用變數：'+placeholders+'</small>'+fields+'</div>';
 }
+let promptExampleTarget=null;
+function promptExampleFieldSpec(agent,key){
+  const spec=state.aiSettings?.promptTemplates?.[agent];
+  return {
+    spec,
+    field:(spec?.fields||[]).find(item=>item.key===key)||null
+  };
+}
+function openPromptExample(agent,key){
+  const {spec,field}=promptExampleFieldSpec(agent,key);
+  if(!spec||!field?.example)return;
+  const card=document.querySelector('[data-agent="'+agent+'"]');
+  const target=card?.querySelector('[data-prompt-key="'+key+'"]');
+  if(!target)return;
+  promptExampleTarget=target;
+  $('promptExampleTitle').textContent=(field.label||spec.title)+'｜'+(field.exampleTitle||'範例');
+  $('promptExampleDescription').textContent=spec.description||'';
+  $('promptExampleVariables').innerHTML=(state.aiSettings?.promptTemplates?.placeholders||[])
+    .map(value=>'<code>'+esc(value)+'</code>').join('');
+  $('promptExampleText').value=field.example;
+  $('promptExampleDialog').showModal();
+}
+async function copyPromptExample(){
+  const text=$('promptExampleText').value;
+  try{
+    await navigator.clipboard.writeText(text);
+    $('promptExampleCopyBtn').textContent='已複製';
+    setTimeout(()=>{$('promptExampleCopyBtn').textContent='複製範例';},1200);
+  }catch{
+    $('promptExampleText').focus();
+    $('promptExampleText').select();
+    document.execCommand?.('copy');
+  }
+}
+function applyPromptExample(){
+  if(!promptExampleTarget)return;
+  promptExampleTarget.value=$('promptExampleText').value;
+  promptExampleTarget.dispatchEvent(new Event('input',{bubbles:true}));
+  $('promptExampleDialog').close();
+  promptExampleTarget.focus();
+}
+
 function aiPresetOptions(){
   const items=state.user?.role==='admin'
     ?[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local'],['custom','OpenAI-compatible / Custom']]
@@ -355,6 +400,9 @@ async function renderAiSettings(){
     }).join('');
     $('aiRouteGrid').querySelectorAll('[data-ai-route-save]').forEach(button=>button.onclick=()=>saveAiRoute(button.dataset.aiRouteSave));
     $('aiRouteGrid').querySelectorAll('[data-ai-route-delete]').forEach(button=>button.onclick=()=>deleteAiRoute(button.dataset.aiRouteDelete));
+    $('aiRouteGrid').querySelectorAll('[data-prompt-example-agent]').forEach(button=>{
+      button.onclick=()=>openPromptExample(button.dataset.promptExampleAgent,button.dataset.promptExampleKey);
+    });
   }catch{
     $('aiConnectionList').innerHTML='<p class="empty">AI 設定讀取失敗。</p>';
     $('aiRouteGrid').innerHTML='';
@@ -717,5 +765,5 @@ async function saveBuilder(e){e.preventDefault();const facts=[...$('builderFacts
   renderCases();
 }
 $('caseBuilder').classList.add('hidden');$('caseBuilderForm').reset();alert('病例已建立，可立即切回學生端選用。');}
-document.querySelectorAll('[data-demo-role]').forEach(button=>button.onclick=()=>demoLogin(button.dataset.demoRole));$('loginForm').onsubmit=login;$('registerForm').onsubmit=registerAccount;$('showRegisterBtn').onclick=()=>showRegister('student');$('showTeacherRegisterBtn').onclick=()=>showRegister('teacher');$('backToLoginBtn').onclick=()=>showLogin();$('bootstrapForm').onsubmit=bootstrap;$('assignStudentBtn').onclick=assignStudentToTeacher;$('logoutBtn').onclick=logout;$('changePasswordBtn').onclick=()=>$('passwordDialog').showModal();$('changePasswordForm').onsubmit=changeOwnPassword;$('cancelPasswordBtn').onclick=()=>$('passwordDialog').close();$('userForm').onsubmit=createManagedUser;$('quotaForm').onsubmit=saveUsageQuota;$('usageUserSelect').onchange=renderUsageDashboard;$('usageFxSaveBtn').onclick=saveUsdTwdRate;$('aiConnectionForm').onsubmit=createAiConnection;$('aiPreset').onchange=syncAiPresetFields;$('aiCaseSelect').onchange=renderAiSettings;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
+document.querySelectorAll('[data-demo-role]').forEach(button=>button.onclick=()=>demoLogin(button.dataset.demoRole));$('loginForm').onsubmit=login;$('registerForm').onsubmit=registerAccount;$('showRegisterBtn').onclick=()=>showRegister('student');$('showTeacherRegisterBtn').onclick=()=>showRegister('teacher');$('backToLoginBtn').onclick=()=>showLogin();$('bootstrapForm').onsubmit=bootstrap;$('assignStudentBtn').onclick=assignStudentToTeacher;$('logoutBtn').onclick=logout;$('changePasswordBtn').onclick=()=>$('passwordDialog').showModal();$('changePasswordForm').onsubmit=changeOwnPassword;$('cancelPasswordBtn').onclick=()=>$('passwordDialog').close();$('userForm').onsubmit=createManagedUser;$('quotaForm').onsubmit=saveUsageQuota;$('usageUserSelect').onchange=renderUsageDashboard;$('usageFxSaveBtn').onclick=saveUsdTwdRate;$('aiConnectionForm').onsubmit=createAiConnection;$('aiPreset').onchange=syncAiPresetFields;$('aiCaseSelect').onchange=renderAiSettings;$('promptExampleCloseBtn').onclick=()=>$('promptExampleDialog').close();$('promptExampleCopyBtn').onclick=copyPromptExample;$('promptExampleApplyBtn').onclick=applyPromptExample;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
 init();
