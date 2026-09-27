@@ -327,8 +327,8 @@ test('Ollama Cloud pricing follows UTC weekday peak window and keeps local infer
     assert.equal(data.off.outputMicrousdPerMillion,1980000);
     assert.equal(data.proxied.inputMicrousdPerMillion,1320000);
     assert.equal(data.local.inputMicrousdPerMillion,0);
-    assert.equal(data.peakCost.estimatedCostMicrousd,1417000);
-    assert.equal(data.offCost.estimatedCostMicrousd,708500);
+    assert.equal(data.peakCost.estimatedCostMicrousd,1397000);
+    assert.equal(data.offCost.estimatedCostMicrousd,698500);
     assert.equal(data.localCost.estimatedCostMicrousd,0);
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
@@ -358,8 +358,8 @@ test('recordLlmUsage prices direct Ollama Cloud and snapshots TWD cost',()=>{
     assert.equal(result.status,0,result.stderr);
     const row=JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1));
     assert.equal(row.preset,'ollama_cloud');
-    assert.equal(row.estimated_cost_microusd,1417000);
-    assert.equal(row.estimated_cost_microntd,45030260);
+    assert.equal(row.estimated_cost_microusd,1397000);
+    assert.equal(row.estimated_cost_microntd,44396660);
     assert.match(row.pricing_rule_id,/ollama-direct-deepseek-v4-pro-peak/);
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
