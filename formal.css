@@ -66,3 +66,7 @@
 .dify-route-config input,.dify-route-config textarea{border:1px solid #dbe2ee;border-radius:9px;padding:9px;background:#fff}
 .dify-route-config textarea{min-height:90px;resize:vertical;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .dify-route-note{display:grid;gap:3px;color:#69758c;font-size:11px;line-height:1.5}.dify-route-note strong{color:#40506a}
+
+.dify-route-config select{border:1px solid #dbe2ee;border-radius:9px;padding:9px;background:#fff}
+.dify-checkbox-row{display:flex!important;grid-template-columns:none!important;align-items:center;gap:8px!important;font-weight:700!important}
+.dify-checkbox-row input{width:auto;margin:0}
