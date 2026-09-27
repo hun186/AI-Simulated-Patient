@@ -17,3 +17,6 @@
 !/lib/mock-coach.js
 !/lib/mock-evaluator.js
 !/lib/assessment-utils.js
+!/lib/llm
+/lib/llm/*
+!/lib/llm/prompts.js
