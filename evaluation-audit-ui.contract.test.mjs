@@ -12,7 +12,7 @@ test('evaluation audit UI exposes safe IDs and staff-only on-demand ZIP export',
   assert.match(html,/id="recordEvaluationAuditMeta"/);
   assert.match(html,/id="recordEvaluationAuditSelect"/);
   assert.match(html,/id="downloadRecordEvaluationAuditBtn"/);
-  assert.match(html,/下載技術診斷包（ZIP）/);
+  assert.match(html,/下載所選技術診斷包（ZIP）/);
 
   assert.match(app,/function evaluationAuditStatusLabel/);
   assert.match(app,/SUCCESS · NORMALIZED/);
