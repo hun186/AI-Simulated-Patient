@@ -440,3 +440,17 @@ values
   ('00000000-0000-4000-8000-000000000745','ollama','qwen3.5:397b:cloud*','always','any',600000,null,null,3600000,3600000,'2026-09-27T00:00:00Z',true),
   ('00000000-0000-4000-8000-000000000746','ollama','*','always','any',0,0,null,0,0,'2026-09-27T00:00:00Z',true)
 on conflict (id) do nothing;
+
+
+create table if not exists llm_provider_session_state (
+  session_id uuid not null references interview_sessions(id) on delete cascade,
+  connection_id uuid not null references llm_provider_connections(id) on delete cascade,
+  provider_kind text not null,
+  state_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (session_id,connection_id)
+);
+
+create index if not exists llm_provider_session_state_connection_idx
+  on llm_provider_session_state(connection_id,updated_at desc);
