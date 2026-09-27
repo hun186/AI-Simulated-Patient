@@ -267,7 +267,7 @@ When full documentation is requested later, ensure this design is incorporated i
 - how to enter self-hosted Dify Base URL;
 - how to select Dify for Patient / Coach / Evaluator;
 - how to configure Workflow input/output fields;
-- how to choose stateless vs stateful Chatflow when implemented;
+- how to choose Platform-managed vs Stateful Chatflow;
 - how to configure the end-of-interview trigger;
 - how to test a Dify connection;
 - how to interpret connection/evaluation errors;
@@ -276,5 +276,8 @@ When full documentation is requested later, ensure this design is incorporated i
 ## Implementation status
 
 - Dify Provider Phase 1: implemented on PR #22 branch.
-- Stateful Chatflow / persisted `conversation_id`: required follow-up; do not mark complete until implemented and tested.
-- PostgreSQL/Neon is not required for this feature; current production persistence adapter rules remain unchanged.
+- Stateful Chatflow / persisted `conversation_id`: implemented and covered by end-to-end tests on PR #22.
+- Provider state is persisted per `(interview_session, connection)` in `llm_provider_session_state` (SQLite schema v8; PostgreSQL adapter schema retained in `db/schema.sql`).
+- Patient calls create/reuse the Dify `conversation_id`; an Evaluator route using the same Dify connection can send a configurable final trigger (default `問診結束`) into the same conversation.
+- A new interview session starts without the prior session's Dify conversation state.
+- PostgreSQL/Neon connectivity is not required for this feature; the existing PostgreSQL adapter path remains available for future durable deployments.
