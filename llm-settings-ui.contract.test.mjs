@@ -173,3 +173,21 @@ test('Prompt template editors provide modal examples with copy and one-click app
   assert.match(prompts,/\{\{patient_name\}\}/);
   assert.match(prompts,/\{\{learning_goals\}\}/);
 });
+
+
+test('Vercel Demo exposes the AI settings surface as read-only without enabling production persistence',()=>{
+  const app=readFileSync('formal-app.js','utf8');
+  const html=readFileSync('index.html','utf8');
+  const css=readFileSync('formal.css','utf8');
+  const vercel=JSON.parse(readFileSync('vercel.json','utf8'));
+
+  assert.match(app,/data-view="ai"\]\'\)\.classList\.toggle\('hidden',\(!state\.serverMode&&!state\.demoAuth\)\|\|!staff\)/);
+  assert.match(app,/function demoAiReadOnly/);
+  assert.match(app,/function blockDemoAiAction/);
+  assert.match(app,/Vercel Demo 僅展示 LLM Provider \/ Agent Route \/ Prompt Template/);
+  assert.match(app,/if\(blockDemoAiAction\(\)\)return/);
+  assert.match(app,/const demoReadOnly=Boolean\(data\.demoReadOnly\|\|state\.demoAuth\)/);
+  assert.match(html,/id="aiDemoNotice"/);
+  assert.match(css,/\.ai-demo-notice/);
+  assert.ok(vercel.rewrites.some(item=>item.source==='/api/teacher/ai-settings'&&item.destination==='/api/demo?route=ai-settings'));
+});
