@@ -282,7 +282,7 @@ function aiPresetOptions(){
 }
 function syncAiPresetFields(){
   const preset=$('aiPreset').value;
-  const showBase=state.user?.role==='admin'&&['ollama','custom'].includes(preset);
+  const showBase=preset==='ollama'||(state.user?.role==='admin'&&preset==='custom');
   $('aiBaseUrlRow').classList.toggle('hidden',!showBase);
   $('aiApiKey').required=['openai','deepseek','ollama_cloud'].includes(preset);
   const placeholders={
@@ -293,6 +293,9 @@ function syncAiPresetFields(){
     custom:'Provider 的 model id'
   };
   $('aiDefaultModel').placeholder=placeholders[preset]||'模型名稱';
+  $('aiBaseUrl').placeholder=preset==='ollama'
+    ?'例如：http://192.168.1.50:11434/v1'
+    :'https://.../v1';
 }
 function manageableAiConnection(connection){
   return state.user?.role==='admin'||(connection.scopeType==='teacher'&&connection.ownerUserId===state.user?.id);
@@ -309,7 +312,7 @@ async function renderAiSettings(){
     syncAiPresetFields();
     $('aiRestrictionNote').textContent=state.user?.role==='admin'
       ?'Admin 可建立系統級 OpenAI、DeepSeek、Ollama Cloud、Ollama Local 與自訂 OpenAI-compatible 連線。'
-      :'Teacher 可建立自己的 OpenAI、DeepSeek、Ollama Cloud 與 Ollama Local 連線；自訂私有端點仍由 Admin 管理。';
+      :'Teacher 可建立自己的 OpenAI、DeepSeek、Ollama Cloud 與 Ollama Local 連線；Ollama Local 可指定 localhost / 私有網段 Base URL，自訂任意端點仍由 Admin 管理。';
 
     $('aiConnectionList').innerHTML=(data.connections||[]).map(connection=>{
       const canManage=manageableAiConnection(connection);
@@ -345,7 +348,7 @@ async function renderAiSettings(){
         :r.scopeType==='system'));
       const options=usable.map(c=>'<option value="'+c.id+'" '+(route?.connectionId===c.id?'selected':'')+'>'+esc(c.name)+' · '+esc(c.defaultModel)+'</option>').join('');
       return '<section class="ai-route-card" data-agent="'+agent+'"><header><strong>'+AI_AGENT_LABELS[agent]+'</strong><small>'+(route?'已設定':'未設定')+'</small></header>'+
-        '<label>Provider / Model<select class="ai-route-connection"><option value="">未設定</option>'+options+'</select></label>'+
+        '<label>Provider / Model<select class="ai-route-connection"><option value="">未設定（Rule-based / 系統預設）</option>'+options+'</select></label>'+
         promptTemplateEditor(agent,route,data.promptTemplates)+
         '<div class="ai-route-actions"><button class="secondary small-btn" type="button" data-ai-route-save="'+agent+'">儲存 Provider / Model / Prompt</button>'+
         (route?'<button class="small-btn danger-btn" type="button" data-ai-route-delete="'+route.id+'">移除</button>':'')+'</div></section>';
@@ -364,7 +367,7 @@ async function createAiConnection(event){
     action:'createConnection',name:$('aiConnectionName').value.trim(),preset,
     defaultModel:$('aiDefaultModel').value.trim(),apiKey:$('aiApiKey').value
   };
-  if(state.user?.role==='admin'&&['ollama','custom'].includes(preset))payload.baseUrl=$('aiBaseUrl').value.trim();
+  if(preset==='ollama'||(state.user?.role==='admin'&&preset==='custom'))payload.baseUrl=$('aiBaseUrl').value.trim();
   try{
     await post('/api/teacher/ai-settings',payload);
     $('aiConnectionForm').reset();$('aiApiKey').value='';await renderAiSettings();
@@ -379,7 +382,14 @@ async function editAiConnection(connectionId){
   if(model===null)return;
   const apiKey=prompt('新的 API Key（留空表示保留原本金鑰）','');
   const payload={action:'updateConnection',connectionId,name:name.trim(),preset:connection.preset,defaultModel:model.trim(),isActive:connection.isActive};
-  if(connection.baseUrl)payload.baseUrl=connection.baseUrl;
+  if(connection.preset==='ollama'||(state.user?.role==='admin'&&connection.preset==='custom')){
+    const baseUrl=prompt(
+      connection.preset==='ollama'?'Ollama Local Base URL':'Base URL',
+      connection.baseUrl||''
+    );
+    if(baseUrl===null)return;
+    payload.baseUrl=baseUrl.trim();
+  }else if(connection.baseUrl)payload.baseUrl=connection.baseUrl;
   if(apiKey)payload.apiKey=apiKey;
   try{await post('/api/teacher/ai-settings',payload);await renderAiSettings();}
   catch(error){alert('AI Provider 更新失敗：'+(error.message||'請檢查設定與權限。'));}
@@ -422,13 +432,21 @@ async function deleteAiConnection(connectionId){
 async function saveAiRoute(agentType){
   const card=document.querySelector('[data-agent="'+agentType+'"]');
   const connectionId=card?.querySelector('.ai-route-connection')?.value;
-  if(!connectionId)return alert('請先選擇 Provider 連線。');
-  const connection=(state.aiSettings?.connections||[]).find(c=>c.id===connectionId);
   const teacher=state.user?.role==='teacher';
   const caseId=teacher?$('aiCaseSelect').value:null;
   const currentRoute=(state.aiSettings?.routes||[]).find(r=>r.agentType===agentType&&(teacher
     ?(r.scopeType==='case'&&r.scopeId===caseId&&r.ownerUserId===state.user?.id)
     :r.scopeType==='system'));
+  if(!connectionId){
+    if(!currentRoute)return alert('目前已是未設定狀態。');
+    try{
+      await post('/api/teacher/ai-settings',{action:'deleteRoute',routeId:currentRoute.id});
+      await renderAiSettings();
+      alert(AI_AGENT_LABELS[agentType]+' 已恢復為未設定（Rule-based / 系統預設）。');
+    }catch{alert('路由恢復未設定失敗或權限不足。');}
+    return;
+  }
+  const connection=(state.aiSettings?.connections||[]).find(c=>c.id===connectionId);
   const config={...(currentRoute?.config||{})};
   card.querySelectorAll('[data-prompt-key]').forEach(field=>{
     config[field.dataset.promptKey]=field.value.trim();
