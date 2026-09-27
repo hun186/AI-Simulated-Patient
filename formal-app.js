@@ -1137,13 +1137,24 @@ function cacheRate(row){
   const total=hit+miss;
   return total>0?hit/total:null;
 }
+function cacheCoverageRate(row){
+  const input=Number(row?.inputTokens||0);
+  const reported=Number(row?.cacheReportedInputTokens||0);
+  return input>0?reported/input:null;
+}
 function cacheSummary(row){
-  if(Number(row?.cacheReportedCalls||0)<=0)return 'Cache telemetry 未回報';
+  const input=Number(row?.inputTokens||0);
+  const reportedInput=Number(row?.cacheReportedInputTokens||0);
+  if(Number(row?.cacheReportedCalls||0)<=0){
+    return 'Cache telemetry 未回報'+(input>0?' · coverage 0/'+input.toLocaleString('zh-TW')+' input tk':'');
+  }
   const hit=Number(row.cachedInputTokens||0);
   const miss=Number(row.cacheMissTokens||0);
   const rate=cacheRate(row);
+  const coverage=cacheCoverageRate(row);
   return 'Cache '+hit.toLocaleString('zh-TW')+'/'+(hit+miss).toLocaleString('zh-TW')+' tk'
     +(rate==null?'':' · '+(rate*100).toFixed(1)+'% hit')
+    +(coverage==null?'':' · coverage '+reportedInput.toLocaleString('zh-TW')+'/'+input.toLocaleString('zh-TW')+' ('+(coverage*100).toFixed(1)+'%)')
     +' · 省 '+microusdToUsd(row.cacheSavingsMicrousd)+' / '+microntdToTwd(row.cacheSavingsMicrontd);
 }
 function usageRows(title,rows,labelKey){
@@ -1151,25 +1162,125 @@ function usageRows(title,rows,labelKey){
     ((rows||[]).length?(rows||[]).map(row=>'<div class="usage-breakdown-row"><strong>'+esc(row[labelKey]||'--')+'</strong><span>'+Number(row.calls||0)+' 次</span><span>'+Number(row.tokens||0).toLocaleString('zh-TW')+' tk</span><span>'+microusdToUsd(row.estimatedCostMicrousd)+' / '+microntdToTwd(row.estimatedCostMicrontd)+'</span><small>'+esc(cacheSummary(row))+'</small></div>').join(''):'<p class="empty">尚無資料。</p>')+
     '</section>';
 }
+function localDateInput(date){
+  const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+d;
+}
+function dateFromInput(value){
+  const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value||''));
+  if(!match)return null;
+  const date=new Date(Number(match[1]),Number(match[2])-1,Number(match[3]));
+  return Number.isNaN(date.getTime())?null:date;
+}
+function localDayStart(date=new Date()){
+  return new Date(date.getFullYear(),date.getMonth(),date.getDate());
+}
+function usagePeriodRange(){
+  const period=$('usagePeriod')?.value||'month';
+  const now=new Date();
+  const tomorrow=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
+  let from=null,to=tomorrow,label='';
+  if(period==='today'){
+    from=localDayStart(now);label='今日 · '+localDateInput(from);
+  }else if(period==='week'){
+    from=localDayStart(now);
+    from.setDate(from.getDate()-((from.getDay()+6)%7));
+    label='本週 · '+localDateInput(from)+' ～ '+localDateInput(new Date(to.getTime()-1));
+  }else if(period==='month'){
+    from=new Date(now.getFullYear(),now.getMonth(),1);
+    to=new Date(now.getFullYear(),now.getMonth()+1,1);
+    label='本月 · '+localDateInput(from)+' ～ '+localDateInput(new Date(to.getTime()-1));
+  }else if(period==='7d'){
+    from=localDayStart(now);from.setDate(from.getDate()-6);
+    label='近 7 日 · '+localDateInput(from)+' ～ '+localDateInput(new Date(to.getTime()-1));
+  }else if(period==='30d'){
+    from=localDayStart(now);from.setDate(from.getDate()-29);
+    label='近 30 日 · '+localDateInput(from)+' ～ '+localDateInput(new Date(to.getTime()-1));
+  }else if(period==='custom'){
+    const customFrom=dateFromInput($('usageFromDate').value);
+    const customEnd=dateFromInput($('usageToDate').value);
+    if(!customFrom||!customEnd)return {ready:false,label:'自訂區間：請選擇開始與結束日期'};
+    from=customFrom;to=new Date(customEnd.getFullYear(),customEnd.getMonth(),customEnd.getDate()+1);
+    if(from>=to)return {ready:false,label:'自訂區間無效'};
+    label='自訂 · '+localDateInput(from)+' ～ '+localDateInput(customEnd);
+  }else{
+    from=null;to=null;label='全部期間';
+  }
+  return {ready:true,from:from?from.toISOString():null,to:to?to.toISOString():null,label};
+}
+function optionHtml(value,label){return '<option value="'+esc(value)+'">'+esc(label)+'</option>';}
+function syncUsageSelect(id,items,allLabel,{value=x=>x,label=x=>x}={}){
+  const el=$(id),current=el.value;
+  el.innerHTML=optionHtml('',allLabel)+(items||[]).map(item=>optionHtml(value(item),label(item))).join('');
+  el.value=(items||[]).some(item=>String(value(item))===String(current))?current:'';
+}
+function syncUsageFilterOptions(data){
+  const currentUser=$('usageUserSelect').value;
+  $('usageUserSelect').innerHTML=optionHtml('','全部可見使用者')+
+    (data.users||[]).map(u=>optionHtml(u.id,(u.displayName||u.email)+' · '+u.role)).join('');
+  $('usageUserSelect').value=(data.users||[]).some(u=>u.id===currentUser)?currentUser:'';
+
+  syncUsageSelect('usageProvider',data.filters?.providers||[],'全部 Provider');
+  const provider=$('usageProvider').value;
+  const models=(data.filters?.models||[]).filter(item=>!provider||item.provider===provider);
+  syncUsageSelect('usageModel',models,'全部 Model',{value:item=>item.model,label:item=>item.model});
+  const agentNames={patient:'Patient',coach:'Coach',evaluator:'Evaluator'};
+  syncUsageSelect('usageAgent',data.filters?.agents||[],'全部 Agent',{label:item=>agentNames[item]||item});
+  syncUsageSelect('usageCase',data.filters?.cases||[],'全部病例',{value:item=>item.caseId,label:item=>item.label||item.caseId});
+}
+function usageFilterParams(range){
+  const params=new URLSearchParams({action:'summary',timeZoneOffsetMinutes:String(new Date().getTimezoneOffset())});
+  if(range.from)params.set('from',range.from);
+  if(range.to)params.set('to',range.to);
+  const values={
+    userId:$('usageUserSelect').value,
+    provider:$('usageProvider').value,
+    model:$('usageModel').value,
+    agentType:$('usageAgent').value,
+    caseId:$('usageCase').value
+  };
+  for(const [key,value] of Object.entries(values))if(value)params.set(key,value);
+  if($('usageOutcome').value!=='all')params.set('outcome',$('usageOutcome').value);
+  if($('usageCacheStatus').value!=='all')params.set('cacheStatus',$('usageCacheStatus').value);
+  return params;
+}
+function usagePeriodChanged(){
+  const custom=$('usagePeriod').value==='custom';
+  $('usageCustomRange').classList.toggle('hidden',!custom);
+  if(custom&&!$('usageFromDate').value){
+    const now=new Date();
+    $('usageFromDate').value=localDateInput(now);
+    $('usageToDate').value=localDateInput(now);
+  }
+  renderUsageDashboard();
+}
+function resetUsageFilters(){
+  $('usagePeriod').value='month';
+  $('usageCustomRange').classList.add('hidden');
+  for(const id of ['usageUserSelect','usageProvider','usageModel','usageAgent','usageCase'])$(id).value='';
+  $('usageOutcome').value='all';$('usageCacheStatus').value='all';
+  renderUsageDashboard();
+}
 async function renderUsageDashboard(){
   if(!state.serverMode||!['teacher','admin'].includes(state.user?.role))return;
+  const range=usagePeriodRange();
+  $('usageRangeSummary').textContent='統計期間：'+range.label+' · 依瀏覽器本地時區切日';
+  if(!range.ready){
+    $('usageBreakdown').innerHTML='<p class="empty">'+esc(range.label)+'</p>';
+    return;
+  }
   try{
-    const selected=$('usageUserSelect').value||'';
-    const params=new URLSearchParams({action:'summary'});
-    if(selected)params.set('userId',selected);
-    const response=await fetch('/api/teacher/llm-usage?'+params.toString());
+    const response=await fetch('/api/teacher/llm-usage?'+usageFilterParams(range).toString());
     if(!response.ok)throw new Error('usage');
     const data=await response.json();
     state.usageDashboard=data;
-
-    const current=$('usageUserSelect').value;
-    $('usageUserSelect').innerHTML='<option value="">全部可見使用者</option>'+
-      (data.users||[]).map(u=>'<option value="'+esc(u.id)+'">'+esc(u.displayName||u.email)+' · '+esc(u.role)+'</option>').join('');
-    $('usageUserSelect').value=(data.users||[]).some(u=>u.id===current)?current:'';
+    syncUsageFilterOptions(data);
 
     const totals=(data.totals||[]).reduce((a,row)=>({
       calls:a.calls+Number(row.calls||0),
       tokens:a.tokens+Number(row.tokens||0),
+      inputTokens:a.inputTokens+Number(row.inputTokens||0),
+      cacheReportedInputTokens:a.cacheReportedInputTokens+Number(row.cacheReportedInputTokens||0),
       cost:a.cost+Number(row.estimatedCostMicrousd||0),
       costTwd:a.costTwd+Number(row.estimatedCostMicrontd||0),
       cached:a.cached+Number(row.cachedInputTokens||0),
@@ -1179,14 +1290,22 @@ async function renderUsageDashboard(){
       cacheSavingsTwd:a.cacheSavingsTwd+Number(row.cacheSavingsMicrontd||0),
       unpriced:a.unpriced+Number(row.unpricedCalls||0),
       partial:a.partial+Number(row.partialPricingCalls||0)
-    }),{calls:0,tokens:0,cost:0,costTwd:0,cached:0,cacheMiss:0,cacheReportedCalls:0,cacheSavings:0,cacheSavingsTwd:0,unpriced:0,partial:0});
+    }),{calls:0,tokens:0,inputTokens:0,cacheReportedInputTokens:0,cost:0,costTwd:0,cached:0,cacheMiss:0,cacheReportedCalls:0,cacheSavings:0,cacheSavingsTwd:0,unpriced:0,partial:0});
     $('usageCalls').textContent=totals.calls.toLocaleString('zh-TW');
     $('usageTokens').textContent=totals.tokens.toLocaleString('zh-TW');
     $('usageCacheHitTokens').textContent=totals.cached.toLocaleString('zh-TW');
     const cachePrompt=totals.cached+totals.cacheMiss;
-    $('usageCacheHitRate').textContent=totals.cacheReportedCalls>0&&cachePrompt>0
-      ?((totals.cached/cachePrompt)*100).toFixed(1)+'%'
-      :'--';
+    const hitRate=totals.cacheReportedCalls>0&&cachePrompt>0?totals.cached/cachePrompt:null;
+    $('usageCacheHitRate').textContent=hitRate==null?'--':(hitRate*100).toFixed(1)+'%';
+    $('usageCacheRateDetail').textContent=totals.cacheReportedCalls>0
+      ?totals.cached.toLocaleString('zh-TW')+' hit / '+totals.cacheMiss.toLocaleString('zh-TW')+' miss · '+totals.cacheReportedCalls+'/'+totals.calls+' calls'
+      :'Cache telemetry 未回報';
+    const coverage=totals.inputTokens>0?totals.cacheReportedInputTokens/totals.inputTokens:null;
+    $('usageCacheCoverage').textContent=coverage==null?'--':(coverage*100).toFixed(1)+'%';
+    $('usageCacheCoverageDetail').textContent=totals.inputTokens>0
+      ?totals.cacheReportedInputTokens.toLocaleString('zh-TW')+' / '+totals.inputTokens.toLocaleString('zh-TW')+' input tk'
+        +(coverage<1?' · 部分歷史/Provider 未回報':' · 完整覆蓋')
+      :'尚無 input token 資料';
     $('usageCacheSavings').textContent=microusdToUsd(totals.cacheSavings);
     $('usageCacheSavingsTwd').textContent=microntdToTwd(totals.cacheSavingsTwd);
     $('usageCost').textContent=microusdToUsd(totals.cost);
@@ -1200,7 +1319,7 @@ async function renderUsageDashboard(){
     $('usageUnpriced').textContent=totals.unpriced.toLocaleString('zh-TW');
     $('usagePartial').textContent=totals.partial.toLocaleString('zh-TW');
     $('usageBreakdown').innerHTML=
-      usageRows('日期',data.byDate,'date')+
+      usageRows('日期（本地）',data.byDate,'date')+
       usageRows('Provider',data.byProvider,'preset')+
       usageRows('Model',data.byModel,'model')+
       usageRows('Agent',data.byAgent,'agentType');
