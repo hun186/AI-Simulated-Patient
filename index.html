@@ -90,5 +90,29 @@
 </section>
 <section id="teacherAudit" class="teacher-view"><div class="manage-card card"><div class="section-head"><div><h3>安全稽核</h3><p>僅系統管理員可查看全域登入與帳號安全事件。</p></div></div><div id="auditList"></div></div></section>
 </section>
+<dialog id="promptExampleDialog" class="prompt-example-dialog">
+  <div class="prompt-example-shell">
+    <div class="section-head">
+      <div><div class="eyebrow">Prompt Template Example</div><h3 id="promptExampleTitle">Prompt 範例</h3><p id="promptExampleDescription"></p></div>
+      <button id="promptExampleCloseBtn" type="button" class="secondary small-btn">關閉</button>
+    </div>
+    <div class="prompt-example-note">
+      <strong>怎麼使用</strong>
+      <span>這些內容是「補充指引」，不用重寫整套 system prompt。可以直接套用後再依課程需求修改；系統鎖定規則仍會優先。</span>
+    </div>
+    <div>
+      <h4>可用變數</h4>
+      <div id="promptExampleVariables" class="prompt-example-vars"></div>
+    </div>
+    <div>
+      <h4>範例模板</h4>
+      <textarea id="promptExampleText" readonly></textarea>
+    </div>
+    <div class="dialog-actions">
+      <button id="promptExampleCopyBtn" type="button" class="secondary">複製範例</button>
+      <button id="promptExampleApplyBtn" type="button" class="primary">套用此範例</button>
+    </div>
+  </div>
+</dialog>
 <dialog id="passwordDialog" class="password-dialog"><form id="changePasswordForm"><h3>變更密碼</h3><label>目前密碼<input id="currentPassword" type="password" required></label><label>新密碼<input id="nextPassword" type="password" minlength="12" required></label><p id="passwordError" class="auth-error"></p><div class="dialog-actions"><button id="cancelPasswordBtn" type="button" class="secondary">取消</button><button type="submit" class="primary">變更並重新登入</button></div></form></dialog>
 <section id="about" class="panel"><article class="info-card wide"><div class="eyebrow">Production Architecture</div><h2>正式版評量流程</h2><div class="architecture"><div>Patient Agent<br><small>角色與資訊揭露</small></div><b>→</b><div>Assessment Tracker<br><small>候選語意判定</small></div><b>→</b><div>Final LLM Judge<br><small>完整 transcript 複評</small></div></div><p>訓練模式另外加入 Learning Coach；考試模式不回傳即時提示。正式部署將病例真值、紀錄與評分證據放在伺服器端。</p></article></section></main></div><script type="module" src="/formal-app.js"></script></body></html>
