@@ -11,7 +11,7 @@ function parseJson(value,fallback){
 export default async function handler(req,res){
   if(req.method!=='GET') return res.status(405).json({error:'Method not allowed'});
   if(!isDatabaseEnabled()) return res.status(409).json({error:'Database mode is not enabled'});
-  const user=await requireUser(req,res,['student','teacher','admin']);
+  const user=await requireUser(req,res,['student']);
   if(!user) return;
 
   const sessionId=String(req.query?.sessionId||'').trim();
