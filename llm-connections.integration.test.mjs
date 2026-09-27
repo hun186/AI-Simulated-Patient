@@ -71,6 +71,12 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
     },t1Auth);
     const teacherConnectionId=teacherCreate.body.connection.id;
 
+    const teacherLocal=await call('POST',{
+      action:'createConnection',name:'My Local Ollama',preset:'ollama',
+      defaultModel:'qwen3:latest'
+    },t1Auth);
+    const storedTeacherLocal=(await query('select preset,base_url,encrypted_api_key from llm_provider_connections where id=$1',[teacherLocal.body.connection.id]))[0];
+
     const teacherCloud=await call('POST',{
       action:'createConnection',name:'My Ollama Cloud',preset:'ollama_cloud',
       defaultModel:'deepseek-v4-pro',apiKey:'ollama-cloud-secret-4321'
@@ -140,6 +146,7 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
         last4:storedSystem.api_key_last4
       },
       teacherCreate:{status:teacherCreate.statusCode,connection:teacherCreate.body.connection},
+      teacherLocal:{status:teacherLocal.statusCode,connection:teacherLocal.body.connection,stored:storedTeacherLocal},
       teacherCloud:{status:teacherCloud.statusCode,connection:teacherCloud.body.connection,stored:storedTeacherCloud},
       teacher2Id:teacher2Create.body.connection.id,
       teacherCustom:{status:teacherCustom.statusCode,body:teacherCustom.body},
@@ -177,6 +184,14 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
     assert.equal(data.teacherCreate.connection.scopeType,'teacher');
     assert.equal(data.teacherCreate.connection.preset,'deepseek');
     assert.equal(data.teacherCreate.connection.apiKeyLast4,'5678');
+    assert.equal(data.teacherLocal.status,201);
+    assert.equal(data.teacherLocal.connection.preset,'ollama');
+    assert.equal(data.teacherLocal.connection.scopeType,'teacher');
+    assert.equal(data.teacherLocal.connection.apiKeyLast4,'');
+    assert.equal(data.teacherLocal.stored.preset,'ollama');
+    assert.equal(data.teacherLocal.stored.base_url,'http://127.0.0.1:11434/v1');
+    assert.equal(data.teacherLocal.stored.encrypted_api_key,null);
+
     assert.equal(data.teacherCloud.status,201);
     assert.equal(data.teacherCloud.connection.preset,'ollama_cloud');
     assert.equal(data.teacherCloud.connection.apiKeyLast4,'4321');
