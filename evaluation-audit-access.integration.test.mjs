@@ -15,7 +15,7 @@ test('evaluation audits are retained and scoped to admin or assigned teacher',()
 
     const {query}=await import('./lib/db.js');
     const {createInterviewSession}=await import('./lib/server-sessions.js');
-    const {saveEvaluationAudit,getEvaluationAuditForActor,getLatestEvaluationAuditSummaries}=await import('./lib/evaluation-audit-store.js');
+    const {saveEvaluationAudit,getEvaluationAuditForActor,getLatestEvaluationAuditSummaries,getEvaluationAuditSummariesForSessions}=await import('./lib/evaluation-audit-store.js');
 
     const users=[
       ['admin-1','admin@example.test','Admin','admin'],
@@ -48,15 +48,31 @@ test('evaluation audits are retained and scoped to admin or assigned teacher',()
       security:{redactionApplied:true},storage:{persisted:true}
     };
     await saveEvaluationAudit({audit,sessionId:session.id,studentUserId:'student-1'});
+    const earlierAudit={
+      ...audit,
+      evaluationId:'EVL-20260927-AUDIT000',
+      errorId:'EVL-20260927-AUDIT000',
+      status:'failed',
+      occurredAt:'2026-09-27T12:10:00.000Z',
+      attempts:{
+        initial:{...audit.attempts.initial,responseText:'earlier raw evaluator',validation:{code:'INVALID_EVALUATION_CONTRACT',message:'item.evidence'}},
+        repair:{responseText:'earlier repair output',provider:'openai_compatible',preset:'deepseek',model:'deepseek-flash',validation:{code:'EVALUATION_REPAIR_FAILED',message:'item.evidence'}}
+      },
+      repairUsed:true
+    };
+    await saveEvaluationAudit({audit:earlierAudit,sessionId:session.id,studentUserId:'student-1'});
 
     const admin=await getEvaluationAuditForActor(audit.evaluationId,{id:'admin-1',role:'admin'});
     const assigned=await getEvaluationAuditForActor(audit.evaluationId,{id:'teacher-1',role:'teacher'});
     const outsider=await getEvaluationAuditForActor(audit.evaluationId,{id:'teacher-2',role:'teacher'});
     const student=await getEvaluationAuditForActor(audit.evaluationId,{id:'student-1',role:'student'});
     const summaries=await getLatestEvaluationAuditSummaries([session.id]);
+    const history=await getEvaluationAuditSummariesForSessions([session.id]);
 
     console.log(JSON.stringify({
-      admin,assigned,outsider,student,summary:summaries.get(session.id)||null
+      admin,assigned,outsider,student,
+      summary:summaries.get(session.id)||null,
+      history:history.get(session.id)||[]
     }));
   `;
   const result=spawnSync(process.execPath,['--input-type=module','-e',script],{
@@ -73,6 +89,10 @@ test('evaluation audits are retained and scoped to admin or assigned teacher',()
     assert.equal(data.summary.evaluationId,'EVL-20260927-AUDIT001');
     assert.equal(data.summary.status,'success_normalized');
     assert.equal(data.summary.normalizationCount,1);
+    assert.deepEqual(data.history.map(item=>item.evaluationId),[
+      'EVL-20260927-AUDIT001','EVL-20260927-AUDIT000'
+    ]);
+    assert.deepEqual(data.history.map(item=>item.status),['success_normalized','failed']);
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }
