@@ -71,6 +71,12 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
     },t1Auth);
     const teacherConnectionId=teacherCreate.body.connection.id;
 
+    const teacherCloud=await call('POST',{
+      action:'createConnection',name:'My Ollama Cloud',preset:'ollama_cloud',
+      defaultModel:'deepseek-v4-pro',apiKey:'ollama-cloud-secret-4321'
+    },t1Auth);
+    const storedTeacherCloud=(await query('select preset,base_url,api_key_last4 from llm_provider_connections where id=$1',[teacherCloud.body.connection.id]))[0];
+
     const teacher2Create=await call('POST',{
       action:'createConnection',name:'Other Teacher OpenAI',preset:'openai',
       defaultModel:'gpt-other',apiKey:'sk-other-teacher-2222'
@@ -134,6 +140,7 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
         last4:storedSystem.api_key_last4
       },
       teacherCreate:{status:teacherCreate.statusCode,connection:teacherCreate.body.connection},
+      teacherCloud:{status:teacherCloud.statusCode,connection:teacherCloud.body.connection,stored:storedTeacherCloud},
       teacher2Id:teacher2Create.body.connection.id,
       teacherCustom:{status:teacherCustom.statusCode,body:teacherCustom.body},
       teacherList:{status:teacherList.statusCode,ids:teacherIds,leakedFields},
@@ -170,6 +177,12 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
     assert.equal(data.teacherCreate.connection.scopeType,'teacher');
     assert.equal(data.teacherCreate.connection.preset,'deepseek');
     assert.equal(data.teacherCreate.connection.apiKeyLast4,'5678');
+    assert.equal(data.teacherCloud.status,201);
+    assert.equal(data.teacherCloud.connection.preset,'ollama_cloud');
+    assert.equal(data.teacherCloud.connection.apiKeyLast4,'4321');
+    assert.equal(data.teacherCloud.stored.preset,'ollama');
+    assert.equal(data.teacherCloud.stored.base_url,'https://ollama.com/v1');
+    assert.equal(data.teacherCloud.stored.api_key_last4,'4321');
     assert.equal(data.teacherCustom.status,403);
 
     assert.equal(data.teacherList.status,200);
