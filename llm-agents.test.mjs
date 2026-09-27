@@ -69,7 +69,7 @@ test('Patient, Coach, and Evaluator prompts keep distinct semantics',()=>{
   assert.match(evaluator,/"turn":2,"quote":"以前有住院過嗎？"/);
   assert.match(evaluator,/totalScore must equal the sum of item\.score/);
   assert.match(evaluator,/left stroke/);
-  assert.doesNotMatch(evaluator,/以前有住院過嗎？/);
+  assert.doesNotMatch(evaluator,/\nTranscript:\n/);
   assert.match(evaluatorTask,/以前有住院過嗎？/);
   assert.ok(evaluatorTask.indexOf('以前有住院過嗎？')<evaluatorTask.indexOf('Task:'));
 
