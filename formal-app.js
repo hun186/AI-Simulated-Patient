@@ -103,7 +103,33 @@ async function post(url,payload){
   return data;
 }
 async function ask(q){state.transcript.push({role:'student',content:q,at:new Date().toISOString()});renderChat();$('sendBtn').disabled=true;try{const d=await post('/api/chat',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,message:q,revealedFactIds:state.serverMode?[]:state.revealedFactIds});if(!state.serverMode)state.revealedFactIds=d.revealedFactIds;state.transcript.push({role:'patient',content:d.reply,at:new Date().toISOString()});if(state.mode==='training'&&state.coachEnabled){state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds});state.coachUsed=true;}save();renderChat();renderMode();renderCoach();}catch{state.transcript.push({role:'patient',content:'（系統暫時無法取得回覆。）'});renderChat();}finally{$('sendBtn').disabled=false;}}
-function renderEvaluation(d){$('resultCard').classList.remove('hidden');syncStudentReportActions();$('scoreCircle').textContent=String(d.percentage);$('resultMode').textContent=modeLabel(d.mode)+' · '+d.totalScore+'/'+d.maxScore+' 分';$('overallComment').textContent=d.overall.comment;$('strengthList').innerHTML=d.overall.strengths.map(x=>'<li>'+esc(x)+'</li>').join('');$('improvementList').innerHTML=d.overall.improvements.map(x=>'<li>'+esc(x)+'</li>').join('');$('recommendationList').innerHTML=d.overall.recommendations.map(x=>'<li>'+esc(x)+'</li>').join('');$('nextPracticeFocus').textContent=d.overall.nextPracticeFocus;$('rubricTable').innerHTML=d.items.map(i=>'<div class="rubric-item"><div class="rubric-main"><strong>'+esc(i.criterion)+'</strong><span>'+i.score+'/'+i.maxScore+'</span><span class="status status-'+i.status+'">'+(i.status==='covered'?'完整涵蓋':i.status==='partial'?'部分涵蓋':'未涵蓋')+'</span></div><div class="rubric-detail"><span>'+esc(i.reasoning)+'</span>'+(i.evidence?.[0]?'<span class="evidence-quote">證據：「'+esc(i.evidence[0].quote)+'」</span>':'')+'</div></div>').join('');}
+function evaluationAuditStatusLabel(status){
+  return ({
+    success:'SUCCESS',
+    success_normalized:'SUCCESS · NORMALIZED',
+    success_repaired:'SUCCESS · REPAIRED',
+    failed:'FAILED'
+  }[status]||String(status||'--').toUpperCase());
+}
+function renderEvaluation(d){
+  $('resultCard').classList.remove('hidden');syncStudentReportActions();
+  $('scoreCircle').textContent=String(d.percentage);
+  $('resultMode').textContent=modeLabel(d.mode)+' · '+d.totalScore+'/'+d.maxScore+' 分';
+  const audit=d.audit||null;
+  const auditMeta=$('resultAuditMeta');
+  if(auditMeta){
+    auditMeta.classList.toggle('hidden',!audit);
+    auditMeta.textContent=audit
+      ?'Evaluation ID：'+(audit.evaluationId||'--')+' · 技術狀態：'+evaluationAuditStatusLabel(audit.status)+(audit.persisted===false?' · 稽核保存失敗':'')
+      :'';
+  }
+  $('overallComment').textContent=d.overall.comment;
+  $('strengthList').innerHTML=d.overall.strengths.map(x=>'<li>'+esc(x)+'</li>').join('');
+  $('improvementList').innerHTML=d.overall.improvements.map(x=>'<li>'+esc(x)+'</li>').join('');
+  $('recommendationList').innerHTML=d.overall.recommendations.map(x=>'<li>'+esc(x)+'</li>').join('');
+  $('nextPracticeFocus').textContent=d.overall.nextPracticeFocus;
+  $('rubricTable').innerHTML=d.items.map(i=>'<div class="rubric-item"><div class="rubric-main"><strong>'+esc(i.criterion)+'</strong><span>'+i.score+'/'+i.maxScore+'</span><span class="status status-'+i.status+'">'+(i.status==='covered'?'完整涵蓋':i.status==='partial'?'部分涵蓋':'未涵蓋')+'</span></div><div class="rubric-detail"><span>'+esc(i.reasoning)+'</span>'+(i.evidence?.[0]?'<span class="evidence-quote">證據：「'+esc(i.evidence[0].quote)+'」</span>':'')+'</div></div>').join('');
+}
 function evaluationErrorMessage(error){
   const code=error?.details?.code||error?.details?.error||error?.message||'';
   if(code==='AI_EVALUATOR_PROVIDER_NOT_CONFIGURED') return '評量失敗：此 session 沒有設定 Evaluator AI。請重新開始病例並先完成 Evaluator route 設定。';
@@ -208,6 +234,65 @@ function downloadEvaluationDiagnostic(){
   link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(url),0);
 }
+function evaluationAuditFiles(audit){
+  if(!audit)return null;
+  const metadata=JSON.parse(JSON.stringify(audit));
+  for(const attempt of Object.values(metadata.attempts||{})){
+    if(attempt)delete attempt.responseText;
+  }
+  delete metadata.canonicalEvaluation;
+  const lines=[
+    'AI 模擬病人－評量技術稽核包',
+    '',
+    'Evaluation ID：'+(audit.evaluationId||'--'),
+    '技術狀態：'+evaluationAuditStatusLabel(audit.status),
+    '發生時間：'+(audit.occurredAt||'--'),
+    '保存期限：'+(audit.expiresAt||'--'),
+    'Session：'+(audit.session?.id||'--'),
+    '案例：'+(audit.session?.caseLabel||audit.session?.caseId||'--'),
+    'Provider：'+(audit.attempts?.repair?.provider||audit.attempts?.initial?.provider||audit.evaluatorRoute?.preset||'--'),
+    'Model：'+(audit.attempts?.repair?.model||audit.attempts?.initial?.model||audit.evaluatorRoute?.model||'--'),
+    '',
+    '本包供授權教師／系統管理員進行技術稽核。',
+    '系統不另附完整問診 transcript、API Key、Authorization、密碼、Provider Base URL 或 Prompt Template。',
+    '注意：Evaluator 原始輸出本身可能引用部分 transcript evidence，因此應視為受限制教學資料。'
+  ];
+  const files={
+    'README.txt':lines.join('\n'),
+    'metadata.json':JSON.stringify(metadata,null,2),
+    'normalization.json':JSON.stringify(audit.normalization||{applied:false,initial:{actions:[]},repair:{actions:[]}},null,2),
+    'validation.json':JSON.stringify({
+      initial:audit.attempts?.initial?.validation||null,
+      repair:audit.attempts?.repair?.validation||null
+    },null,2),
+    'canonical_evaluation.json':JSON.stringify(audit.canonicalEvaluation||null,null,2),
+    'raw_ai_response.txt':audit.attempts?.initial?.responseText||''
+  };
+  if(audit.attempts?.repair)files['repaired_ai_response.txt']=audit.attempts.repair.responseText||'';
+  return files;
+}
+async function downloadSelectedEvaluationAudit(){
+  const record=state.records.find(item=>item.id===state.selectedRecordId);
+  const evaluationId=record?.evaluationAudit?.evaluationId;
+  if(!evaluationId)return alert('這筆紀錄沒有可用的評量稽核資料。');
+  try{
+    const response=await fetch('/api/teacher/evaluation-audits?evaluationId='+encodeURIComponent(evaluationId));
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||('HTTP '+response.status));
+    const audit=data.audit;
+    const files=evaluationAuditFiles(audit);
+    if(!files)throw new Error('EMPTY_EVALUATION_AUDIT');
+    const blob=createZipBlob(files);
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=url;
+    link.download=audit.downloadFilename||('evaluation-audit-'+evaluationId+'.zip');
+    document.body.appendChild(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),0);
+  }catch(error){
+    alert('評量技術稽核下載失敗：'+(error?.message||'請稍後再試。'));
+  }
+}
 async function copyEvaluationErrorId(){
   const value=state.evaluationDiagnostic?.errorId;
   if(!value)return;
@@ -254,7 +339,26 @@ async function renderRecords(){if(state.serverMode){if(!['teacher','admin'].incl
   const rows=(await fetch('/api/teacher/records').then(r=>r.json())).records||[];
   state.records=rows.map(r=>({...r,percentage:Number(r.percentage),completedAt:r.endedAt||r.startedAt,coachUsed:Boolean(r.coachUsed),evaluation:r.evaluation||{percentage:Number(r.percentage),items:[]},transcript:r.transcript||[]}));
 }catch{state.records=[];}}else state.records=read(RKEY,[]);$('recordCount').textContent=state.records.length;$('trainingCount').textContent=state.records.filter(r=>r.mode==='training').length;$('examCount').textContent=state.records.filter(r=>r.mode==='exam').length;const scored=state.records.filter(r=>Number.isFinite(r.evaluation?.percentage));$('averageScore').textContent=scored.length?Math.round(scored.reduce((a,r)=>a+r.evaluation.percentage,0)/scored.length)+'%':'--';$('recordList').innerHTML=state.records.length?state.records.map(r=>'<button class="record-row" data-id="'+esc(r.id)+'"><span><strong>'+esc(r.studentName)+'</strong><small>'+esc(r.caseTitle)+'</small></span><span class="record-mode '+r.mode+'">'+(r.mode==='training'?'訓練':'考試')+'</span><span>'+new Date(r.completedAt).toLocaleString('zh-TW')+'</span><b>'+(r.evaluation?.percentage??'--')+'%</b></button>').join(''):'<p class="empty">尚無完成紀錄。</p>';$('recordList').querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>showRecord(b.dataset.id));}
-function showRecord(id){const r=state.records.find(x=>x.id===id);if(!r)return;state.selectedRecordId=id;$('recordDetail').classList.remove('hidden');$('recordDetailTitle').textContent=r.studentName+' · '+r.caseTitle;const teacherNames=(r.teachers||[]).map(t=>t.displayName||t.name||t.id).filter(Boolean).join('、')||'未記錄';$('recordMeta').textContent=modeLabel(r.mode)+(r.mode==='training'?' · Coach '+(r.coachUsed?'曾開啟':'未使用'):'')+' · 教師 '+teacherNames+' · '+new Date(r.completedAt).toLocaleString('zh-TW')+' · '+r.evaluation.percentage+' 分';$('recordOverall').innerHTML='<strong>AI 總評</strong><p>'+esc(r.evaluation.overall?.comment||'')+'</p>';$('recordTranscript').innerHTML=r.transcript.map(m=>'<div class="audit-turn '+m.role+'"><strong>'+(m.role==='student'?'學生':'病人')+'</strong><span>'+esc(m.content)+'</span></div>').join('');$('recordRubric').innerHTML=r.evaluation.items.map(i=>'<div class="teacher-item"><strong>'+esc(i.criterion)+'</strong><span>'+i.score+'/'+i.maxScore+' · '+(i.status==='covered'?'完整':i.status==='partial'?'部分':'未涵蓋')+'</span></div>').join('');}
+function showRecord(id){
+  const r=state.records.find(x=>x.id===id);if(!r)return;
+  state.selectedRecordId=id;$('recordDetail').classList.remove('hidden');
+  $('recordDetailTitle').textContent=r.studentName+' · '+r.caseTitle;
+  const teacherNames=(r.teachers||[]).map(t=>t.displayName||t.name||t.id).filter(Boolean).join('、')||'未記錄';
+  $('recordMeta').textContent=modeLabel(r.mode)+(r.mode==='training'?' · Coach '+(r.coachUsed?'曾開啟':'未使用'):'')+' · 教師 '+teacherNames+' · '+new Date(r.completedAt).toLocaleString('zh-TW')+' · '+r.evaluation.percentage+' 分';
+  $('recordOverall').innerHTML='<strong>AI 總評</strong><p>'+esc(r.evaluation.overall?.comment||'')+'</p>';
+  const audit=r.evaluationAudit||null;
+  $('recordEvaluationAudit')?.classList.toggle('hidden',!audit);
+  if($('recordEvaluationAuditMeta')){
+    const normalize=audit?.normalizationApplied?' · normalization '+Number(audit.normalizationCount||0)+' 項':'';
+    const repair=audit?.repairUsed?' · 使用自動修復':'';
+    const expiry=audit?.expiresAt?' · 保存至 '+new Date(audit.expiresAt).toLocaleString('zh-TW'):'';
+    $('recordEvaluationAuditMeta').textContent=audit
+      ?'Evaluation ID：'+(audit.evaluationId||'--')+' · '+evaluationAuditStatusLabel(audit.status)+normalize+repair+expiry
+      :'';
+  }
+  $('recordTranscript').innerHTML=r.transcript.map(m=>'<div class="audit-turn '+m.role+'"><strong>'+(m.role==='student'?'學生':'病人')+'</strong><span>'+esc(m.content)+'</span></div>').join('');
+  $('recordRubric').innerHTML=r.evaluation.items.map(i=>'<div class="teacher-item"><strong>'+esc(i.criterion)+'</strong><span>'+i.score+'/'+i.maxScore+' · '+(i.status==='covered'?'完整':i.status==='partial'?'部分':'未涵蓋')+'</span></div>').join('');
+}
 async function loadOwnStudentReport({force=false}={}){
   const reportSessionId=state.studentReportSessionId;
   if(!reportSessionId)return null;
@@ -558,7 +662,7 @@ async function setCoachEnabled(enabled){
   }
   save();renderMode();renderCoach();
 }
-$('finishBtn').onclick=finish;$('retryEvaluationBtn').onclick=finish;$('downloadEvaluationDebugBtn').onclick=downloadEvaluationDiagnostic;$('copyEvaluationErrorIdBtn').onclick=copyEvaluationErrorId;$('studentExportWordBtn').onclick=exportOwnStudentWord;$('studentExportPdfBtn').onclick=exportOwnStudentPdf;$('studentReportRecheckBtn').onclick=()=>refreshStudentReportAccess({silent:false});$('resetBtn').onclick=start;$('caseSelect').onchange=e=>switchCase(e.target.value);$('modeSelect').onchange=e=>switchMode(e.target.value);$('coachToggle').onchange=e=>setCoachEnabled(e.target.value==='on');$('studentName').oninput=e=>{if(state.serverMode)return;state.studentName=e.target.value;save();};$('exportRecordWordBtn').onclick=exportSelectedWord;$('exportRecordPdfBtn').onclick=exportSelectedPdf;$('closeRecordBtn').onclick=()=>{$('recordDetail').classList.add('hidden');state.selectedRecordId=null;};
+$('finishBtn').onclick=finish;$('retryEvaluationBtn').onclick=finish;$('downloadEvaluationDebugBtn').onclick=downloadEvaluationDiagnostic;$('copyEvaluationErrorIdBtn').onclick=copyEvaluationErrorId;$('studentExportWordBtn').onclick=exportOwnStudentWord;$('studentExportPdfBtn').onclick=exportOwnStudentPdf;$('studentReportRecheckBtn').onclick=()=>refreshStudentReportAccess({silent:false});$('resetBtn').onclick=start;$('caseSelect').onchange=e=>switchCase(e.target.value);$('modeSelect').onchange=e=>switchMode(e.target.value);$('coachToggle').onchange=e=>setCoachEnabled(e.target.value==='on');$('studentName').oninput=e=>{if(state.serverMode)return;state.studentName=e.target.value;save();};$('exportRecordWordBtn').onclick=exportSelectedWord;$('exportRecordPdfBtn').onclick=exportSelectedPdf;$('downloadRecordEvaluationAuditBtn').onclick=downloadSelectedEvaluationAudit;$('closeRecordBtn').onclick=()=>{$('recordDetail').classList.add('hidden');state.selectedRecordId=null;};
 const AI_AGENT_LABELS={patient:'Patient',coach:'Coach',evaluator:'Evaluator'};
 function promptTemplateEditor(agent,route,catalog){
   const spec=catalog?.[agent];
