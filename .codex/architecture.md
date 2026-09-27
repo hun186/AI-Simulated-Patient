@@ -50,7 +50,7 @@
 | Cases | draft/published/archived；學生只見 public projection；session 留 snapshot；definition 內含 student report export policy |
 | Interview sessions/messages/evaluations | active→completed/abandoned；owner-scoped；正式 transcript/evaluation 在 DB；v9 保存 Teacher snapshot 與 per-turn Coach events，v10 保存失敗評量的 redacted support snapshot，v11 保存所有 Evaluator outcome 的 retained audit trace |
 | LLM connections/routes/provider state | system 或 teacher-owned connection；system/case route；session snapshot 不可變；Dify Stateful Chatflow 的 `conversation_id` 依 interview+connection 保存 |
-| Usage/pricing/quota | usage 保存 provider facts、cache hit/miss/reporting state、cache-savings、定價/FX snapshot；hard quota 在 provider call 前檢查 |
+| Usage/pricing/quota | usage 保存 provider facts、cache hit/miss/reporting state、cache-savings、定價/FX snapshot；分析頁可依期間/使用者/Provider/Model/Agent/病例/結果/cache telemetry 篩選並分開顯示 cache hit rate 與 coverage；hard quota 在 provider call 前檢查，分析篩選不改變 quota 計算 |
 | Browser demo state | browser localStorage；與 production DB/security domain 隔離 |
 
 ## 錯誤、安全與營運邊界
