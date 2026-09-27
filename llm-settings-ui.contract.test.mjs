@@ -191,3 +191,18 @@ test('Vercel Demo exposes the AI settings surface as read-only without enabling 
   assert.match(css,/\.ai-demo-notice/);
   assert.ok(vercel.rewrites.some(item=>item.source==='/api/teacher/ai-settings'&&item.destination==='/api/demo?route=ai-settings'));
 });
+
+
+test('AI Settings exposes Dify beside native LLM providers and stores per-route mapping fields',()=>{
+  const app=readFileSync('formal-app.js','utf8');
+  const demo=readFileSync('api/demo.js','utf8');
+  assert.match(app,/\['dify','Dify API'\]/);
+  assert.match(app,/dify:'chat、workflow 或 completion'/);
+  assert.match(app,/Dify Route 設定/);
+  assert.match(app,/data-dify-input-key/);
+  assert.match(app,/data-dify-output-key/);
+  assert.match(app,/data-dify-inputs-json/);
+  assert.match(app,/config\.difyInputs=parsed/);
+  assert.match(demo,/preset:'dify'/);
+  assert.match(demo,/providerKind:'dify'/);
+});
