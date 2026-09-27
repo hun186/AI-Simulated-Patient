@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { buildReportModel,buildReportHtml,buildDocxBytes } from './report-export.js';
 
 const sample={
@@ -87,4 +88,17 @@ test('Word report is a real DOCX OpenXML ZIP package',()=>{
   assert.match(raw,/問診學習與評量報告/);
   assert.match(raw,/Dify · chat/);
   assert.match(raw,/AI Coach 訓練紀錄/);
+});
+
+
+test('Teacher record UI wires Word and PDF export actions',()=>{
+  const app=readFileSync('formal-app.js','utf8');
+  const html=readFileSync('index.html','utf8');
+  assert.match(app,/import \{ downloadWordReport,printPdfReport \} from '\.\/report-export\.js'/);
+  assert.match(app,/function exportSelectedWord/);
+  assert.match(app,/function exportSelectedPdf/);
+  assert.match(app,/downloadWordReport\(record\)/);
+  assert.match(app,/printPdfReport\(record\)/);
+  assert.match(html,/id="exportRecordWordBtn"/);
+  assert.match(html,/id="exportRecordPdfBtn"/);
 });
