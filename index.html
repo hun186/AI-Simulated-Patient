@@ -62,15 +62,27 @@
 </section>
 <section id="teacherUsage" class="teacher-view">
   <div class="usage-toolbar card">
-    <div><div class="eyebrow">LLM Usage & Quotas</div><h3>用量與配額</h3><p>成本為呼叫當下依 pricing rule 寫入的估算值；未定價的呼叫會另外標示。</p></div>
-    <label>查看對象<select id="usageUserSelect"><option value="">全部可見使用者</option></select></label>
+    <div><div class="eyebrow">LLM Usage Analytics & Quotas</div><h3>用量分析與配額</h3><p>依期間、使用者、Provider、Model、Agent 與病例篩選；成本為呼叫當下 pricing rule 的歷史快照。</p><small id="usageRangeSummary" class="usage-range-summary">統計期間：本月</small></div>
     <div class="fx-reference"><span id="usageFxSummary">USD/TWD 參考匯率：讀取中…</span><div id="usageFxAdmin" class="fx-admin hidden"><input id="usageFxRate" type="number" min="0.000001" step="0.001" placeholder="31.780"><button id="usageFxSaveBtn" type="button" class="secondary">更新匯率</button></div></div>
+  </div>
+  <div class="usage-filter-panel card">
+    <label>期間<select id="usagePeriod"><option value="today">今日</option><option value="week">本週</option><option value="month" selected>本月</option><option value="7d">近 7 日</option><option value="30d">近 30 日</option><option value="custom">自訂區間</option><option value="all">全部期間</option></select></label>
+    <div id="usageCustomRange" class="usage-custom-range hidden"><label>開始日期<input id="usageFromDate" type="date"></label><label>結束日期<input id="usageToDate" type="date"></label></div>
+    <label>使用者<select id="usageUserSelect"><option value="">全部可見使用者</option></select></label>
+    <label>Provider<select id="usageProvider"><option value="">全部 Provider</option></select></label>
+    <label>Model<select id="usageModel"><option value="">全部 Model</option></select></label>
+    <label>Agent<select id="usageAgent"><option value="">全部 Agent</option></select></label>
+    <label>病例<select id="usageCase"><option value="">全部病例</option></select></label>
+    <label>結果<select id="usageOutcome"><option value="all">全部</option><option value="success">成功</option><option value="failure">失敗</option></select></label>
+    <label>Cache telemetry<select id="usageCacheStatus"><option value="all">全部</option><option value="reported">有回報</option><option value="unreported">未回報</option></select></label>
+    <button id="usageFilterResetBtn" type="button" class="secondary">清除篩選</button>
   </div>
   <div class="usage-stats">
     <div class="stat-card"><span>呼叫次數</span><strong id="usageCalls">0</strong></div>
     <div class="stat-card"><span>Tokens</span><strong id="usageTokens">0</strong></div>
     <div class="stat-card"><span>Cache 命中 Tokens</span><strong id="usageCacheHitTokens">0</strong></div>
-    <div class="stat-card"><span>Cache Hit Rate</span><strong id="usageCacheHitRate">--</strong></div>
+    <div class="stat-card"><span>Cache Hit Rate</span><strong id="usageCacheHitRate">--</strong><small id="usageCacheRateDetail">--</small></div>
+    <div class="stat-card"><span>Telemetry Coverage</span><strong id="usageCacheCoverage">--</strong><small id="usageCacheCoverageDetail">--</small></div>
     <div class="stat-card"><span>Cache 節省估算</span><strong id="usageCacheSavings">$0.000000</strong><small id="usageCacheSavingsTwd">NT$0.0000</small></div>
     <div class="stat-card"><span>估算成本（USD）</span><strong id="usageCost">$0.000000</strong></div>
     <div class="stat-card"><span>估算成本（TWD）</span><strong id="usageCostTwd">NT$0.0000</strong></div>

@@ -122,3 +122,87 @@ test('usage/quota API enforces Admin and Teacher scope',()=>{
     assert.equal(Number(data.teacherSummary.body.byDate[0].tokens),21);
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+
+test('usage analytics filters provider model agent case outcome cache and groups dates in browser timezone',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'aisp-usage-filters-'));
+  const dbPath=join(dir,'aisp.sqlite');
+  const script=`
+    process.env.DB_DRIVER='sqlite';
+    process.env.SQLITE_PATH=${JSON.stringify(dbPath)};
+    process.env.APP_ENV='test';
+    process.env.AUTH_ALLOWED_ORIGINS='http://localhost';
+
+    const {query}=await import('./lib/db.js');
+    const {createUser,loginUser}=await import('./lib/server-auth.js');
+    const handler=(await import('./api/teacher/llm-usage.js')).default;
+
+    function response(){return {statusCode:200,body:null,headers:{},status(c){this.statusCode=c;return this;},setHeader(n,v){this.headers[n]=v;},json(v){this.body=v;return v;},end(v=''){this.body=v;return v;}};}
+    function request(auth,queryParams){return {
+      method:'GET',body:null,query:queryParams,
+      headers:{origin:'http://localhost',host:'localhost','user-agent':'usage-filter-test',
+        cookie:'aisp_session='+encodeURIComponent(auth.token),'x-csrf-token':auth.csrfToken},
+      socket:{remoteAddress:'127.0.0.1'}
+    };}
+
+    const admin=await createUser({email:'admin-filter@example.com',password:'AdminPass!2026',displayName:'Admin',role:'admin'});
+    const teacher=await createUser({email:'teacher-filter@example.com',password:'TeacherPass!2026',displayName:'Teacher',role:'teacher'});
+    const student=await createUser({email:'student-filter@example.com',password:'StudentPass!2026',displayName:'Assigned',role:'student'});
+    const outsider=await createUser({email:'outsider-filter@example.com',password:'StudentPass!2026',displayName:'Other',role:'student'});
+    await query('insert into teacher_student_assignments (teacher_user_id,student_user_id,assigned_by) values ($1,$2,$3)',[teacher.id,student.id,admin.id]);
+    await query("insert into cases (id,version,internal_title,student_label,difficulty,student_brief,definition_json,status,created_by) values ($1,1,$2,$3,'test','',$4,'published',$5)",
+      ['case-filter','Internal Filter Case','篩選測試病例',JSON.stringify({id:'case-filter',title:'Filter',patient:{name:'P'},opening:'hi',facts:[],rubric:[]}),teacher.id]);
+
+    const insert='insert into llm_usage_events '+
+      '(user_id,case_id,agent_type,provider_kind,preset,model,input_tokens,cached_input_tokens,cache_miss_tokens,cache_read_status,'+
+      ' output_tokens,total_tokens,latency_ms,success,usage_status,pricing_status,created_at) '+
+      "values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,1,$13,'reported','unpriced',$14)";
+
+    await query(insert,[student.id,'case-filter','evaluator','openai_compatible','deepseek','deepseek-flash',100,40,60,'reported',20,120,false,'2026-09-27T15:30:00.000Z']);
+    await query(insert,[student.id,'case-filter','patient','openai_compatible','deepseek','deepseek-flash',80,10,70,'reported',10,90,true,'2026-09-27T16:30:00.000Z']);
+    await query(insert,[student.id,'case-filter','evaluator','openai','openai','gpt-test',50,0,0,'unreported',5,55,true,'2026-09-27T10:00:00.000Z']);
+    await query(insert,[outsider.id,'case-filter','evaluator','openai_compatible','deepseek','deepseek-flash',999,999,0,'reported',1,1000,false,'2026-09-27T15:30:00.000Z']);
+
+    const auth=await loginUser({email:'teacher-filter@example.com',password:'TeacherPass!2026',req:{headers:{origin:'http://localhost',host:'localhost','user-agent':'x'},socket:{remoteAddress:'127.0.0.1'}}});
+    const filtered=response();
+    await handler(request(auth,{
+      action:'summary',userId:student.id,
+      from:'2026-09-27T00:00:00.000Z',to:'2026-09-29T00:00:00.000Z',
+      provider:'deepseek',model:'deepseek-flash',agentType:'evaluator',caseId:'case-filter',
+      outcome:'failure',cacheStatus:'reported',timeZoneOffsetMinutes:'-480'
+    }),filtered);
+
+    const forbidden=response();
+    await handler(request(auth,{action:'summary',userId:outsider.id}),forbidden);
+
+    console.log(JSON.stringify({filtered:{status:filtered.statusCode,body:filtered.body},forbidden:{status:forbidden.statusCode,body:forbidden.body}}));
+  `;
+  const result=spawnSync(process.execPath,['--input-type=module','-e',script],{
+    cwd:resolve('.'),env:{...process.env,DB_DRIVER:'sqlite',SQLITE_PATH:dbPath,APP_ENV:'test'},encoding:'utf8',timeout:30000
+  });
+  try{
+    assert.equal(result.status,0,result.stderr);
+    const data=JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1));
+    assert.equal(data.filtered.status,200);
+    assert.equal(data.filtered.body.totals.length,1);
+    const total=data.filtered.body.totals[0];
+    assert.equal(Number(total.calls),1);
+    assert.equal(Number(total.tokens),120);
+    assert.equal(Number(total.inputTokens),100);
+    assert.equal(Number(total.cacheReportedInputTokens),100);
+    assert.equal(Number(total.cachedInputTokens),40);
+    assert.equal(Number(total.cacheMissTokens),60);
+    assert.equal(data.filtered.body.byDate.length,1);
+    assert.equal(data.filtered.body.byDate[0].date,'2026-09-27');
+    assert.deepEqual(data.filtered.body.byProvider.map(x=>x.preset),['deepseek']);
+    assert.deepEqual(data.filtered.body.byModel.map(x=>x.model),['deepseek-flash']);
+    assert.deepEqual(data.filtered.body.byAgent.map(x=>x.agentType),['evaluator']);
+    assert.equal(data.filtered.body.byCase.length,1);
+    assert.equal(data.filtered.body.byCase[0].caseLabel,'篩選測試病例');
+    assert.deepEqual(data.filtered.body.filters.providers,['deepseek','openai']);
+    assert.equal(data.filtered.body.filters.models.some(x=>x.provider==='openai'&&x.model==='gpt-test'),true);
+    assert.equal(data.filtered.body.filters.cases[0].label,'篩選測試病例');
+    assert.equal(data.filtered.body.range.timeZoneOffsetMinutes,-480);
+    assert.equal(data.forbidden.status,403);
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});

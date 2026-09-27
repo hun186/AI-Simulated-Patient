@@ -13,6 +13,13 @@
 
 ## Recent Outcomes
 
+### 2026-09-27 — Usage analytics filters
+
+- LLM usage analytics 保留完整歷史，不提供 destructive reset；Teacher/Admin 可依本地日曆期間（今日、本週、本月、近 7/30 日、自訂、全部）、可見使用者、Provider、Model、Agent、病例、成功/失敗與 cache telemetry 狀態篩選。
+- 前端將本地日期邊界轉成 UTC 查詢，server 以 browser timezone offset 產生本地日期 breakdown；Teacher scope 仍只涵蓋自己與 assigned students，Admin 才能看全域。
+- Cache Hit Rate 只以 provider 有回報的 hit/miss input 計算，另顯示 cache telemetry coverage（reported input / total input）與 reported calls，避免舊資料或不回報 cache 的 Provider 造成誤讀。
+- Analytics filters 只影響查詢呈現；既有 daily/monthly hard quota enforcement 仍直接依完整 llm_usage_events 計算。
+
 ### 2026-09-27 — Prompt/KV cache optimization
 
 - Patient 保持 append-only conversation；Coach 將 transcript 從 system prompt 移到 user task，Evaluator/repair 共用相同 stable system + educator + case/rubric prefix，transcript 後才接 current task，以提高 DeepSeek、vLLM 與相容 OpenAI endpoint 的 prefix/KV cache reuse。

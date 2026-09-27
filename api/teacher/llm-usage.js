@@ -11,7 +11,10 @@ import {
 function statusFor(error){
   if(error?.code==='FORBIDDEN') return 403;
   if(['USER_NOT_FOUND','PRICING_RULE_NOT_FOUND'].includes(error?.code)) return 404;
-  if(['INVALID_LIMIT','INVALID_PRESET','INVALID_TIME_BAND','INVALID_CONTEXT_BAND','INVALID_FX_RATE','MODEL_PATTERN_REQUIRED'].includes(error?.code)) return 400;
+  if([
+    'INVALID_LIMIT','INVALID_PRESET','INVALID_TIME_BAND','INVALID_CONTEXT_BAND','INVALID_FX_RATE','MODEL_PATTERN_REQUIRED',
+    'INVALID_USAGE_FROM','INVALID_USAGE_TO','INVALID_USAGE_RANGE','INVALID_USAGE_OUTCOME','INVALID_CACHE_STATUS','INVALID_TIMEZONE_OFFSET'
+  ].includes(error?.code)) return 400;
   return 500;
 }
 
@@ -37,7 +40,16 @@ export default async function handler(req,res){
       const userId=req.query?.userId?String(req.query.userId):null;
       const from=req.query?.from?String(req.query.from):null;
       const to=req.query?.to?String(req.query.to):null;
-      return res.status(200).json(await usageSummary(actor,{userId,from,to}));
+      const provider=req.query?.provider?String(req.query.provider):'';
+      const model=req.query?.model?String(req.query.model):'';
+      const agentType=req.query?.agentType?String(req.query.agentType):'';
+      const caseId=req.query?.caseId?String(req.query.caseId):'';
+      const outcome=req.query?.outcome?String(req.query.outcome):'all';
+      const cacheStatus=req.query?.cacheStatus?String(req.query.cacheStatus):'all';
+      const timeZoneOffsetMinutes=req.query?.timeZoneOffsetMinutes??0;
+      return res.status(200).json(await usageSummary(actor,{
+        userId,from,to,provider,model,agentType,caseId,outcome,cacheStatus,timeZoneOffsetMinutes
+      }));
     }
 
     if(req.method!=='POST') return res.status(405).json({error:'Method not allowed'});

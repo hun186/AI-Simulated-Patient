@@ -32,7 +32,7 @@ test('dashboard surfaces persisted cost and unpriced usage separately',()=>{
   assert.match(app,/action:'setFxRate'/);
   assert.match(app,/unpricedCalls/);
   assert.match(app,/partialPricingCalls/);
-  assert.match(app,/usageRows\('日期',data\.byDate,'date'\)/);
+  assert.match(app,/usageRows\('日期（本地）',data\.byDate,'date'\)/);
   assert.match(app,/function microusdToUsd/);
 });
 
@@ -65,4 +65,56 @@ test('dashboard surfaces cache hit rate and historical savings without treating 
   assert.match(app,/cachedInputTokens/);
   assert.match(app,/cacheMissTokens/);
   assert.match(app,/cacheSavingsMicrousd/);
+});
+
+
+test('usage analytics exposes time, dimensional, outcome and cache filters',()=>{
+  const html=readFileSync('index.html','utf8');
+  const app=readFileSync('formal-app.js','utf8');
+
+  for(const id of [
+    'usagePeriod','usageFromDate','usageToDate','usageUserSelect','usageProvider','usageModel',
+    'usageAgent','usageCase','usageOutcome','usageCacheStatus','usageFilterResetBtn'
+  ]) assert.match(html,new RegExp('id="'+id+'"'));
+
+  assert.match(html,/value="today"/);
+  assert.match(html,/value="week"/);
+  assert.match(html,/value="month"/);
+  assert.match(html,/value="7d"/);
+  assert.match(html,/value="30d"/);
+  assert.match(html,/value="custom"/);
+  assert.match(html,/value="all"/);
+
+  assert.match(app,/function usagePeriodRange/);
+  assert.match(app,/timeZoneOffsetMinutes:String\(new Date\(\)\.getTimezoneOffset\(\)\)/);
+  assert.match(app,/provider:\$\('usageProvider'\)\.value/);
+  assert.match(app,/model:\$\('usageModel'\)\.value/);
+  assert.match(app,/agentType:\$\('usageAgent'\)\.value/);
+  assert.match(app,/caseId:\$\('usageCase'\)\.value/);
+  assert.match(app,/for\(const \[key,value\] of Object\.entries\(values\)\)if\(value\)params\.set\(key,value\)/);
+  assert.match(app,/params\.set\('outcome'/);
+  assert.match(app,/params\.set\('cacheStatus'/);
+  assert.match(app,/usageRows\('使用者'/);
+  assert.match(app,/usageRows\('病例'/);
+});
+
+test('cache KPI distinguishes hit rate from telemetry coverage',()=>{
+  const html=readFileSync('index.html','utf8');
+  const app=readFileSync('formal-app.js','utf8');
+
+  assert.match(html,/id="usageCacheCoverage"/);
+  assert.match(html,/id="usageCacheCoverageDetail"/);
+  assert.match(html,/id="usageCacheRateDetail"/);
+  assert.match(app,/cacheReportedInputTokens/);
+  assert.match(app,/部分歷史\/Provider 未回報/);
+  assert.match(app,/usageCacheCoverage/);
+  assert.match(app,/usageCacheRateDetail/);
+});
+
+test('usage date presets use local calendar boundaries before converting to ISO',()=>{
+  const app=readFileSync('formal-app.js','utf8');
+  assert.match(app,/new Date\(now\.getFullYear\(\),now\.getMonth\(\),now\.getDate\(\)\+1\)/);
+  assert.match(app,/from\.toISOString\(\)/);
+  assert.match(app,/to\.toISOString\(\)/);
+  assert.match(app,/日期（本地）/);
 });
