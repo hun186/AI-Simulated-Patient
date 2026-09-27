@@ -6,7 +6,8 @@ import { runEvaluatorAgent,repairEvaluatorAgent } from '../lib/llm/agents.js';
 import { recordLlmUsage } from '../lib/llm/usage.js';
 import { enforceLlmQuota } from '../lib/llm/quota.js';
 import { getProviderSessionState,setProviderSessionState } from '../lib/llm/provider-state.js';
-import { isProductionEnv } from '../lib/request-security.js';\nimport { buildEvaluationFailureDiagnostic,projectEvaluationFailureDiagnostic } from '../lib/evaluation-diagnostics.js';
+import { isProductionEnv } from '../lib/request-security.js';
+import { buildEvaluationFailureDiagnostic,projectEvaluationFailureDiagnostic } from '../lib/evaluation-diagnostics.js';
 import { saveEvaluationFailureDiagnostic } from '../lib/evaluation-diagnostic-store.js';
 
 function parseJson(value,fallback={}){
