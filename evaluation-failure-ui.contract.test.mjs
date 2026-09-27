@@ -20,6 +20,9 @@ test('evaluation repair failure exposes actionable support UI and downloadable d
   assert.match(app,/application\/json;charset=utf-8/);
   assert.match(app,/state\.user\?\.role==='student'/);
   assert.match(app,/提供給授課教師或系統管理員/);
+  assert.match(app,/學生畫面不直接顯示完整 AI 原始回覆/);
+  assert.match(app,/rawResponsesIncluded===false/);
+  assert.match(app,/staffLookupPath/);
   assert.match(app,/state\.user\?\.role==='teacher'/);
   assert.match(app,/提供給系統管理員或維運人員/);
   assert.match(app,/if\(!renderEvaluationFailure\(error\)\)alert/);
