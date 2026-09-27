@@ -43,7 +43,7 @@ function renderAll(){renderHeader();renderMode();renderChat();renderCoach();}
 function providerLabel(route){
   if(!route)return 'Provider 未設定';
   const preset=String(route.preset||route.providerKind||'').toLowerCase();
-  const names={openai:'OpenAI',deepseek:'DeepSeek',ollama:'Ollama',custom:'Custom',mock:'Mock'};
+  const names={openai:'OpenAI',deepseek:'DeepSeek',ollama_cloud:'Ollama Cloud',ollama:'Ollama Local',custom:'Custom',mock:'Mock'};
   const provider=names[preset]||route.preset||route.providerKind||'Provider';
   return provider+' · '+(route.model||'未指定模型');
 }
@@ -260,19 +260,20 @@ $('finishBtn').onclick=finish;$('resetBtn').onclick=start;$('caseSelect').onchan
 const AI_AGENT_LABELS={patient:'Patient',coach:'Coach',evaluator:'Evaluator'};
 function aiPresetOptions(){
   const items=state.user?.role==='admin'
-    ?[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama','Ollama'],['custom','OpenAI-compatible / Custom']]
-    :[['openai','OpenAI'],['deepseek','DeepSeek']];
+    ?[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local'],['custom','OpenAI-compatible / Custom']]
+    :[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud']];
   return items.map(([value,label])=>'<option value="'+value+'">'+label+'</option>').join('');
 }
 function syncAiPresetFields(){
   const preset=$('aiPreset').value;
   const showBase=state.user?.role==='admin'&&['ollama','custom'].includes(preset);
   $('aiBaseUrlRow').classList.toggle('hidden',!showBase);
-  $('aiApiKey').required=['openai','deepseek'].includes(preset);
+  $('aiApiKey').required=['openai','deepseek','ollama_cloud'].includes(preset);
   const placeholders={
     openai:'例如：gpt-5-mini',
     deepseek:'例如：deepseek-flash 或 deepseek-v4-pro',
-    ollama:'例如：qwen3:latest',
+    ollama_cloud:'例如：deepseek-v4-pro 或 deepseek-v4.1-flash',
+    ollama:'例如：qwen3:latest 或 deepseek-v4-pro:cloud',
     custom:'Provider 的 model id'
   };
   $('aiDefaultModel').placeholder=placeholders[preset]||'模型名稱';
@@ -291,8 +292,8 @@ async function renderAiSettings(){
     $('aiPreset').innerHTML=aiPresetOptions();
     syncAiPresetFields();
     $('aiRestrictionNote').textContent=state.user?.role==='admin'
-      ?'Admin 可建立系統級 OpenAI、DeepSeek、Ollama 與自訂 OpenAI-compatible 連線。'
-      :'Teacher 僅能建立自己的 OpenAI / DeepSeek 連線；Ollama 與自訂私有端點由 Admin 管理。';
+      ?'Admin 可建立系統級 OpenAI、DeepSeek、Ollama Cloud、Ollama Local 與自訂 OpenAI-compatible 連線。'
+      :'Teacher 可建立自己的 OpenAI、DeepSeek 與 Ollama Cloud 連線；Ollama Local 與自訂私有端點由 Admin 管理。';
 
     $('aiConnectionList').innerHTML=(data.connections||[]).map(connection=>{
       const canManage=manageableAiConnection(connection);
