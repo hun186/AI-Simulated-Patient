@@ -258,6 +258,21 @@ async function setCoachEnabled(enabled){
 }
 $('finishBtn').onclick=finish;$('resetBtn').onclick=start;$('caseSelect').onchange=e=>switchCase(e.target.value);$('modeSelect').onchange=e=>switchMode(e.target.value);$('coachToggle').onchange=e=>setCoachEnabled(e.target.value==='on');$('studentName').oninput=e=>{if(state.serverMode)return;state.studentName=e.target.value;save();};$('closeRecordBtn').onclick=()=>$('recordDetail').classList.add('hidden');
 const AI_AGENT_LABELS={patient:'Patient',coach:'Coach',evaluator:'Evaluator'};
+function promptTemplateEditor(agent,route,catalog){
+  const spec=catalog?.[agent];
+  if(!spec)return '';
+  const maxChars=Number(catalog.maxChars||8000);
+  const placeholders=(catalog.placeholders||[]).map(esc).join('、');
+  const locked=(spec.lockedRules||[]).map(rule=>'<li>'+esc(rule)+'</li>').join('');
+  const fields=(spec.fields||[]).map(field=>{
+    const value=route?.config?.[field.key]||'';
+    return '<label class="ai-prompt-field"><span>'+esc(field.label)+'</span>'+
+      '<textarea data-prompt-key="'+esc(field.key)+'" maxlength="'+maxChars+'" placeholder="留空＝使用系統預設">'+esc(value)+'</textarea></label>';
+  }).join('');
+  return '<div class="ai-prompt-editor"><div class="ai-prompt-title"><strong>'+esc(spec.title)+'</strong><small>'+esc(spec.description)+'</small></div>'+
+    '<details><summary>系統鎖定規則（唯讀）</summary><ul>'+locked+'</ul></details>'+
+    '<small class="ai-prompt-vars">可用變數：'+placeholders+'</small>'+fields+'</div>';
+}
 function aiPresetOptions(){
   const items=state.user?.role==='admin'
     ?[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local'],['custom','OpenAI-compatible / Custom']]
@@ -330,7 +345,8 @@ async function renderAiSettings(){
       const options=usable.map(c=>'<option value="'+c.id+'" '+(route?.connectionId===c.id?'selected':'')+'>'+esc(c.name)+' · '+esc(c.defaultModel)+'</option>').join('');
       return '<section class="ai-route-card" data-agent="'+agent+'"><header><strong>'+AI_AGENT_LABELS[agent]+'</strong><small>'+(route?'已設定':'未設定')+'</small></header>'+
         '<label>Provider / Model<select class="ai-route-connection"><option value="">未設定</option>'+options+'</select></label>'+
-        '<div class="ai-route-actions"><button class="secondary small-btn" type="button" data-ai-route-save="'+agent+'">儲存路由</button>'+
+        promptTemplateEditor(agent,route,data.promptTemplates)+
+        '<div class="ai-route-actions"><button class="secondary small-btn" type="button" data-ai-route-save="'+agent+'">儲存 Provider / Model / Prompt</button>'+
         (route?'<button class="small-btn danger-btn" type="button" data-ai-route-delete="'+route.id+'">移除</button>':'')+'</div></section>';
     }).join('');
     $('aiRouteGrid').querySelectorAll('[data-ai-route-save]').forEach(button=>button.onclick=()=>saveAiRoute(button.dataset.aiRouteSave));
@@ -407,11 +423,28 @@ async function saveAiRoute(agentType){
   const connectionId=card?.querySelector('.ai-route-connection')?.value;
   if(!connectionId)return alert('請先選擇 Provider 連線。');
   const connection=(state.aiSettings?.connections||[]).find(c=>c.id===connectionId);
-  const payload={agentType,connectionId,model:connection?.defaultModel||''};
+  const teacher=state.user?.role==='teacher';
+  const caseId=teacher?$('aiCaseSelect').value:null;
+  const currentRoute=(state.aiSettings?.routes||[]).find(r=>r.agentType===agentType&&(teacher
+    ?(r.scopeType==='case'&&r.scopeId===caseId&&r.ownerUserId===state.user?.id)
+    :r.scopeType==='system'));
+  const config={...(currentRoute?.config||{})};
+  card.querySelectorAll('[data-prompt-key]').forEach(field=>{
+    config[field.dataset.promptKey]=field.value.trim();
+  });
+  const payload={agentType,connectionId,model:connection?.defaultModel||'',config};
   if(state.user?.role==='admin')payload.action='setSystemRoute';
-  else{payload.action='setCaseRoute';payload.caseId=$('aiCaseSelect').value;}
-  try{await post('/api/teacher/ai-settings',payload);await renderAiSettings();}
-  catch(error){alert('路由儲存失敗：'+(error.message||'請確認病例與 Provider 權限。'));}
+  else{payload.action='setCaseRoute';payload.caseId=caseId;}
+  try{await post('/api/teacher/ai-settings',payload);await renderAiSettings();alert('AI 路由與 Prompt 模板已儲存。');}
+  catch(error){
+    const code=error.details?.error||error.message||'';
+    const labels={
+      PROMPT_TEMPLATE_TOO_LONG:'Prompt 模板超過字數上限。',
+      UNSUPPORTED_PROMPT_VARIABLE:'Prompt 使用了不支援的 {{變數}}。',
+      INVALID_PROMPT_TEMPLATE:'Prompt 模板格式無效。'
+    };
+    alert('路由儲存失敗：'+(labels[code]||code||'請確認病例與 Provider 權限。'));
+  }
 }
 async function deleteAiRoute(routeId){
   try{await post('/api/teacher/ai-settings',{action:'deleteRoute',routeId});await renderAiSettings();}
