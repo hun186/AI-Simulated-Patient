@@ -1,4 +1,5 @@
 import { downloadWordReport,printPdfReport } from './report-export.js';
+import { createZipBlob } from './support-bundle.js';
 const SKEY='aisp-formal-session-v1',RKEY='aisp-formal-records-v1',CKEY='aisp-formal-custom-cases-v1',DKEY='aisp-vercel-demo-user-v1';
 const state={serverMode:false,demoAuth:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,sessionRuntime:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[],aiSettings:null,usageDashboard:null,selectedRecordId:null,studentReport:null,studentReportSessionId:null,studentReportAllowed:false,studentReportAccess:null,evaluationDiagnostic:null};
 const $=id=>document.getElementById(id);
@@ -158,23 +159,50 @@ function renderEvaluationFailure(error){
   card.scrollIntoView?.({behavior:'smooth',block:'start'});
   return true;
 }
-function evaluationDiagnosticDownloadPayload(){
-  if(!state.evaluationDiagnostic)return null;
-  return {
-    support:{
-      title:'AI 模擬病人－評量失敗除錯資訊',
-      instruction:evaluationSupportInstruction(),
-      note:'請將本檔完整提供給系統管理員。系統已排除常見憑證、prompt template 與 transcript 欄位。',
-      staffLookupPath:state.evaluationDiagnostic.access?.staffLookupPath||null
-    },
-    diagnostic:state.evaluationDiagnostic
+function evaluationDiagnosticFiles(){
+  const diagnostic=state.evaluationDiagnostic;
+  if(!diagnostic)return null;
+  const initial=diagnostic.attempts?.initial||{};
+  const repair=diagnostic.attempts?.repair||{};
+  const metadata=JSON.parse(JSON.stringify(diagnostic));
+  for(const attempt of Object.values(metadata.attempts||{})) delete attempt.responseText;
+  const lookup=diagnostic.access?.staffLookupPath||'';
+  const lines=[
+    'AI 模擬病人－評量失敗支援包',
+    '',
+    '錯誤編號：'+(diagnostic.errorId||'--'),
+    '發生時間：'+(diagnostic.occurredAt||'--'),
+    '案例：'+(diagnostic.session?.caseLabel||diagnostic.session?.caseId||'--'),
+    'Session：'+(diagnostic.session?.id||'--'),
+    '角色：'+(diagnostic.session?.userRole||state.user?.role||'--'),
+    '',
+    evaluationSupportInstruction(),
+    '',
+    '安全說明：系統已排除 API Key、Authorization、密碼、Provider Base URL、Prompt Template 與完整問診 transcript。',
+    diagnostic.access?.rawResponsesIncluded===false
+      ?'學生支援包不包含完整 Evaluator 原始輸出，以避免洩漏評量內部資料；請由授權教師或系統管理員依錯誤編號查閱。'
+      :'本支援包包含已遮罩的 Evaluator 原始輸出與自動修復輸出。'
+  ];
+  const files={
+    'README.txt':lines.join('\n'),
+    'metadata.json':JSON.stringify(metadata,null,2),
+    'validation_errors.json':JSON.stringify({
+      initial:initial.validation||null,
+      repair:repair.validation||null
+    },null,2)
   };
+  if(lookup)files['staff_lookup.txt']='登入系統後，以教師或系統管理員身分開啟：\n'+lookup+'\n';
+  if(diagnostic.access?.rawResponsesIncluded!==false){
+    files['raw_ai_response.txt']=initial.responseText||'';
+    files['repaired_ai_response.txt']=repair.responseText||'';
+  }
+  return files;
 }
 function downloadEvaluationDiagnostic(){
-  const payload=evaluationDiagnosticDownloadPayload();
-  if(!payload)return;
-  const filename=state.evaluationDiagnostic.downloadFilename||('evaluation-debug-'+(state.evaluationDiagnostic.errorId||Date.now())+'.json');
-  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'});
+  const files=evaluationDiagnosticFiles();
+  if(!files)return;
+  const filename=state.evaluationDiagnostic.downloadFilename||('evaluation-debug-'+(state.evaluationDiagnostic.errorId||Date.now())+'.zip');
+  const blob=createZipBlob(files);
   const url=URL.createObjectURL(blob);
   const link=document.createElement('a');
   link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();
