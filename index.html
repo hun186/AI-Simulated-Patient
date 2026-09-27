@@ -104,7 +104,31 @@
     </div>
   </div>
 </section>
-<section id="teacherAudit" class="teacher-view"><div class="manage-card card"><div class="section-head"><div><h3>安全稽核</h3><p>僅系統管理員可查看全域登入與帳號安全事件。</p></div></div><div id="auditList"></div></div></section>
+<section id="teacherAudit" class="teacher-view">
+  <div class="manage-card card">
+    <div class="section-head"><div><h3>安全稽核</h3><p>僅系統管理員可查看全域登入與帳號安全事件；使用 server-side 分頁與篩選，避免長期紀錄一次載入。</p></div><span id="auditSummary" class="hint">讀取中…</span></div>
+    <form id="auditFilterForm" class="audit-filter-panel">
+      <label>期間<select id="auditPeriod"><option value="today">今日</option><option value="week">本週</option><option value="month">本月</option><option value="7d">近 7 日</option><option value="30d" selected>近 30 日</option><option value="custom">自訂區間</option><option value="all">全部期間</option></select></label>
+      <div id="auditCustomRange" class="audit-custom-range hidden"><label>開始日期<input id="auditFromDate" type="date"></label><label>結束日期<input id="auditToDate" type="date"></label></div>
+      <label>Action<select id="auditAction"><option value="">全部 Action</option></select></label>
+      <label>結果<select id="auditSuccess"><option value="all">全部</option><option value="success">成功</option><option value="failure">失敗</option></select></label>
+      <label>Actor<select id="auditActor"><option value="">全部 Actor</option></select></label>
+      <label>Target<select id="auditTarget"><option value="">全部 Target</option></select></label>
+      <label class="audit-keyword">關鍵字<input id="auditQuery" type="search" maxlength="160" placeholder="identifier、reason、IP、action"></label>
+      <label>每頁<select id="auditPageSize"><option value="25" selected>25 筆</option><option value="50">50 筆</option><option value="100">100 筆</option></select></label>
+      <button type="submit" class="primary">套用篩選</button>
+      <button id="auditFilterResetBtn" type="button" class="secondary">清除篩選</button>
+    </form>
+    <div id="auditList"></div>
+    <div class="audit-pagination">
+      <button id="auditFirstBtn" type="button" class="secondary">第一頁</button>
+      <button id="auditPrevBtn" type="button" class="secondary">上一頁</button>
+      <span id="auditPageLabel">第 1 / 1 頁</span>
+      <button id="auditNextBtn" type="button" class="secondary">下一頁</button>
+      <button id="auditLastBtn" type="button" class="secondary">最後一頁</button>
+    </div>
+  </div>
+</section>
 </section>
 <dialog id="promptExampleDialog" class="prompt-example-dialog">
   <div class="prompt-example-shell">

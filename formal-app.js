@@ -1389,13 +1389,168 @@ async function saveUsageQuota(event){
     alert('配額已儲存。');
   }catch(error){alert('配額儲存失敗：'+(error.message||'請確認權限與數值。'));}
 }
+let auditPage=1;
+let auditTotalPages=1;
+
+function auditPeriodRange(){
+  const period=$('auditPeriod')?.value||'30d';
+  const now=new Date();
+  const tomorrow=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
+  let from=null,to=tomorrow,label='';
+  if(period==='today'){
+    from=localDayStart(now);label='今日 · '+localDateInput(from);
+  }else if(period==='week'){
+    from=localDayStart(now);
+    from.setDate(from.getDate()-((from.getDay()+6)%7));
+    label='本週 · '+localDateInput(from)+' ～ '+localDateInput(new Date(to.getTime()-1));
+  }else if(period==='month'){
+    from=new Date(now.getFullYear(),now.getMonth(),1);
+    to=new Date(now.getFullYear(),now.getMonth()+1,1);
+    label='本月 · '+localDateInput(from)+' ～ '+localDateInput(new Date(to.getTime()-1));
+  }else if(period==='7d'){
+    from=localDayStart(now);from.setDate(from.getDate()-6);
+    label='近 7 日 · '+localDateInput(from)+' ～ '+localDateInput(new Date(to.getTime()-1));
+  }else if(period==='30d'){
+    from=localDayStart(now);from.setDate(from.getDate()-29);
+    label='近 30 日 · '+localDateInput(from)+' ～ '+localDateInput(new Date(to.getTime()-1));
+  }else if(period==='custom'){
+    const customFrom=dateFromInput($('auditFromDate').value);
+    const customEnd=dateFromInput($('auditToDate').value);
+    if(!customFrom||!customEnd)return {ready:false,label:'請選擇完整自訂日期區間'};
+    from=customFrom;
+    to=new Date(customEnd.getFullYear(),customEnd.getMonth(),customEnd.getDate()+1);
+    if(from>=to)return {ready:false,label:'自訂日期區間無效'};
+    label='自訂 · '+localDateInput(from)+' ～ '+localDateInput(customEnd);
+  }else{
+    from=null;to=null;label='全部期間';
+  }
+  return {ready:true,from:from?from.toISOString():null,to:to?to.toISOString():null,label};
+}
+
+function auditUserLabel(user){
+  if(!user)return '—';
+  return (user.displayName||user.email||user.id)+(user.email&&user.displayName?' · '+user.email:'');
+}
+
+function syncAuditSelect(id,items,placeholder,{value=x=>x,label=x=>x}={}){
+  const el=$(id),current=el.value;
+  el.innerHTML='<option value="">'+esc(placeholder)+'</option>'+
+    (items||[]).map(item=>'<option value="'+esc(value(item))+'">'+esc(label(item))+'</option>').join('');
+  el.value=(items||[]).some(item=>String(value(item))===String(current))?current:'';
+}
+
+function syncAuditFacets(data){
+  syncAuditSelect('auditAction',data.filters?.actions||[],'全部 Action');
+  syncAuditSelect('auditActor',data.filters?.actors||[],'全部 Actor',{
+    value:item=>item.userId,label:item=>(item.displayName||item.email||item.userId)+(item.email&&item.displayName?' · '+item.email:'')
+  });
+  syncAuditSelect('auditTarget',data.filters?.targets||[],'全部 Target',{
+    value:item=>item.userId,label:item=>(item.displayName||item.email||item.userId)+(item.email&&item.displayName?' · '+item.email:'')
+  });
+}
+
+function auditFilterParams(range){
+  const params=new URLSearchParams({
+    page:String(auditPage),
+    pageSize:$('auditPageSize').value||'25'
+  });
+  if(range.from)params.set('from',range.from);
+  if(range.to)params.set('to',range.to);
+  const values={
+    action:$('auditAction').value,
+    success:$('auditSuccess').value==='all'?'':$('auditSuccess').value,
+    actorUserId:$('auditActor').value,
+    targetUserId:$('auditTarget').value,
+    q:$('auditQuery').value.trim()
+  };
+  for(const [key,value] of Object.entries(values))if(value)params.set(key,value);
+  return params;
+}
+
+function renderAuditEvent(event){
+  const actor=auditUserLabel(event.actor);
+  const target=auditUserLabel(event.target);
+  const relation=(event.actor||event.target)?('Actor：'+actor+' · Target：'+target):'Actor / Target：—';
+  const identifier=event.identifier?'Identifier：'+event.identifier:'';
+  const host=event.clientHost?'Client：'+event.clientHost:'';
+  const side=[identifier,host].filter(Boolean).join(' · ')||'—';
+  return '<div class="audit-event '+(event.success?'ok':'fail')+'">'+
+    '<div><strong>'+esc(event.action)+'</strong>'+
+    '<small>'+esc(event.reason||'—')+' · '+new Date(event.createdAt).toLocaleString('zh-TW')+'</small>'+
+    '<small>'+esc(relation)+'</small></div>'+
+    '<span>'+esc(side)+'</span></div>';
+}
+
+function syncAuditPagination(pagination){
+  auditPage=Number(pagination?.page||1);
+  auditTotalPages=Math.max(1,Number(pagination?.totalPages||1));
+  const total=Number(pagination?.total||0);
+  $('auditSummary').textContent='共 '+total.toLocaleString('zh-TW')+' 筆 · 第 '+auditPage+' / '+auditTotalPages+' 頁';
+  $('auditPageLabel').textContent='第 '+auditPage+' / '+auditTotalPages+' 頁';
+  $('auditFirstBtn').disabled=auditPage<=1;
+  $('auditPrevBtn').disabled=auditPage<=1;
+  $('auditNextBtn').disabled=auditPage>=auditTotalPages;
+  $('auditLastBtn').disabled=auditPage>=auditTotalPages;
+}
+
 async function renderSecurityAudit(){
   if(!state.serverMode||state.user?.role!=='admin')return;
+  const range=auditPeriodRange();
+  if(!range.ready){
+    $('auditSummary').textContent=range.label;
+    $('auditList').innerHTML='<p class="empty">'+esc(range.label)+'</p>';
+    return;
+  }
   try{
-    const d=await fetch('/api/auth/audit?limit=100').then(r=>r.json());
-    $('auditList').innerHTML=(d.events||[]).map(e=>'<div class="audit-event '+(e.success?'ok':'fail')+'"><div><strong>'+esc(e.action)+'</strong><small>'+esc(e.reason||'')+' · '+new Date(e.createdAt).toLocaleString('zh-TW')+'</small></div><span>'+esc(e.identifier||'')+'</span></div>').join('')||'<p class="empty">尚無稽核事件。</p>';
-  }catch{$('auditList').innerHTML='<p class="empty">稽核紀錄讀取失敗。</p>';}
+    const response=await fetch('/api/auth/audit?'+auditFilterParams(range).toString());
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'audit');
+    syncAuditFacets(data);
+    syncAuditPagination(data.pagination);
+    $('auditSummary').textContent+=' · '+range.label;
+    $('auditList').innerHTML=(data.events||[]).map(renderAuditEvent).join('')||'<p class="empty">此條件下沒有稽核事件。</p>';
+  }catch{
+    $('auditSummary').textContent='讀取失敗';
+    $('auditList').innerHTML='<p class="empty">稽核紀錄讀取失敗。</p>';
+  }
 }
+
+function applyAuditFilters(event){
+  event?.preventDefault();
+  auditPage=1;
+  renderSecurityAudit();
+}
+
+function auditPeriodChanged(){
+  const custom=$('auditPeriod').value==='custom';
+  $('auditCustomRange').classList.toggle('hidden',!custom);
+  if(custom&&!$('auditFromDate').value){
+    const now=new Date();
+    $('auditFromDate').value=localDateInput(now);
+    $('auditToDate').value=localDateInput(now);
+  }
+}
+
+function resetAuditFilters(){
+  auditPage=1;
+  $('auditPeriod').value='30d';
+  $('auditCustomRange').classList.add('hidden');
+  $('auditFromDate').value='';
+  $('auditToDate').value='';
+  $('auditAction').value='';
+  $('auditSuccess').value='all';
+  $('auditActor').value='';
+  $('auditTarget').value='';
+  $('auditQuery').value='';
+  $('auditPageSize').value='25';
+  renderSecurityAudit();
+}
+
+function changeAuditPage(next){
+  auditPage=Math.max(1,Math.min(auditTotalPages,next));
+  renderSecurityAudit();
+}
+
 async function changeOwnPassword(event){
   event.preventDefault();
   try{
@@ -1449,5 +1604,14 @@ $('usageCase').onchange=renderUsageDashboard;
 $('usageOutcome').onchange=renderUsageDashboard;
 $('usageCacheStatus').onchange=renderUsageDashboard;
 $('usageFilterResetBtn').onclick=resetUsageFilters;
-$('usageFxSaveBtn').onclick=saveUsdTwdRate;$('aiConnectionForm').onsubmit=createAiConnection;$('aiPreset').onchange=syncAiPresetFields;$('aiCaseSelect').onchange=renderAiSettings;$('promptExampleCloseBtn').onclick=()=>$('promptExampleDialog').close();$('promptExampleCopyBtn').onclick=copyPromptExample;$('promptExampleApplyBtn').onclick=applyPromptExample;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
+$('usageFxSaveBtn').onclick=saveUsdTwdRate;
+$('auditFilterForm').onsubmit=applyAuditFilters;
+$('auditPeriod').onchange=auditPeriodChanged;
+$('auditPageSize').onchange=()=>{auditPage=1;renderSecurityAudit();};
+$('auditFilterResetBtn').onclick=resetAuditFilters;
+$('auditFirstBtn').onclick=()=>changeAuditPage(1);
+$('auditPrevBtn').onclick=()=>changeAuditPage(auditPage-1);
+$('auditNextBtn').onclick=()=>changeAuditPage(auditPage+1);
+$('auditLastBtn').onclick=()=>changeAuditPage(auditTotalPages);
+$('aiConnectionForm').onsubmit=createAiConnection;$('aiPreset').onchange=syncAiPresetFields;$('aiCaseSelect').onchange=renderAiSettings;$('promptExampleCloseBtn').onclick=()=>$('promptExampleDialog').close();$('promptExampleCopyBtn').onclick=copyPromptExample;$('promptExampleApplyBtn').onclick=applyPromptExample;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
 init();

@@ -59,7 +59,7 @@
 - 沒有通用 request idempotency contract；寫入重試需先檢查 handler/schema 行為，不可自行假定安全。
 - SQLite migration 以 `PRAGMA user_version` 依序、transaction 套用；目前 current schema 為 v12；backup 只由 SQLite adapter 支援。
 - 密碼以 scrypt、session/CSRF token 只存 hash；production setup/master secrets 必須外部配置。
-- 可觀測性目前是 DB audit/usage events、health endpoint 與 server console；production 規模與 SLO 未定義。
+- 可觀測性目前是 DB audit/usage events、health endpoint 與 server console；security audit UI/API 使用 server-side pagination 與日期/action/result/actor/target/keyword 篩選，避免把長期 audit history 一次載入；production 規模與 SLO 未定義。
 - SQLite 適合單一一般主機；多 application hosts／較高 concurrent writes 的升級路徑是 PostgreSQL/Neon。
 
 ## 修改導覽

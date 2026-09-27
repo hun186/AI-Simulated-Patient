@@ -29,7 +29,7 @@
 
 - Routes: `POST /api/auth/bootstrap|register|login|logout|change-password`, `GET /api/auth/me|audit`.
 - DB mode uses opaque `aisp_session` HttpOnly/SameSite=Lax cookie; state-changing authenticated calls require `x-csrf-token` and trusted origin checks.
-- Registration accepts student/teacher only and returns pending semantics; teacher approval and global audit are Admin-only, student approval is assigned-Teacher/Admin scoped.
+- Registration accepts student/teacher only and returns pending semantics; teacher approval and global audit are Admin-only, student approval is assigned-Teacher/Admin scoped. `GET /api/auth/audit` uses server-side pagination and supports bounded date/action/result/actor/target/keyword filters; filters never widen the caller's audit scope.
 - Login failures intentionally do not disclose whether account/password/status caused rejection; throttling may return 429. Password changes/resets invalidate existing sessions.
 - Bootstrap is single-admin guarded by `ADMIN_SETUP_KEY`; production requires a sufficiently strong configured key.
 

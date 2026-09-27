@@ -93,7 +93,7 @@ Defaults:
 - password change;
 - teacher/student assignment changes.
 
-Admins may read the global audit. Non-admin users are restricted to events involving their own account.
+Admins may read the global audit. Non-admin users are restricted to events involving their own account. Audit reads are server-paginated and support date, action, success/failure, actor, target, and bounded keyword filters; filtering is applied inside the caller's existing authorization scope.
 
 ### 8. Password recovery is deliberately limited
 
