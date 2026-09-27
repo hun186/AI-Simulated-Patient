@@ -35,5 +35,6 @@ test('security audit date presets use local calendar boundaries converted to UTC
   assert.match(app,/function auditPeriodRange/);
   assert.match(app,/from:from\?from\.toISOString\(\):null/);
   assert.match(app,/to:to\?to\.toISOString\(\):null/);
-  assert.match(html=readFileSync('index.html','utf8'),/value="30d" selected/);
+  const html=readFileSync('index.html','utf8');
+  assert.match(html,/value="30d" selected/);
 });
