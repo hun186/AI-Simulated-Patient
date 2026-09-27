@@ -124,7 +124,7 @@ No permissive CORS policy is enabled by default.
 
 ## Deployment migration
 
-After pulling auth changes, re-run the current `db/schema.sql`.
+After pulling changes, SQLite deployments should restart the application and let the ordered `db/migrations/*.sql` files advance `PRAGMA user_version` automatically. PostgreSQL deployments should apply the matching current schema/migration procedure before serving traffic.
 
 For a new database, the first account is bootstrapped as `admin`.
 
