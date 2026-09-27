@@ -20,7 +20,7 @@ test('Dify stateful Chatflow persists conversation_id per interview and reuses i
     const http=await import('node:http');
     const calls=[];
     const evaluation={
-      totalScore:14,maxScore:14,percentage:100,
+      totalScore:1,maxScore:1,percentage:100,
       items:[{
         id:'H01',criterion:'主訴',status:'covered',score:1,maxScore:1,
         evidence:[{turn:2,quote:'第一題'}],reasoning:'covered'
@@ -156,7 +156,7 @@ test('Dify stateful Chatflow persists conversation_id per interview and reuses i
 
     assert.equal(data.second.status,200);
     assert.equal(data.evaluation.status,200);
-    assert.equal(data.evaluation.body.totalScore,14);
+    assert.equal(data.evaluation.body.totalScore,1);
     assert.equal(data.evaluation.sessionStatus,'completed');
     assert.equal(data.evaluation.rows,1);
 
