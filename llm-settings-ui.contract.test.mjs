@@ -24,7 +24,7 @@ test('AI Settings respects provider scope and keeps stored keys masked/write-onl
 
   assert.match(app,/\['ollama_cloud','Ollama Cloud'\]/);
   assert.match(app,/\['ollama','Ollama Local'\]/);
-  assert.match(app,/Teacher 可建立自己的 OpenAI、DeepSeek 與 Ollama Cloud/);
+  assert.match(app,/Teacher 可建立自己的 OpenAI、DeepSeek、Ollama Cloud 與 Ollama Local/);
   assert.match(app,/connection\.apiKeyLast4\?'••••'/);
   assert.match(app,/data-ai-edit/);
   assert.match(app,/data-ai-toggle/);
