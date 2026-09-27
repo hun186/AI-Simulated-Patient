@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-test('Teacher Console AI Settings UI exposes provider and agent routing controls only behind server-mode guard',()=>{
+test('Teacher Console AI Settings UI exposes provider and agent routing controls in server mode or Vercel demo preview',()=>{
   const html=readFileSync('index.html','utf8');
   const app=readFileSync('formal-app.js','utf8');
 
@@ -12,7 +12,7 @@ test('Teacher Console AI Settings UI exposes provider and agent routing controls
   assert.match(html,/id="aiApiKey" type="password"/);
   assert.match(html,/id="aiRouteGrid"/);
 
-  assert.match(app,/document\.querySelector\('\[data-view="ai"\]'\)\.classList\.toggle\('hidden',!state\.serverMode\|\|!staff\)/);
+  assert.match(app,/document\.querySelector\('\[data-view="ai"\]'\)\.classList\.toggle\('hidden',\(!state\.serverMode&&!state\.demoAuth\)\|\|!staff\)/);
   assert.match(app,/async function renderAiSettings\(\)\{\s*if\(!state\.serverMode\|\|!\['teacher','admin'\]\.includes\(state\.user\?\.role\)\)return;/);
   assert.match(app,/fetch\('\/api\/teacher\/ai-settings'\)/);
 });
