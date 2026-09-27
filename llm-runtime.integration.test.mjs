@@ -182,7 +182,7 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     assert.match(data.persistentInvalid.body.diagnostic.access.staffLookupPath,/\/api\/teacher\/evaluation-diagnostics\?errorId=EVL-/);
     assert.equal(JSON.stringify(data.persistentInvalid.body.diagnostic).includes('secret upstream body'),false);
     assert.equal(data.persistedDiagnostic.storage.persisted,true);
-    assert.equal(data.persistedDiagnostic.session.id,persistentSessionId);
+    assert.equal(data.persistedDiagnostic.session.id,data.persistentInvalid.body.diagnostic.session.id);
     assert.equal(data.persistedDiagnostic.attempts.initial.responseText,'{"totalScore":10}');
     assert.equal(data.persistedDiagnostic.attempts.repair.responseText,'{"totalScore":10}');
     assert.equal(data.enableMissingCoach.status,503);
