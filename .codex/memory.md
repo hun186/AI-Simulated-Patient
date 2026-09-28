@@ -13,6 +13,13 @@
 
 ## Recent Outcomes
 
+### 2026-09-28 — Provider model/route synchronization and copyable diagnostics
+
+- 修正 Provider `defaultModel` 與 Agent route model 重複保存造成的 stale route：Provider model 更新時，只同步仍等於舊 default 的 route；刻意指定不同 model 的 route 保留。
+- 已開始的 interview 仍維持 immutable route snapshot；一般模型更換需新開問診。但 Groq 已知舊 typo `openai/gptoss-120b` / `openai/gptoss-20b` 會在 runtime 自動正規化，舊 session 也可繼續呼叫。
+- Provider connection/route 儲存也會把上述 Groq alias 正規化為官方 `openai/gpt-oss-*` ID。
+- Provider 測試連線與 Teacher/Admin runtime diagnostic 改用 selectable dialog，提供一鍵複製，不再用不可複製的 browser alert。
+
 ### 2026-09-28 — Groq live Patient runtime fix
 
 - Groq GPT-OSS 正式 Patient/Coach/Evaluator 呼叫與 connection probe 對齊 reasoning-safe defaults：GPT-OSS 20B/120B 預設 `reasoning_effort=low`、`include_reasoning=false`；Patient/Coach completion budget 1024，Evaluator/repair 8192。
