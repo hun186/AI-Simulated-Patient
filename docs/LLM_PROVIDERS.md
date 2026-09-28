@@ -4,7 +4,7 @@ Production database mode supports native Patient, Coach, and Evaluator LLM routi
 
 ## Deployment boundary
 
-The public Vercel PoC remains deterministic Mock-only for runtime calls. It exposes a read-only AI Settings preview, but never stores provider credentials or invokes external providers.
+The public Vercel PoC defaults to deterministic Mock and keeps production AI Settings read-only. It may optionally run a Groq BYOK Live Demo: the visitor's Groq key is stored only in browser sessionStorage/localStorage and sent transiently through the isolated demo Vercel Function for each live call; it is never stored in the production provider connection database.
 
 Windows/Linux production deployments use the server-side database and the AI Settings screen in Teacher Console.
 
@@ -89,7 +89,7 @@ Each priced usage event also snapshots the effective USD/TWD reference rate and 
 - Provider API keys are not returned by GET endpoints.
 - Browser UI never stores the API key after submission.
 - Teacher cannot configure arbitrary Custom endpoints; Teacher-owned Ollama Local and Dify endpoints remain constrained by endpoint-safety rules.
-- Production provider credentials must not be configured on the Vercel PoC; its AI Settings surface is read-only.
+- Production provider credentials must not be configured on the Vercel PoC; its AI Settings surface is read-only. The separate Groq BYOK demo accepts only visitor-owned keys and does not persist them server-side.
 - Teacher-owned Ollama Local and Dify connections are restricted to approved official/private endpoints; arbitrary Custom endpoints remain Admin-only.
 
 
