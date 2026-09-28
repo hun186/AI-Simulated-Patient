@@ -194,6 +194,17 @@ test('Vercel Demo exposes the AI settings surface as read-only without enabling 
 });
 
 
+test('AI connection tests show sanitized Provider response diagnostics on success and failure',()=>{
+  const app=readFileSync('formal-app.js','utf8');
+
+  assert.match(app,/function formatAiTestDiagnostic/);
+  assert.match(app,/Provider 回傳摘要/);
+  assert.match(app,/message\.content/);
+  assert.match(app,/finish_reason/);
+  assert.match(app,/Provider error message/);
+  assert.match(app,/formatAiTestDiagnostic\(result\.diagnostic\)/);
+});
+
 test('AI Settings exposes Dify beside native LLM providers and stores per-route mapping fields',()=>{
   const app=readFileSync('formal-app.js','utf8');
   const demo=readFileSync('api/demo.js','utf8');
