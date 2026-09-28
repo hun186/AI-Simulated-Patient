@@ -13,6 +13,12 @@
 
 ## Recent Outcomes
 
+### 2026-09-28 — Provider connection-test diagnostics
+
+- AI Provider「測試連線」成功或失敗時會顯示 bounded sanitized Provider 回傳摘要：HTTP status、request ID、model、finish_reason、message.content、reasoning、usage、provider error fields 與 response/message keys。
+- 不回傳 request headers/Authorization；已設定 API Key 的完整值與常見 Bearer/API-key pattern 在 diagnostic 產生前會被遮蔽。
+- Groq 空 content/length/reasoning-token 問題因此可直接從 UI 判讀，不必只靠 generic `invalid_response` 猜測。
+
 ### 2026-09-28 — Vercel Groq BYOK onboarding
 
 - Vercel Demo 首次進入提供 Mock vs Groq Live onboarding wizard；Mock 仍是預設且不需 Key，Live 使用訪客自己的 Groq API Key。
