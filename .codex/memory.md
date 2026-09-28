@@ -13,6 +13,13 @@
 
 ## Recent Outcomes
 
+### 2026-09-28 — GroqCloud provider preset
+
+- AI Settings 新增 Teacher/Admin 都可建立的 GroqCloud preset；固定 OpenAI-compatible endpoint 為 `https://api.groq.com/openai/v1`，使用者只需填 Groq API key 與 model ID，不可自行改 Base URL。
+- Groq 重用既有 OpenAI-compatible adapter、provider error normalization、route snapshot、token usage、quota 與 usage analytics；route/usage logical preset 保留 `groq`，可在 Provider breakdown 獨立辨識。
+- 為避免只為 preset enum 增加 schema migration，Groq DB row 仍用既有 `custom` persistence value + 固定 Groq base URL 做 logical projection；Dify 的 compatibility marker 不受影響。
+- Groq 免費／付費方案成本不從 preset 猜測；usage token 照常保存，但成本維持 unpriced，避免把 Developer list price 誤報成 Free Plan 實際費用。
+
 ### 2026-09-27 — Security audit pagination and filters
 
 - Security audit 改為 server-side pagination，預設 25 筆／頁，可切 50/100；API 回傳 total/totalPages，不再一次載入大量 audit rows。
