@@ -698,6 +698,7 @@ async function loadApplication(){
     :state.demoAuth
       ?'Vercel PoC · '+(state.user?.displayName||'Demo')+' · '+(state.user?.role||'')
       :'Demo · Browser local';
+  syncDemoAiModeButton();
   $('logoutBtn').classList.toggle('hidden',!state.serverMode&&!state.demoAuth);$('changePasswordBtn').classList.toggle('hidden',!state.serverMode);
   if(state.user?.displayName) state.studentName=state.user.displayName;
   if(state.user?.role==='student'){
@@ -713,6 +714,7 @@ async function loadApplication(){
   renderRecords();await start();
   if(state.user?.role==='student'&&state.studentReportSessionId)await refreshStudentReportAccess({silent:true});
   else syncStudentReportActions();
+  maybeOpenDemoByokOnboarding();
 }
 function hideAuthCards(){
   ['demoLoginForm','loginForm','registerForm','bootstrapForm'].forEach(id=>$(id)?.classList.add('hidden'));
@@ -803,6 +805,7 @@ async function init(){
     const runtime=await fetch('/api/runtime').then(r=>r.json());
     state.serverMode=runtime.persistence!=='browser';
     state.demoAuth=Boolean(runtime.demoAuth);
+    if(state.demoAuth)state.demoByok=loadDemoByok();
     if(state.demoAuth){
       const saved=read(DKEY,null);
       if(!saved){showDemoLogin();return;}
@@ -992,7 +995,7 @@ function demoAiReadOnly(){
 }
 function blockDemoAiAction(){
   if(!demoAiReadOnly())return false;
-  alert('Vercel Demo 僅展示 LLM Provider / Agent Route / Prompt Template 介面；不會儲存設定、測試連線或實際呼叫 LLM。');
+  alert('Vercel Demo 的正式 AI Settings 維持唯讀。若要使用真實 AI，請點頁首的 Mock Demo / Live AI 按鈕，透過 Groq BYOK 精靈啟用自己的 API Key。');
   return true;
 }
 async function renderAiSettings(){
@@ -1006,7 +1009,7 @@ async function renderAiSettings(){
     const demoReadOnly=Boolean(data.demoReadOnly||state.demoAuth);
     $('aiDemoNotice').classList.toggle('hidden',!demoReadOnly);
     $('aiDemoNotice').textContent=demoReadOnly
-      ?(data.demoNote||'Vercel Demo 僅展示 LLM Provider、Agent Route 與 Prompt Template 介面；設定不會儲存，也不會實際呼叫 LLM。')
+      ?(data.demoNote||'Vercel Demo 的正式 Provider / Route 設定維持唯讀；可從頁首 Groq BYOK 精靈使用自己的 API Key 啟用 Live Demo。')
       :'';
     $('aiPreset').innerHTML=aiPresetOptions();
     syncAiPresetFields();
@@ -1791,5 +1794,15 @@ $('auditFirstBtn').onclick=()=>changeAuditPage(1);
 $('auditPrevBtn').onclick=()=>changeAuditPage(auditPage-1);
 $('auditNextBtn').onclick=()=>changeAuditPage(auditPage+1);
 $('auditLastBtn').onclick=()=>changeAuditPage(auditTotalPages);
+$('demoAiModeBtn').onclick=openDemoByokWizard;
+$('demoByokCloseBtn').onclick=()=>$('demoByokDialog').close();
+$('demoByokMockBtn').onclick=selectDemoMock;
+$('demoByokSetupBtn').onclick=beginDemoByokSetup;
+$('demoByokBackBtn').onclick=()=>setDemoByokStep(1);
+$('demoByokTestBtn').onclick=testDemoByokConnection;
+$('demoByokEnableBtn').onclick=enableDemoByok;
+$('demoByokDoneBtn').onclick=()=>$('demoByokDialog').close();
+$('demoByokReconfigureBtn').onclick=beginDemoByokSetup;
+$('demoByokClearBtn').onclick=clearDemoByokAndUseMock;
 $('aiConnectionForm').onsubmit=createAiConnection;$('aiPreset').onchange=syncAiPresetFields;$('aiCaseSelect').onchange=renderAiSettings;$('promptExampleCloseBtn').onclick=()=>$('promptExampleDialog').close();$('promptExampleCopyBtn').onclick=copyPromptExample;$('promptExampleApplyBtn').onclick=applyPromptExample;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
 init();
