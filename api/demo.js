@@ -54,11 +54,13 @@ function byokConfig(body){
   if(!apiKey) {
     const error=new Error('GROQ_API_KEY_REQUIRED');
     error.code='GROQ_API_KEY_REQUIRED';
+    error.httpStatus=400;
     throw error;
   }
   if(!GROQ_DEMO_MODELS.has(model)){
     const error=new Error('GROQ_DEMO_MODEL_NOT_ALLOWED');
     error.code='GROQ_DEMO_MODEL_NOT_ALLOWED';
+    error.httpStatus=400;
     throw error;
   }
   return {apiKey,model};
