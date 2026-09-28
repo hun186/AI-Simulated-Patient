@@ -98,6 +98,38 @@ test('DeepSeek preset uses fixed OpenAI-compatible Chat Completions endpoint',as
   });
 });
 
+test('Groq preset uses the fixed official OpenAI-compatible endpoint',async()=>{
+  const calls=[];
+  const fetchImpl=async(url,options)=>{
+    calls.push({url,options,body:JSON.parse(options.body)});
+    return fakeResponse({json:{
+      id:'groq_1',model:'openai/gpt-oss-120b',
+      choices:[{message:{role:'assistant',content:'groq answer'}}],
+      usage:{prompt_tokens:50,completion_tokens:8,total_tokens:58}
+    }});
+  };
+  const {generateLlm}=await gateway();
+  const result=await generateLlm({
+    connection:{
+      providerKind:'openai_compatible',preset:'groq',
+      baseUrl:'https://wrong.invalid/v1',apiKey:'test-groq-key',defaultModel:'openai/gpt-oss-120b'
+    },
+    systemPrompt:'system',
+    messages:[{role:'user',content:'question'}]
+  },{fetchImpl});
+
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].url,'https://api.groq.com/openai/v1/chat/completions');
+  assert.equal(calls[0].options.headers.Authorization,'Bearer test-groq-key');
+  assert.equal(calls[0].body.model,'openai/gpt-oss-120b');
+  assert.equal(result.text,'groq answer');
+  assert.equal(result.provider,'openai_compatible');
+  assert.equal(result.preset,'groq');
+  assert.equal(result.model,'openai/gpt-oss-120b');
+  assert.equal(result.usage.inputTokens,50);
+  assert.equal(result.usage.cacheReadStatus,'unreported');
+});
+
 test('Ollama preset is keyless by default and uses local OpenAI-compatible endpoint',async()=>{
   const calls=[];
   const fetchImpl=async(url,options)=>{
@@ -236,6 +268,28 @@ test('DeepSeek connection probe disables default thinking so a tiny probe reache
   assert.equal(calls.length,1);
   assert.equal(calls[0].url,'https://api.deepseek.com/chat/completions');
   assert.deepEqual(calls[0].body.thinking,{type:'disabled'});
+  assert.equal(calls[0].body.max_tokens,32);
+});
+
+test('Groq connection probe uses fixed endpoint and a non-tiny completion budget',async()=>{
+  const calls=[];
+  const {testLlmConnection}=await gateway();
+  const fetchImpl=async(url,options)=>{
+    calls.push({url,body:JSON.parse(options.body)});
+    return fakeResponse({json:{
+      id:'groq_probe',model:'openai/gpt-oss-120b',
+      choices:[{message:{content:'OK'}}],
+      usage:{prompt_tokens:4,completion_tokens:1,total_tokens:5}
+    }});
+  };
+  const result=await testLlmConnection({
+    providerKind:'openai_compatible',preset:'groq',baseUrl:'https://wrong.invalid/v1',
+    apiKey:'test-groq-key',defaultModel:'openai/gpt-oss-120b'
+  },{fetchImpl});
+
+  assert.equal(result.ok,true);
+  assert.equal(result.preset,'groq');
+  assert.equal(calls[0].url,'https://api.groq.com/openai/v1/chat/completions');
   assert.equal(calls[0].body.max_tokens,32);
 });
 

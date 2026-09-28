@@ -9,6 +9,7 @@ function demoAiConnections(){
   return [
     {id:'demo-openai',scopeType:'teacher',ownerUserId:'demo-teacher',name:'Demo OpenAI',providerKind:'openai',preset:'openai',baseUrl:'https://api.openai.com/v1',defaultModel:'gpt-5-mini',apiKeyLast4:'',isActive:true},
     {id:'demo-deepseek',scopeType:'teacher',ownerUserId:'demo-teacher',name:'Demo DeepSeek',providerKind:'openai_compatible',preset:'deepseek',baseUrl:'https://api.deepseek.com',defaultModel:'deepseek-flash',apiKeyLast4:'',isActive:true},
+    {id:'demo-groq',scopeType:'teacher',ownerUserId:'demo-teacher',name:'Demo GroqCloud',providerKind:'openai_compatible',preset:'groq',baseUrl:'https://api.groq.com/openai/v1',defaultModel:'openai/gpt-oss-120b',apiKeyLast4:'',isActive:true},
     {id:'demo-ollama-cloud',scopeType:'teacher',ownerUserId:'demo-teacher',name:'Demo Ollama Cloud',providerKind:'openai_compatible',preset:'ollama_cloud',baseUrl:'https://ollama.com/v1',defaultModel:'deepseek-v4-pro',apiKeyLast4:'',isActive:true},
     {id:'demo-ollama-local',scopeType:'teacher',ownerUserId:'demo-teacher',name:'Demo Ollama Local',providerKind:'openai_compatible',preset:'ollama',baseUrl:'http://192.168.1.50:11434/v1',defaultModel:'qwen3:latest',apiKeyLast4:'',isActive:true},
     {id:'demo-dify',scopeType:'teacher',ownerUserId:'demo-teacher',name:'Demo Dify Chatflow',providerKind:'dify',preset:'dify',baseUrl:'https://api.dify.ai/v1',defaultModel:'chat',apiKeyLast4:'',isActive:true}

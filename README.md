@@ -108,7 +108,7 @@ Production database mode supports native configurable LLM providers for three in
 - Coach
 - Evaluator
 
-Supported presets are OpenAI, DeepSeek, Ollama Local, Ollama Cloud, Dify Application API, and generic OpenAI-compatible endpoints. Teacher accounts may create their own OpenAI / DeepSeek / Ollama / Dify connections within endpoint safety rules; arbitrary Custom endpoints remain Admin-only. Provider credentials are encrypted at rest with AES-256-GCM and are never returned to the browser after submission.
+Supported presets are OpenAI, DeepSeek, GroqCloud, Ollama Local, Ollama Cloud, Dify Application API, and generic OpenAI-compatible endpoints. Teacher accounts may create their own OpenAI / DeepSeek / GroqCloud / Ollama / Dify connections within endpoint safety rules; arbitrary Custom endpoints remain Admin-only. Provider credentials are encrypted at rest with AES-256-GCM and are never returned to the browser after submission.
 
 Session routes are snapshotted when an interview starts, so later route edits do not silently change an active interview. Provider usage and failures are recorded in `llm_usage_events`.
 

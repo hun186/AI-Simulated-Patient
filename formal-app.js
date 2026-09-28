@@ -750,18 +750,19 @@ function applyPromptExample(){
 
 function aiPresetOptions(){
   const items=state.user?.role==='admin'
-    ?[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local'],['dify','Dify API'],['custom','OpenAI-compatible / Custom']]
-    :[['openai','OpenAI'],['deepseek','DeepSeek'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local（OpenAI 相容端點）'],['dify','Dify API']];
+    ?[['openai','OpenAI'],['deepseek','DeepSeek'],['groq','GroqCloud'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local'],['dify','Dify API'],['custom','OpenAI-compatible / Custom']]
+    :[['openai','OpenAI'],['deepseek','DeepSeek'],['groq','GroqCloud'],['ollama_cloud','Ollama Cloud'],['ollama','Ollama Local（OpenAI 相容端點）'],['dify','Dify API']];
   return items.map(([value,label])=>'<option value="'+value+'">'+label+'</option>').join('');
 }
 function syncAiPresetFields(){
   const preset=$('aiPreset').value;
   const showBase=['ollama','dify'].includes(preset)||(state.user?.role==='admin'&&preset==='custom');
   $('aiBaseUrlRow').classList.toggle('hidden',!showBase);
-  $('aiApiKey').required=['openai','deepseek','ollama_cloud','dify'].includes(preset);
+  $('aiApiKey').required=['openai','deepseek','groq','ollama_cloud','dify'].includes(preset);
   const placeholders={
     openai:'例如：gpt-5-mini',
     deepseek:'例如：deepseek-flash 或 deepseek-v4-pro',
+    groq:'例如：openai/gpt-oss-120b 或 openai/gpt-oss-20b',
     ollama_cloud:'例如：deepseek-v4-pro 或 deepseek-v4.1-flash',
     ollama:'例如：qwen3:latest 或 deepseek-v4-pro:cloud',
     dify:'chat、workflow 或 completion',
@@ -833,8 +834,8 @@ async function renderAiSettings(){
     $('aiPreset').innerHTML=aiPresetOptions();
     syncAiPresetFields();
     $('aiRestrictionNote').textContent=state.user?.role==='admin'
-      ?'Admin 可建立系統級 OpenAI、DeepSeek、Ollama Cloud、Ollama Local、Dify API 與自訂 OpenAI-compatible 連線。'
-      :'Teacher 可建立自己的 OpenAI、DeepSeek、Ollama Cloud、Ollama Local 與 Dify API 連線；Dify 可使用官方端點或允許的私有端點。';
+      ?'Admin 可建立系統級 OpenAI、DeepSeek、GroqCloud、Ollama Cloud、Ollama Local、Dify API 與自訂 OpenAI-compatible 連線。GroqCloud 使用固定官方端點，不需填 Base URL。'
+      :'Teacher 可建立自己的 OpenAI、DeepSeek、GroqCloud、Ollama Cloud、Ollama Local 與 Dify API 連線；GroqCloud 使用固定官方端點，Dify 可使用官方端點或允許的私有端點。';
 
     $('aiConnectionList').innerHTML=(data.connections||[]).map(connection=>{
       const canManage=manageableAiConnection(connection);

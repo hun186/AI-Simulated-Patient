@@ -29,7 +29,7 @@ Do not commit this value. Losing or changing the key makes previously stored pro
 | Dify | Dify Application API (`chat-messages`, `workflows/run`, `completion-messages`) | Dify Cloud or allowed self-hosted endpoint | Yes |
 | Custom | OpenAI-compatible Chat Completions | Admin supplied | No |
 
-Ollama may be keyless. OpenAI, DeepSeek, Ollama Cloud, and Dify require an API key.
+Ollama may be keyless. OpenAI, DeepSeek, GroqCloud, Ollama Cloud, and Dify require an API key.
 
 ## AI Settings
 
@@ -92,6 +92,16 @@ Each priced usage event also snapshots the effective USD/TWD reference rate and 
 - Production provider credentials must not be configured on the Vercel PoC; its AI Settings surface is read-only.
 - Teacher-owned Ollama Local and Dify connections are restricted to approved official/private endpoints; arbitrary Custom endpoints remain Admin-only.
 
+
+## GroqCloud
+
+GroqCloud is exposed as a first-class preset backed by its fixed OpenAI-compatible endpoint `https://api.groq.com/openai/v1`. Staff enter only a connection name, Groq API key, and Groq model ID such as `openai/gpt-oss-120b`; the Base URL is not editable for this preset.
+
+Groq connections reuse the existing OpenAI-compatible Chat Completions adapter, normalized provider errors, token accounting, per-user quota enforcement, route snapshots, and usage analytics. The logical provider remains `groq` in route snapshots and usage rows so Provider/Model/Agent breakdowns can distinguish Groq traffic from arbitrary Custom endpoints.
+
+The current database schema does not add a new persisted preset enum for Groq. To avoid a schema migration solely for this fixed compatible endpoint, Groq connection rows are stored under the existing `custom` persistence value and projected back to logical `groq` only when the stored Base URL is the fixed Groq endpoint. Dify continues to use its separate existing custom-row compatibility marker.
+
+Groq Free Plan limits and paid token pricing are account/plan dependent. The platform records calls and tokens but does not automatically infer Groq billing from the preset, so Groq calls remain explicitly unpriced unless a future plan-aware pricing policy is added. This avoids reporting paid-list pricing as an actual cost for a Free Plan test account.
 
 ## Ollama Local and Ollama Cloud
 
