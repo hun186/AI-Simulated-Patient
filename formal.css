@@ -152,3 +152,10 @@
 .demo-byok-current{margin:14px 0;padding:13px 14px;border:1px solid #e1e6ef;border-radius:12px;background:#fafbfe;font-size:12px;color:#58667c;line-height:1.65}
 #demoAiModeBtn.demo-live{border-color:#9fd2b0;background:#eefaf2;color:#246d42;font-weight:900}
 @media(max-width:650px){.demo-byok-choice-grid,.demo-byok-form{grid-template-columns:1fr}.demo-byok-checkbox{grid-column:auto!important}.demo-byok-head{display:block}.demo-byok-head>button{margin-top:10px}}
+
+.provider-diagnostic-dialog{border:0;border-radius:18px;padding:0;width:min(780px,calc(100vw - 32px));max-height:min(88vh,860px);box-shadow:0 28px 90px rgba(31,45,77,.24)}
+.provider-diagnostic-dialog::backdrop{background:rgba(20,27,43,.42)}
+.provider-diagnostic-shell{padding:22px;display:grid;gap:14px;max-height:min(88vh,860px);overflow:auto;background:#fff}
+.provider-diagnostic-shell .section-head{align-items:flex-start}
+#providerDiagnosticText{width:100%;min-height:320px;max-height:58vh;resize:vertical;box-sizing:border-box;border:1px solid #dbe2ee;border-radius:12px;padding:14px;background:#172033;color:#eef2ff;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;overflow:auto}
+@media(max-width:620px){.provider-diagnostic-shell{padding:16px}#providerDiagnosticText{min-height:260px}}

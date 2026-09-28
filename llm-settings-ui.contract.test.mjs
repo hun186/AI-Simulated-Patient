@@ -213,6 +213,24 @@ test('Vercel Demo exposes the AI settings surface as read-only without enabling 
 });
 
 
+test('Provider diagnostics use a selectable copyable dialog instead of browser alert text',()=>{
+  const html=readFileSync('index.html','utf8');
+  const app=readFileSync('formal-app.js','utf8');
+  const css=readFileSync('formal.css','utf8');
+
+  assert.match(html,/id="providerDiagnosticDialog"/);
+  assert.match(html,/id="providerDiagnosticText" readonly/);
+  assert.match(html,/id="providerDiagnosticCopyBtn"/);
+  assert.match(app,/function showProviderDiagnostic/);
+  assert.match(app,/function copyProviderDiagnostic/);
+  assert.match(app,/navigator\.clipboard\.writeText\(text\)/);
+  assert.match(app,/showProviderDiagnostic\(result\.ok\?'AI Provider 連線測試成功'/);
+  assert.match(app,/showProviderDiagnostic\('Patient AI 呼叫失敗'/);
+  assert.doesNotMatch(app,/if\(staff&&diagnostic\)[^\n]*alert\('Patient AI 呼叫失敗/);
+  assert.match(css,/\.provider-diagnostic-dialog/);
+  assert.match(css,/#providerDiagnosticText/);
+});
+
 test('AI connection tests show sanitized Provider response diagnostics on success and failure',()=>{
   const app=readFileSync('formal-app.js','utf8');
 

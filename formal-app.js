@@ -320,6 +320,24 @@ function formatRuntimeProviderDiagnostic(diagnostic){
   }
   return lines.join('\n');
 }
+function showProviderDiagnostic(title,text){
+  $('providerDiagnosticTitle').textContent=title||'Provider 診斷';
+  $('providerDiagnosticText').value=String(text||'');
+  $('providerDiagnosticCopyBtn').textContent='複製診斷內容';
+  if(!$('providerDiagnosticDialog').open)$('providerDiagnosticDialog').showModal();
+}
+async function copyProviderDiagnostic(){
+  const text=$('providerDiagnosticText').value;
+  try{
+    await navigator.clipboard.writeText(text);
+    $('providerDiagnosticCopyBtn').textContent='已複製';
+    setTimeout(()=>{$('providerDiagnosticCopyBtn').textContent='複製診斷內容';},1200);
+  }catch{
+    $('providerDiagnosticText').focus();
+    $('providerDiagnosticText').select();
+    document.execCommand?.('copy');
+  }
+}
 function patientProviderErrorLabel(code){
   return ({
     authentication_failed:'認證失敗',
@@ -333,7 +351,7 @@ function patientProviderErrorLabel(code){
     invalid_response:'Provider 回傳內容無法解析'
   })[code]||code||'AI Provider 呼叫失敗';
 }
-async function ask(q){state.transcript.push({role:'student',content:q,at:new Date().toISOString()});renderChat();$('sendBtn').disabled=true;try{const d=await post('/api/chat',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,message:q,revealedFactIds:state.serverMode?[]:state.revealedFactIds,...(!state.serverMode?{transcript:state.transcript,mode:state.mode}:{})});if(!state.serverMode)state.revealedFactIds=d.revealedFactIds;state.transcript.push({role:'patient',content:d.reply,at:new Date().toISOString()});if(state.mode==='training'&&state.coachEnabled){state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds,mode:state.mode});state.coachUsed=true;}save();renderChat();renderMode();renderCoach();}catch(error){const code=error?.details?.code||error?.details?.error||error?.message||'';const diagnostic=error?.details?.diagnostic;const staff=['teacher','admin'].includes(state.user?.role);const label=patientProviderErrorLabel(code);state.transcript.push({role:'patient',content:demoLiveEnabled()?'（Groq Live Demo 暫時無法取得回覆：'+label+'）':staff?'（AI Provider 暫時無法取得回覆：'+label+'）':'（系統暫時無法取得回覆。）'});renderChat();if(staff&&diagnostic){const detail=formatRuntimeProviderDiagnostic(diagnostic);if(detail)alert('Patient AI 呼叫失敗：'+label+'\n\n--- Provider runtime 摘要 ---\n'+detail);}}finally{$('sendBtn').disabled=false;}}
+async function ask(q){state.transcript.push({role:'student',content:q,at:new Date().toISOString()});renderChat();$('sendBtn').disabled=true;try{const d=await post('/api/chat',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,message:q,revealedFactIds:state.serverMode?[]:state.revealedFactIds,...(!state.serverMode?{transcript:state.transcript,mode:state.mode}:{})});if(!state.serverMode)state.revealedFactIds=d.revealedFactIds;state.transcript.push({role:'patient',content:d.reply,at:new Date().toISOString()});if(state.mode==='training'&&state.coachEnabled){state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds,mode:state.mode});state.coachUsed=true;}save();renderChat();renderMode();renderCoach();}catch(error){const code=error?.details?.code||error?.details?.error||error?.message||'';const diagnostic=error?.details?.diagnostic;const staff=['teacher','admin'].includes(state.user?.role);const label=patientProviderErrorLabel(code);state.transcript.push({role:'patient',content:demoLiveEnabled()?'（Groq Live Demo 暫時無法取得回覆：'+label+'）':staff?'（AI Provider 暫時無法取得回覆：'+label+'）':'（系統暫時無法取得回覆。）'});renderChat();if(staff&&diagnostic){const detail=formatRuntimeProviderDiagnostic(diagnostic);if(detail)showProviderDiagnostic('Patient AI 呼叫失敗','Patient AI 呼叫失敗：'+label+'\n\n--- Provider runtime 摘要 ---\n'+detail);}}finally{$('sendBtn').disabled=false;}}
 function evaluationAuditStatusLabel(status){
   return ({
     success:'SUCCESS',
@@ -1163,8 +1181,13 @@ async function editAiConnection(connectionId){
     payload.baseUrl=baseUrl.trim();
   }else if(connection.baseUrl)payload.baseUrl=connection.baseUrl;
   if(apiKey)payload.apiKey=apiKey;
-  try{await post('/api/teacher/ai-settings',payload);await renderAiSettings();}
-  catch(error){alert('AI Provider 更新失敗：'+(error.message||'請檢查設定與權限。'));}
+  try{
+    await post('/api/teacher/ai-settings',payload);
+    await renderAiSettings();
+    if(model.trim()!==connection.defaultModel){
+      alert('Provider 預設模型已更新，相關 Route 已同步。已開始的問診仍保留原 Session Snapshot；請重新開始問診以套用新模型。');
+    }
+  }catch(error){alert('AI Provider 更新失敗：'+(error.message||'請檢查設定與權限。'));}
 }
 async function toggleAiConnection(connectionId){
   if(blockDemoAiAction())return;
@@ -1236,11 +1259,13 @@ async function testAiConnection(connectionId){
   try{
     const data=await post('/api/teacher/ai-settings',{action:'testConnection',connectionId});
     const result=data.result||{};
-    alert((result.ok?'連線測試成功。':'連線測試失敗。')+formatAiTestDiagnostic(result.diagnostic));
+    const text=(result.ok?'連線測試成功。':'連線測試失敗。')+formatAiTestDiagnostic(result.diagnostic);
+    showProviderDiagnostic(result.ok?'AI Provider 連線測試成功':'AI Provider 連線測試失敗',text);
   }catch(error){
     const result=error.details?.result||{};
     const code=result.errorCode||error.message;
-    alert('連線測試失敗：'+(AI_TEST_ERROR_LABELS[code]||code)+formatAiTestDiagnostic(result.diagnostic));
+    const text='連線測試失敗：'+(AI_TEST_ERROR_LABELS[code]||code)+formatAiTestDiagnostic(result.diagnostic);
+    showProviderDiagnostic('AI Provider 連線測試失敗',text);
   }
 }
 async function deleteAiConnection(connectionId){
@@ -1903,5 +1928,5 @@ $('demoByokEnableBtn').onclick=enableDemoByok;
 $('demoByokDoneBtn').onclick=()=>$('demoByokDialog').close();
 $('demoByokReconfigureBtn').onclick=beginDemoByokSetup;
 $('demoByokClearBtn').onclick=clearDemoByokAndUseMock;
-$('aiConnectionForm').onsubmit=createAiConnection;$('aiPreset').onchange=syncAiPresetFields;$('aiCaseSelect').onchange=renderAiSettings;$('promptExampleCloseBtn').onclick=()=>$('promptExampleDialog').close();$('promptExampleCopyBtn').onclick=copyPromptExample;$('promptExampleApplyBtn').onclick=applyPromptExample;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
+$('providerDiagnosticCloseBtn').onclick=()=>$('providerDiagnosticDialog').close();$('providerDiagnosticDoneBtn').onclick=()=>$('providerDiagnosticDialog').close();$('providerDiagnosticCopyBtn').onclick=copyProviderDiagnostic;$('aiConnectionForm').onsubmit=createAiConnection;$('aiPreset').onchange=syncAiPresetFields;$('aiCaseSelect').onchange=renderAiSettings;$('promptExampleCloseBtn').onclick=()=>$('promptExampleDialog').close();$('promptExampleCopyBtn').onclick=copyPromptExample;$('promptExampleApplyBtn').onclick=applyPromptExample;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
 init();

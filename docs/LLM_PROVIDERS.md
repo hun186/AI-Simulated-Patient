@@ -185,3 +185,14 @@ For Groq GPT-OSS 20B/120B runtime routes, Patient and Coach default to low reaso
 This keeps real interview traffic aligned with the connection-test behavior instead of allowing GPT-OSS medium reasoning to consume the response budget before final content is emitted.
 
 Patient runtime provider failures return only safe operational diagnostics to the browser: HTTP status, request ID, model, finish reason, usage, provider error code/type/param, and rate-limit metadata. Provider content, reasoning text, raw response previews, request headers, and credentials are not exposed through the Patient failure payload.
+
+
+## Provider model synchronization
+
+The Provider connection owns the default model shown in AI Settings. Agent routes may persist a model snapshot so explicit API-level route overrides remain possible.
+
+When a Provider default model changes, routes that still match the previous default are advanced to the new default automatically. Routes whose model differs from the previous default are treated as explicit overrides and are preserved. Existing interview sessions remain immutable and keep their session route snapshot; start a new interview to adopt a general model change.
+
+For Groq, the legacy typo aliases `openai/gptoss-120b` and `openai/gptoss-20b` are normalized to the official `openai/gpt-oss-120b` and `openai/gpt-oss-20b` IDs when saving connections/routes and again at runtime. The runtime normalization keeps already-created session snapshots with the legacy alias usable.
+
+Provider diagnostics are displayed in a selectable dialog with a copy button instead of a browser alert so support/debug details can be copied without screenshots.

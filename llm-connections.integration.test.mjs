@@ -99,9 +99,25 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
     const teacherGroq=await call('POST',{
       action:'createConnection',name:'My Groq',preset:'groq',
       baseUrl:'https://wrong.invalid/v1',
-      defaultModel:'openai/gpt-oss-120b',apiKey:'groq-teacher-test-1357'
+      defaultModel:'openai/gptoss-120b',apiKey:'groq-teacher-test-1357'
     },t1Auth);
-    const storedTeacherGroq=(await query('select provider_kind,preset,base_url,api_key_last4 from llm_provider_connections where id=$1',[teacherGroq.body.connection.id]))[0];
+    const storedTeacherGroq=(await query('select provider_kind,preset,base_url,default_model,api_key_last4 from llm_provider_connections where id=$1',[teacherGroq.body.connection.id]))[0];
+    const groqDefaultRoute=await call('POST',{
+      action:'setCaseRoute',caseId:'aphasia_001',agentType:'patient',
+      connectionId:teacherGroq.body.connection.id,model:'openai/gptoss-120b',config:{}
+    },t1Auth);
+    const groqExplicitRoute=await call('POST',{
+      action:'setCaseRoute',caseId:'aphasia_001',agentType:'coach',
+      connectionId:teacherGroq.body.connection.id,model:'llama-3.3-70b-versatile',config:{}
+    },t1Auth);
+    const groqModelUpdate=await call('POST',{
+      action:'updateConnection',connectionId:teacherGroq.body.connection.id,
+      name:'My Groq',preset:'groq',defaultModel:'openai/gpt-oss-20b',isActive:true
+    },t1Auth);
+    const groqRoutesAfterUpdate=await query(
+      'select agent_type,model from llm_agent_routes where connection_id=$1 order by agent_type',
+      [teacherGroq.body.connection.id]
+    );
 
     const teacher2Create=await call('POST',{
       action:'createConnection',name:'Other Teacher OpenAI',preset:'openai',
@@ -171,6 +187,9 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
       teacherDify:{status:teacherDify.statusCode,connection:teacherDify.body.connection,stored:storedTeacherDify},
       teacherCloud:{status:teacherCloud.statusCode,connection:teacherCloud.body.connection,stored:storedTeacherCloud},
       teacherGroq:{status:teacherGroq.statusCode,connection:teacherGroq.body.connection,stored:storedTeacherGroq},
+      groqDefaultRoute:{status:groqDefaultRoute.statusCode,route:groqDefaultRoute.body.route},
+      groqExplicitRoute:{status:groqExplicitRoute.statusCode,route:groqExplicitRoute.body.route},
+      groqModelUpdate:{status:groqModelUpdate.statusCode,connection:groqModelUpdate.body.connection,routes:groqRoutesAfterUpdate},
       teacher2Id:teacher2Create.body.connection.id,
       teacherCustom:{status:teacherCustom.statusCode,body:teacherCustom.body},
       teacherList:{status:teacherList.statusCode,ids:teacherIds,leakedFields},
@@ -244,7 +263,19 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
     assert.equal(data.teacherGroq.stored.provider_kind,'openai_compatible');
     assert.equal(data.teacherGroq.stored.preset,'custom');
     assert.equal(data.teacherGroq.stored.base_url,'https://api.groq.com/openai/v1');
+    assert.equal(data.teacherGroq.stored.default_model,'openai/gpt-oss-120b');
     assert.equal(data.teacherGroq.stored.api_key_last4,'1357');
+
+    assert.equal(data.groqDefaultRoute.status,200);
+    assert.equal(data.groqDefaultRoute.route.model,'openai/gpt-oss-120b');
+    assert.equal(data.groqExplicitRoute.status,200);
+    assert.equal(data.groqExplicitRoute.route.model,'llama-3.3-70b-versatile');
+    assert.equal(data.groqModelUpdate.status,200);
+    assert.equal(data.groqModelUpdate.connection.defaultModel,'openai/gpt-oss-20b');
+    assert.deepEqual(data.groqModelUpdate.routes,[
+      {agent_type:'coach',model:'llama-3.3-70b-versatile'},
+      {agent_type:'patient',model:'openai/gpt-oss-20b'}
+    ]);
 
     assert.equal(data.teacherCustom.status,403);
 
