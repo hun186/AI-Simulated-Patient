@@ -111,7 +111,11 @@ async function start(){
       state.transcript=[{role:'patient',content:d.session.opening,at:new Date().toISOString()}];
     }else{
       state.sessionId=uid();
-      state.sessionRuntime={patient:{providerKind:'mock',preset:'mock',model:'deterministic-mock'}};
+      state.sessionRuntime={
+        patient:demoLiveEnabled()
+          ?{providerKind:'openai_compatible',preset:'groq',model:state.demoByok.model}
+          :{providerKind:'mock',preset:'mock',model:'deterministic-mock'}
+      };
       state.transcript=[{role:'patient',content:state.caseData.opening,at:new Date().toISOString()}];
     }
     save();renderAll();
@@ -127,7 +131,7 @@ function renderAll(){renderHeader();renderMode();renderChat();renderCoach();}
 function providerLabel(route){
   if(!route)return 'Provider 未設定';
   const preset=String(route.preset||route.providerKind||'').toLowerCase();
-  const names={openai:'OpenAI',deepseek:'DeepSeek',ollama_cloud:'Ollama Cloud',ollama:'Ollama Local',dify:'Dify',custom:'Custom',mock:'Mock'};
+  const names={openai:'OpenAI',deepseek:'DeepSeek',groq:'GroqCloud',ollama_cloud:'Ollama Cloud',ollama:'Ollama Local',dify:'Dify',custom:'Custom',mock:'Mock'};
   const provider=names[preset]||route.preset||route.providerKind||'Provider';
   return provider+' · '+(route.model||'未指定模型');
 }
@@ -138,7 +142,9 @@ function renderCoach(d=state.coach){if(state.mode!=='training'||!state.coachEnab
 async function post(url,payload){
   const headers={'content-type':'application/json'};
   if(state.serverMode&&state.csrfToken)headers['x-csrf-token']=state.csrfToken;
-  const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(payload)});
+  const liveDemoEndpoint=state.demoAuth&&!state.serverMode&&demoLiveEnabled()&&['/api/chat','/api/coach','/api/evaluate'].includes(url);
+  const requestPayload=liveDemoEndpoint?{...payload,demoByok:demoByokPayload()}:payload;
+  const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(requestPayload)});
   const text=await r.text();
   let data={};
   if(text){try{data=JSON.parse(text);}catch{data={error:text};}}
@@ -151,7 +157,7 @@ async function post(url,payload){
   }
   return data;
 }
-async function ask(q){state.transcript.push({role:'student',content:q,at:new Date().toISOString()});renderChat();$('sendBtn').disabled=true;try{const d=await post('/api/chat',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,message:q,revealedFactIds:state.serverMode?[]:state.revealedFactIds});if(!state.serverMode)state.revealedFactIds=d.revealedFactIds;state.transcript.push({role:'patient',content:d.reply,at:new Date().toISOString()});if(state.mode==='training'&&state.coachEnabled){state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds});state.coachUsed=true;}save();renderChat();renderMode();renderCoach();}catch{state.transcript.push({role:'patient',content:'（系統暫時無法取得回覆。）'});renderChat();}finally{$('sendBtn').disabled=false;}}
+async function ask(q){state.transcript.push({role:'student',content:q,at:new Date().toISOString()});renderChat();$('sendBtn').disabled=true;try{const d=await post('/api/chat',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,message:q,revealedFactIds:state.serverMode?[]:state.revealedFactIds,...(!state.serverMode?{transcript:state.transcript,mode:state.mode}:{})});if(!state.serverMode)state.revealedFactIds=d.revealedFactIds;state.transcript.push({role:'patient',content:d.reply,at:new Date().toISOString()});if(state.mode==='training'&&state.coachEnabled){state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds,mode:state.mode});state.coachUsed=true;}save();renderChat();renderMode();renderCoach();}catch(error){const code=error?.details?.error||error?.message||'';state.transcript.push({role:'patient',content:demoLiveEnabled()?'（Groq Live Demo 暫時無法取得回覆：'+code+'）':'（系統暫時無法取得回覆。）'});renderChat();}finally{$('sendBtn').disabled=false;}}
 function evaluationAuditStatusLabel(status){
   return ({
     success:'SUCCESS',
@@ -730,7 +736,7 @@ async function setCoachEnabled(enabled){
   state.coachUsed=true;
   const hasQuestion=state.transcript.some(m=>m.role==='student');
   if(hasQuestion){
-    try{state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds});}
+    try{state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds,mode:state.mode});}
     catch{state.coach=null;}
   }
   save();renderMode();renderCoach();
