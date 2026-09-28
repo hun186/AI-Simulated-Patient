@@ -104,7 +104,7 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
     const storedTeacherGroq=(await query('select provider_kind,preset,base_url,default_model,api_key_last4 from llm_provider_connections where id=$1',[teacherGroq.body.connection.id]))[0];
     const groqDefaultRoute=await call('POST',{
       action:'setCaseRoute',caseId:'aphasia_001',agentType:'patient',
-      connectionId:teacherGroq.body.connection.id,model:'openai/gpt-oss-120b',config:{}
+      connectionId:teacherGroq.body.connection.id,model:'openai/gptoss-120b',config:{}
     },t1Auth);
     const groqExplicitRoute=await call('POST',{
       action:'setCaseRoute',caseId:'aphasia_001',agentType:'coach',
