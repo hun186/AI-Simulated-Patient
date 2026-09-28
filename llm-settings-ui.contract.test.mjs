@@ -24,7 +24,7 @@ test('AI Settings respects provider scope and keeps stored keys masked/write-onl
 
   assert.match(app,/\['ollama_cloud','Ollama Cloud'\]/);
   assert.match(app,/\['ollama','Ollama Local'\]/);
-  assert.match(app,/Teacher 可建立自己的 OpenAI、DeepSeek、Ollama Cloud、Ollama Local 與 Dify API/);
+  assert.match(app,/Teacher 可建立自己的 OpenAI、DeepSeek、GroqCloud、Ollama Cloud、Ollama Local 與 Dify API/);
   assert.match(app,/connection\.apiKeyLast4\?'••••'/);
   assert.match(app,/data-ai-edit/);
   assert.match(app,/data-ai-toggle/);
@@ -84,7 +84,7 @@ test('runtime UI explains missing Evaluator routes and evaluation provider failu
 test('Ollama Cloud is API-key based while Ollama Local keeps its local endpoint workflow',()=>{
   const app=readFileSync('formal-app.js','utf8');
   const connections=readFileSync('lib/llm/connections.js','utf8');
-  assert.match(app,/\['openai','deepseek','ollama_cloud','dify'\]\.includes\(preset\)/);
+  assert.match(app,/\['openai','deepseek','groq','ollama_cloud','dify'\]\.includes\(preset\)/);
   assert.match(app,/deepseek-v4-pro 或 deepseek-v4\.1-flash/);
   assert.match(connections,/ollama_cloud:\{providerKind:'openai_compatible',baseUrl:'https:\/\/ollama\.com\/v1'/);
   assert.match(connections,/storedPreset:'ollama'/);
