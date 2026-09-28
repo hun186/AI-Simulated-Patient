@@ -45,7 +45,7 @@
 
 - Cases: `GET/POST /api/teacher/cases`; Teacher/Admin only; definition validated, write status limited to draft/published.
 - Users/records: `GET/POST /api/teacher/users`, `GET /api/teacher/records`; Admin global scope, Teacher assigned-student scope. POST actions are defined in handler and require CSRF.
-- AI settings: `GET/POST /api/teacher/ai-settings`; actions manage/test connections and system/case routes. Teacher owns only allowed preset connections/cases; arbitrary Custom endpoints and system scope are Admin-only, while Teacher-owned Ollama Local/Dify endpoints remain constrained by endpoint-safety rules; secret responses remain masked/write-only.
+- AI settings: `GET/POST /api/teacher/ai-settings`; actions manage/test connections and system/case routes. Teacher owns only allowed preset connections/cases; OpenAI, DeepSeek, GroqCloud and Ollama Cloud use fixed hosted endpoints, arbitrary Custom endpoints and system scope are Admin-only, while Teacher-owned Ollama Local/Dify endpoints remain constrained by endpoint-safety rules; secret responses remain masked/write-only.
 - Usage: `GET/POST /api/teacher/llm-usage`; GET summary/users/quota/pricing and POST quota/pricing actions. Summary supports bounded visible-user filtering by UTC `from`/exclusive `to`, Provider preset, model, agent type, case, success/failure and cache-telemetry state; browser-local period presets convert local calendar boundaries to UTC and pass the timezone offset for local-date grouping. Admin sees/manages global scope; Teacher sees self+assigned students and edits assigned-student quota only; pricing is Admin-only.
 
 ### `HTTP-005` Vercel demo
@@ -81,7 +81,7 @@
 
 ### `LLM-001` provider normalization
 
-- Gateway input comprises preset/endpoint/model, rendered messages and server-loaded credential; OpenAI uses Responses API, DeepSeek/Ollama/Custom use OpenAI-compatible Chat Completions, and Dify uses its Application API for Chat/Chatflow, Workflow or Completion.
+- Gateway input comprises preset/endpoint/model, rendered messages and server-loaded credential; OpenAI uses Responses API, DeepSeek/Groq/Ollama/Custom use OpenAI-compatible Chat Completions, and Dify uses its Application API for Chat/Chatflow, Workflow or Completion. Groq uses the fixed `https://api.groq.com/openai/v1` endpoint and is logically projected as `groq` even though the existing persisted preset compatibility value remains `custom`.
 - Normalized success supplies text, provider/preset/model, usage token dimensions, latency/request metadata as available; errors expose normalized codes without upstream bodies, endpoints or secrets. Cache telemetry distinguishes `reported` from `unreported`: DeepSeek explicit hit/miss fields and OpenAI-compatible `prompt_tokens_details.cached_tokens` are normalized to cached/miss tokens; absence of provider cache fields must not be interpreted as a 0% hit rate. Usage analytics reports cache hit rate only over reported cache input and separately reports telemetry coverage over total input tokens.
 - Route precedence and supported scopes are defined in `lib/llm/routes.js`; snapshot stored on interview session is authoritative during that session.
 - Prompt layout is prefix-cache oriented: stable platform rules precede educator/case context, transcript/history stays after stable context, and per-call task instructions are appended last. Evaluator first-pass and repair share the same system/case/rubric prefix so DeepSeek/vLLM-style prefix caches can reuse the long common prefix.
