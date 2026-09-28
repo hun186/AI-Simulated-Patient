@@ -260,6 +260,79 @@ test('DeepSeek Patient, Coach, and Evaluator default to stable non-thinking mode
   assert.deepEqual(calls[0].thinking,{type:'enabled'});
 });
 
+test('Groq GPT-OSS live agents use low reasoning and bounded completion budgets',async()=>{
+  const calls=[];
+  const evaluation=validEvaluation();
+  const fetchImpl=async(_url,options)=>{
+    const body=JSON.parse(options.body);
+    calls.push(body);
+    const isEvaluator=body.response_format?.type==='json_object';
+    return {
+      ok:true,status:200,headers:{get:()=>null},
+      async json(){return {
+        id:'groq-live',model:'openai/gpt-oss-120b',
+        choices:[{message:{content:isEvaluator?JSON.stringify(evaluation):'ok'}}],
+        usage:{prompt_tokens:20,completion_tokens:10,total_tokens:30}
+      };}
+    };
+  };
+  const connection={
+    providerKind:'openai_compatible',preset:'groq',
+    baseUrl:'https://api.groq.com/openai/v1',apiKey:'groq-test',
+    defaultModel:'openai/gpt-oss-120b'
+  };
+  const route={
+    connection,connectionId:'groq-1',providerKind:'openai_compatible',
+    preset:'groq',model:'openai/gpt-oss-120b',config:{}
+  };
+
+  await runPatientAgent({session,message:'hi',transcript:[],route,fetchImpl});
+  await runCoachAgent({session,transcript:[],route,fetchImpl});
+  await runEvaluatorAgent({session,transcript,route,fetchImpl});
+
+  assert.equal(calls[0].reasoning_effort,'low');
+  assert.equal(calls[0].include_reasoning,false);
+  assert.equal(calls[0].max_completion_tokens,1024);
+  assert.equal('max_tokens' in calls[0],false);
+
+  assert.equal(calls[1].reasoning_effort,'low');
+  assert.equal(calls[1].include_reasoning,false);
+  assert.equal(calls[1].max_completion_tokens,1024);
+
+  assert.equal(calls[2].reasoning_effort,'low');
+  assert.equal(calls[2].include_reasoning,false);
+  assert.equal(calls[2].max_completion_tokens,8192);
+  assert.equal(calls[2].response_format.type,'json_object');
+});
+
+test('Groq route config can override runtime reasoning defaults',async()=>{
+  const calls=[];
+  const fetchImpl=async(_url,options)=>{
+    calls.push(JSON.parse(options.body));
+    return {
+      ok:true,status:200,headers:{get:()=>null},
+      async json(){return {
+        id:'groq-override',model:'openai/gpt-oss-120b',
+        choices:[{message:{content:'ok'}}],
+        usage:{prompt_tokens:2,completion_tokens:1,total_tokens:3}
+      };}
+    };
+  };
+  const route={
+    connection:{
+      providerKind:'openai_compatible',preset:'groq',
+      apiKey:'groq-test',defaultModel:'openai/gpt-oss-120b'
+    },
+    providerKind:'openai_compatible',preset:'groq',model:'openai/gpt-oss-120b',
+    config:{reasoningEffort:'high',includeReasoning:true,maxOutputTokens:2048}
+  };
+  await runPatientAgent({session,message:'hi',transcript:[],route,fetchImpl});
+
+  assert.equal(calls[0].reasoning_effort,'high');
+  assert.equal(calls[0].include_reasoning,true);
+  assert.equal(calls[0].max_completion_tokens,2048);
+});
+
 test('Evaluator prompt includes a concrete evidence-object JSON example for compatible JSON-output providers',()=>{
   const evaluator=buildEvaluatorPrompt({session,transcript});
   assert.match(evaluator,/Example JSON shape/);
