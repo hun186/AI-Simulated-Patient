@@ -13,7 +13,7 @@
 | LLM subsystem | provider connections、encrypted secrets、routing、prompts/adapters、provider session state、usage/pricing/quota | `lib/llm/` |
 | Report export | Teacher/Admin records、student-owned report projection、DOCX/print rendering | `api/teacher/records.js`, `api/student/report.js`, `report-export.js`, `lib/report-policy.js` |
 | Persistence | driver selection與統一 query facade；SQLite default、PostgreSQL option | `lib/db.js`, `lib/db-sqlite.js`, `lib/db-postgres.js`, `db/` |
-| Deterministic demo | browser persistence與 mock patient/coach/evaluator，不接 production auth/LLM | `api/demo.js`, `lib/mock-*.js`, `.vercelignore` |
+| Isolated Vercel demo | browser persistence；預設 deterministic mock，可選 visitor-owned Groq BYOK Live calls；不接 production auth/DB/provider secrets | `api/demo.js`, `lib/mock-*.js`, `lib/llm/prompts.js`, `.vercelignore` |
 
 系統不負責醫療診斷／治療、payment/invoicing，亦不把 Vercel local filesystem 當 durable storage。
 
@@ -27,7 +27,7 @@
 6. Evaluate 讀完整正式 transcript、case snapshot 與 rubric；provider JSON 先做有限 deterministic normalization，再經嚴格 contract validation，通過後才完成 session 並保存 canonical evaluation。每次 Evaluator 執行另保存 90-day audit trace，區分 success / normalized / repaired / failed；失敗時 session 保持 active，學生只取得非洩題 metadata，Teacher/Admin 可在權限範圍內查閱 redacted raw/repair/canonical outputs。
 7. Teacher/Admin 依角色與 teacher-student assignment 管理 cases、users、records、provider routing、usage/quota；安全相關動作寫 audit events。
 8. Completed production sessions 可由 Teacher/Admin records 取得；若 case policy 允許，session owner 亦可透過 student report endpoint 取得已清除內部成本欄位的報告資料。Browser 端以相同 report model 產生真實 DOCX 或 A4 print view。
-9. Browser/Vercel demo 改走 deterministic mock 與 localStorage，沒有 production auth tables、credentials 或 server transcript persistence；可使用靜態 report exporter 處理 browser-local demo records，但沒有 production student-report API。
+9. Browser/Vercel demo 沒有 production auth tables、provider credentials 或 server transcript persistence；預設走 deterministic mock。訪客可用 onboarding wizard 啟用自己的 Groq BYOK，Key 預設只在 sessionStorage、選擇記住時才在 localStorage，Live request 只透過 `api/demo.js` 暫時轉送到固定 Groq endpoint。
 
 ## 依賴方向與不變條件
 
@@ -40,7 +40,7 @@
 - Dify `conversation_id` 不是 credential，但必須限制在同一 interview session + connection；Stateful Evaluator final trigger 缺既有 state 時不得默默開新 conversation。
 - Student report 是否可下載由 server 依 session ownership、completed status、case policy 與 mode 重新判定；UI 按鈕不是 security boundary。
 - Evaluation audits/support diagnostics 以 server RBAC 為 security boundary：學生不得取得 raw Evaluator/repair/canonical text；Teacher 只可查自己或 assigned students，Admin 可全域查閱；ZIP 只是按需匯出格式，不是 primary persistence。
-- Vercel bundle allowlist 排除 production auth、DB、teacher/student APIs、native SQLite 與 production LLM credentials。
+- Vercel bundle allowlist 排除 production auth、DB、teacher/student APIs、native SQLite 與 production LLM credentials；Groq BYOK 只存在 browser storage 並在 request 期間暫時進入 demo function，不得寫 log/DB 或回傳。
 
 ## 核心資料與狀態
 
