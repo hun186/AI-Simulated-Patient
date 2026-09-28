@@ -1,12 +1,187 @@
 import { downloadWordReport,printPdfReport } from './report-export.js';
 import { createZipBlob } from './support-bundle.js';
 const SKEY='aisp-formal-session-v1',RKEY='aisp-formal-records-v1',CKEY='aisp-formal-custom-cases-v1',DKEY='aisp-vercel-demo-user-v1';
-const state={serverMode:false,demoAuth:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,sessionRuntime:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[],aiSettings:null,usageDashboard:null,selectedRecordId:null,studentReport:null,studentReportSessionId:null,studentReportAllowed:false,studentReportAccess:null,evaluationDiagnostic:null};
+const DEMO_BYOK_SESSION_KEY='aisp-vercel-groq-byok-session-v1';
+const DEMO_BYOK_LOCAL_KEY='aisp-vercel-groq-byok-local-v1';
+const DEMO_BYOK_ONBOARDING_KEY='aisp-vercel-groq-byok-onboarding-v1';
+const state={serverMode:false,demoAuth:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,sessionRuntime:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[],aiSettings:null,usageDashboard:null,selectedRecordId:null,studentReport:null,studentReportSessionId:null,studentReportAllowed:false,studentReportAccess:null,evaluationDiagnostic:null,demoByok:null};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const uid=()=> 'session_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
 const read=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
 const write=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+function storageRead(storage,key){
+  try{return JSON.parse(storage.getItem(key)||'null');}catch{return null;}
+}
+function storageWrite(storage,key,value){
+  try{storage.setItem(key,JSON.stringify(value));return true;}catch{return false;}
+}
+function storageRemove(storage,key){
+  try{storage.removeItem(key);}catch{}
+}
+function validDemoByok(value){
+  return Boolean(
+    value&&value.provider==='groq'&&typeof value.apiKey==='string'&&value.apiKey.length>0&&
+    ['openai/gpt-oss-120b','openai/gpt-oss-20b','qwen/qwen3.8-27b'].includes(value.model)
+  );
+}
+function loadDemoByok(){
+  const session=storageRead(sessionStorage,DEMO_BYOK_SESSION_KEY);
+  if(validDemoByok(session))return {...session,storage:'session'};
+  const local=storageRead(localStorage,DEMO_BYOK_LOCAL_KEY);
+  if(validDemoByok(local))return {...local,storage:'local'};
+  return null;
+}
+function saveDemoByok(config,{remember=false}={}){
+  storageRemove(sessionStorage,DEMO_BYOK_SESSION_KEY);
+  storageRemove(localStorage,DEMO_BYOK_LOCAL_KEY);
+  const value={provider:'groq',apiKey:config.apiKey,model:config.model};
+  const storage=remember?localStorage:sessionStorage;
+  if(!storageWrite(storage,remember?DEMO_BYOK_LOCAL_KEY:DEMO_BYOK_SESSION_KEY,value))throw new Error('BROWSER_STORAGE_UNAVAILABLE');
+  state.demoByok={...value,storage:remember?'local':'session'};
+}
+function clearDemoByok(){
+  storageRemove(sessionStorage,DEMO_BYOK_SESSION_KEY);
+  storageRemove(localStorage,DEMO_BYOK_LOCAL_KEY);
+  state.demoByok=null;
+}
+function demoLiveEnabled(){
+  return Boolean(state.demoAuth&&!state.serverMode&&validDemoByok(state.demoByok));
+}
+function demoByokPayload(){
+  if(!demoLiveEnabled())return null;
+  return {provider:'groq',apiKey:state.demoByok.apiKey,model:state.demoByok.model};
+}
+function demoByokLast4(){
+  const key=String(state.demoByok?.apiKey||'');
+  return key?key.slice(-4):'----';
+}
+let pendingDemoByok=null;
+function setDemoByokStep(step){
+  [1,2,3].forEach(n=>$('demoByokStep'+n)?.classList.toggle('hidden',n!==step));
+}
+function syncDemoAiModeButton(){
+  const button=$('demoAiModeBtn');
+  if(!button)return;
+  button.classList.toggle('hidden',!state.demoAuth);
+  const live=demoLiveEnabled();
+  button.classList.toggle('demo-live',live);
+  button.textContent=live?'Live AI · GroqCloud':'Mock Demo';
+}
+function renderDemoByokCurrent({pending=false}={}){
+  const target=$('demoByokCurrentStatus');
+  if(!target)return;
+  const config=pending?pendingDemoByok:state.demoByok;
+  const key=String(config?.apiKey||'');
+  const storage=pending
+    ?(config?.remember?'啟用後儲存在此瀏覽器 localStorage':'啟用後只保留在目前工作階段 sessionStorage')
+    :(config?.storage==='local'?'此瀏覽器 localStorage':'目前工作階段 sessionStorage');
+  target.innerHTML=config
+    ?'<strong>'+esc(pending?'準備啟用 Groq Live Demo':'目前為 Groq Live Demo')+'</strong><br>'+
+      'Model：'+esc(config.model)+'<br>API Key：••••'+esc(key.slice(-4))+'<br>儲存方式：'+esc(storage)
+    :'<strong>目前為 Mock Demo</strong>';
+}
+function openDemoByokWizard(){
+  if(!state.demoAuth)return;
+  pendingDemoByok=null;
+  $('demoByokApiKey').value='';
+  $('demoByokModel').value=state.demoByok?.model||'openai/gpt-oss-120b';
+  $('demoByokRemember').checked=state.demoByok?.storage==='local';
+  $('demoByokTestStatus').textContent='';
+  $('demoByokTestStatus').className='demo-byok-test-status';
+  if(demoLiveEnabled()){
+    $('demoByokSuccessTitle').textContent='Groq Live Demo 已啟用';
+    $('demoByokSuccessText').textContent='目前 Patient / Coach / Evaluator 會使用你自己的 Groq API Key。';
+    $('demoByokEnableBtn').classList.add('hidden');
+    $('demoByokDoneBtn').classList.remove('hidden');
+    $('demoByokClearBtn').classList.remove('hidden');
+    renderDemoByokCurrent();
+    setDemoByokStep(3);
+  }else{
+    $('demoByokEnableBtn').classList.remove('hidden');
+    $('demoByokDoneBtn').classList.add('hidden');
+    $('demoByokClearBtn').classList.add('hidden');
+    setDemoByokStep(1);
+  }
+  $('demoByokDialog').showModal();
+}
+function maybeOpenDemoByokOnboarding(){
+  if(!state.demoAuth||!state.user)return;
+  let seen='';
+  try{seen=localStorage.getItem(DEMO_BYOK_ONBOARDING_KEY)||'';}catch{}
+  if(!seen||(seen==='live'&&!demoLiveEnabled()))openDemoByokWizard();
+}
+async function selectDemoMock(){
+  const wasLive=demoLiveEnabled();
+  if(wasLive)clearDemoByok();
+  try{localStorage.setItem(DEMO_BYOK_ONBOARDING_KEY,'mock');}catch{}
+  syncDemoAiModeButton();
+  $('demoByokDialog').close();
+  if(wasLive)await start();
+}
+function beginDemoByokSetup(){
+  pendingDemoByok=null;
+  $('demoByokApiKey').value='';
+  $('demoByokModel').value=state.demoByok?.model||'openai/gpt-oss-120b';
+  $('demoByokRemember').checked=state.demoByok?.storage==='local';
+  $('demoByokTestStatus').textContent=state.demoByok?'目前 Key 仍保持啟用；若要更換，請貼上新 Key 後重新測試。':'';
+  $('demoByokTestStatus').className='demo-byok-test-status';
+  setDemoByokStep(2);
+}
+async function testDemoByokConnection(){
+  const apiKey=$('demoByokApiKey').value.trim()||state.demoByok?.apiKey||'';
+  const model=$('demoByokModel').value;
+  const status=$('demoByokTestStatus');
+  if(!apiKey){
+    status.textContent='請先貼上 Groq API Key。';
+    status.className='demo-byok-test-status fail';
+    return;
+  }
+  status.textContent='正在驗證 API Key 與模型…';
+  status.className='demo-byok-test-status';
+  $('demoByokTestBtn').disabled=true;
+  try{
+    const result=await post('/api/demo/groq-test',{provider:'groq',apiKey,model});
+    if(!result?.ok)throw new Error('GROQ_CONNECTION_TEST_FAILED');
+    pendingDemoByok={apiKey,model,remember:$('demoByokRemember').checked};
+    status.textContent='連線成功，模型可用。';
+    status.className='demo-byok-test-status ok';
+    $('demoByokSuccessTitle').textContent='Groq 連線成功';
+    $('demoByokSuccessText').textContent='API Key 與 '+model+' 已驗證，可以啟用 Live Demo。';
+    $('demoByokEnableBtn').classList.remove('hidden');
+    $('demoByokDoneBtn').classList.add('hidden');
+    $('demoByokClearBtn').classList.add('hidden');
+    renderDemoByokCurrent({pending:true});
+    setDemoByokStep(3);
+  }catch(error){
+    const code=error?.details?.error||error?.message||'GROQ_CONNECTION_TEST_FAILED';
+    status.textContent='連線測試失敗：'+code;
+    status.className='demo-byok-test-status fail';
+  }finally{
+    $('demoByokTestBtn').disabled=false;
+  }
+}
+async function enableDemoByok(){
+  if(!pendingDemoByok)return;
+  try{
+    saveDemoByok(pendingDemoByok,{remember:pendingDemoByok.remember});
+    try{localStorage.setItem(DEMO_BYOK_ONBOARDING_KEY,'live');}catch{}
+    pendingDemoByok=null;
+    syncDemoAiModeButton();
+    $('demoByokDialog').close();
+    await start();
+  }catch(error){
+    $('demoByokSuccessText').textContent='無法儲存設定：'+(error?.message||'BROWSER_STORAGE_UNAVAILABLE');
+  }
+}
+async function clearDemoByokAndUseMock(){
+  clearDemoByok();
+  pendingDemoByok=null;
+  try{localStorage.setItem(DEMO_BYOK_ONBOARDING_KEY,'mock');}catch{}
+  syncDemoAiModeButton();
+  $('demoByokDialog').close();
+  await start();
+}
 const modeLabel=m=>m==='exam'?'考試評量':'訓練學習';
 const currentCaseDefinition=()=>state.customCases.find(c=>c.id===state.caseId)||null;
 const REPORT_SESSION_KEY='aisp-last-student-report-session-v1';
@@ -62,7 +237,11 @@ async function start(){
       state.transcript=[{role:'patient',content:d.session.opening,at:new Date().toISOString()}];
     }else{
       state.sessionId=uid();
-      state.sessionRuntime={patient:{providerKind:'mock',preset:'mock',model:'deterministic-mock'}};
+      state.sessionRuntime={
+        patient:demoLiveEnabled()
+          ?{providerKind:'openai_compatible',preset:'groq',model:state.demoByok.model}
+          :{providerKind:'mock',preset:'mock',model:'deterministic-mock'}
+      };
       state.transcript=[{role:'patient',content:state.caseData.opening,at:new Date().toISOString()}];
     }
     save();renderAll();
@@ -78,7 +257,7 @@ function renderAll(){renderHeader();renderMode();renderChat();renderCoach();}
 function providerLabel(route){
   if(!route)return 'Provider 未設定';
   const preset=String(route.preset||route.providerKind||'').toLowerCase();
-  const names={openai:'OpenAI',deepseek:'DeepSeek',ollama_cloud:'Ollama Cloud',ollama:'Ollama Local',dify:'Dify',custom:'Custom',mock:'Mock'};
+  const names={openai:'OpenAI',deepseek:'DeepSeek',groq:'GroqCloud',ollama_cloud:'Ollama Cloud',ollama:'Ollama Local',dify:'Dify',custom:'Custom',mock:'Mock'};
   const provider=names[preset]||route.preset||route.providerKind||'Provider';
   return provider+' · '+(route.model||'未指定模型');
 }
@@ -89,7 +268,9 @@ function renderCoach(d=state.coach){if(state.mode!=='training'||!state.coachEnab
 async function post(url,payload){
   const headers={'content-type':'application/json'};
   if(state.serverMode&&state.csrfToken)headers['x-csrf-token']=state.csrfToken;
-  const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(payload)});
+  const liveDemoEndpoint=state.demoAuth&&!state.serverMode&&demoLiveEnabled()&&['/api/chat','/api/coach','/api/evaluate'].includes(url);
+  const requestPayload=liveDemoEndpoint?{...payload,demoByok:demoByokPayload()}:payload;
+  const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(requestPayload)});
   const text=await r.text();
   let data={};
   if(text){try{data=JSON.parse(text);}catch{data={error:text};}}
@@ -102,7 +283,7 @@ async function post(url,payload){
   }
   return data;
 }
-async function ask(q){state.transcript.push({role:'student',content:q,at:new Date().toISOString()});renderChat();$('sendBtn').disabled=true;try{const d=await post('/api/chat',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,message:q,revealedFactIds:state.serverMode?[]:state.revealedFactIds});if(!state.serverMode)state.revealedFactIds=d.revealedFactIds;state.transcript.push({role:'patient',content:d.reply,at:new Date().toISOString()});if(state.mode==='training'&&state.coachEnabled){state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds});state.coachUsed=true;}save();renderChat();renderMode();renderCoach();}catch{state.transcript.push({role:'patient',content:'（系統暫時無法取得回覆。）'});renderChat();}finally{$('sendBtn').disabled=false;}}
+async function ask(q){state.transcript.push({role:'student',content:q,at:new Date().toISOString()});renderChat();$('sendBtn').disabled=true;try{const d=await post('/api/chat',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,message:q,revealedFactIds:state.serverMode?[]:state.revealedFactIds,...(!state.serverMode?{transcript:state.transcript,mode:state.mode}:{})});if(!state.serverMode)state.revealedFactIds=d.revealedFactIds;state.transcript.push({role:'patient',content:d.reply,at:new Date().toISOString()});if(state.mode==='training'&&state.coachEnabled){state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds,mode:state.mode});state.coachUsed=true;}save();renderChat();renderMode();renderCoach();}catch(error){const code=error?.details?.error||error?.message||'';state.transcript.push({role:'patient',content:demoLiveEnabled()?'（Groq Live Demo 暫時無法取得回覆：'+code+'）':'（系統暫時無法取得回覆。）'});renderChat();}finally{$('sendBtn').disabled=false;}}
 function evaluationAuditStatusLabel(status){
   return ({
     success:'SUCCESS',
@@ -521,6 +702,7 @@ async function loadApplication(){
     :state.demoAuth
       ?'Vercel PoC · '+(state.user?.displayName||'Demo')+' · '+(state.user?.role||'')
       :'Demo · Browser local';
+  syncDemoAiModeButton();
   $('logoutBtn').classList.toggle('hidden',!state.serverMode&&!state.demoAuth);$('changePasswordBtn').classList.toggle('hidden',!state.serverMode);
   if(state.user?.displayName) state.studentName=state.user.displayName;
   if(state.user?.role==='student'){
@@ -536,6 +718,7 @@ async function loadApplication(){
   renderRecords();await start();
   if(state.user?.role==='student'&&state.studentReportSessionId)await refreshStudentReportAccess({silent:true});
   else syncStudentReportActions();
+  maybeOpenDemoByokOnboarding();
 }
 function hideAuthCards(){
   ['demoLoginForm','loginForm','registerForm','bootstrapForm'].forEach(id=>$(id)?.classList.add('hidden'));
@@ -626,6 +809,7 @@ async function init(){
     const runtime=await fetch('/api/runtime').then(r=>r.json());
     state.serverMode=runtime.persistence!=='browser';
     state.demoAuth=Boolean(runtime.demoAuth);
+    if(state.demoAuth)state.demoByok=loadDemoByok();
     if(state.demoAuth){
       const saved=read(DKEY,null);
       if(!saved){showDemoLogin();return;}
@@ -681,7 +865,7 @@ async function setCoachEnabled(enabled){
   state.coachUsed=true;
   const hasQuestion=state.transcript.some(m=>m.role==='student');
   if(hasQuestion){
-    try{state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds});}
+    try{state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds,mode:state.mode});}
     catch{state.coach=null;}
   }
   save();renderMode();renderCoach();
@@ -815,7 +999,7 @@ function demoAiReadOnly(){
 }
 function blockDemoAiAction(){
   if(!demoAiReadOnly())return false;
-  alert('Vercel Demo 僅展示 LLM Provider / Agent Route / Prompt Template 介面；不會儲存設定、測試連線或實際呼叫 LLM。');
+  alert('Vercel Demo 的正式 AI Settings 維持唯讀。若要使用真實 AI，請點頁首的 Mock Demo / Live AI 按鈕，透過 Groq BYOK 精靈啟用自己的 API Key。');
   return true;
 }
 async function renderAiSettings(){
@@ -829,7 +1013,7 @@ async function renderAiSettings(){
     const demoReadOnly=Boolean(data.demoReadOnly||state.demoAuth);
     $('aiDemoNotice').classList.toggle('hidden',!demoReadOnly);
     $('aiDemoNotice').textContent=demoReadOnly
-      ?(data.demoNote||'Vercel Demo 僅展示 LLM Provider、Agent Route 與 Prompt Template 介面；設定不會儲存，也不會實際呼叫 LLM。')
+      ?(data.demoNote||'Vercel Demo 的正式 Provider / Route 設定維持唯讀；可從頁首 Groq BYOK 精靈使用自己的 API Key 啟用 Live Demo。')
       :'';
     $('aiPreset').innerHTML=aiPresetOptions();
     syncAiPresetFields();
@@ -1614,5 +1798,15 @@ $('auditFirstBtn').onclick=()=>changeAuditPage(1);
 $('auditPrevBtn').onclick=()=>changeAuditPage(auditPage-1);
 $('auditNextBtn').onclick=()=>changeAuditPage(auditPage+1);
 $('auditLastBtn').onclick=()=>changeAuditPage(auditTotalPages);
+$('demoAiModeBtn').onclick=openDemoByokWizard;
+$('demoByokCloseBtn').onclick=()=>$('demoByokDialog').close();
+$('demoByokMockBtn').onclick=selectDemoMock;
+$('demoByokSetupBtn').onclick=beginDemoByokSetup;
+$('demoByokBackBtn').onclick=()=>setDemoByokStep(1);
+$('demoByokTestBtn').onclick=testDemoByokConnection;
+$('demoByokEnableBtn').onclick=enableDemoByok;
+$('demoByokDoneBtn').onclick=()=>$('demoByokDialog').close();
+$('demoByokReconfigureBtn').onclick=beginDemoByokSetup;
+$('demoByokClearBtn').onclick=clearDemoByokAndUseMock;
 $('aiConnectionForm').onsubmit=createAiConnection;$('aiPreset').onchange=syncAiPresetFields;$('aiCaseSelect').onchange=renderAiSettings;$('promptExampleCloseBtn').onclick=()=>$('promptExampleDialog').close();$('promptExampleCopyBtn').onclick=copyPromptExample;$('promptExampleApplyBtn').onclick=applyPromptExample;$('newCaseBtn').onclick=openBuilder;$('addBuilderFactBtn').onclick=addBuilderFactRow;$('cancelBuilderBtn').onclick=()=>$('caseBuilder').classList.add('hidden');$('caseBuilderForm').onsubmit=saveBuilder;
 init();

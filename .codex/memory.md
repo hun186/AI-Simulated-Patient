@@ -7,11 +7,18 @@
 - 初始化狀態：`INITIALIZED`；2026-09-26 依 commit `f04bc8c` 的實際程式、測試、manifest/lockfile、schema/migrations、README 與 docs 完成 bootstrap。
 - 目前產品基線：SQLite-first 的 AI 模擬病人教育原型；production auth/RBAC、native LLM providers、usage pricing/quota、Dify Stateful Chatflow、Teacher/Admin report export 與 case-level student report policy 已存在。
 - Current SQLite schema 由 v1 base + ordered migrations 推進至 `user_version=12`；v8 加入 provider session state，v9 加入 Teacher snapshot 與 Coach events，v10 加入 evaluation failure diagnostics，v11 加入所有 Evaluator outcome 的 retained audit traces，v12 加入 prompt/KV cache telemetry 與 cache-savings snapshots。
-- Vercel 必須維持 deterministic browser demo 隔離，不可把 production DB/auth/LLM code 或 credentials 納入 bundle；browser-local demo 可使用靜態 report exporter，但 production student-report API 不進 Vercel demo surface。
+- Vercel 必須維持 browser demo 隔離，不可把 production DB/auth/provider-secret services 或 credentials 納入 bundle；預設 deterministic Mock，但可由 visitor 透過 onboarding wizard 使用自己的 Groq BYOK。Key 預設 sessionStorage、明確勾選後才 localStorage，每次 live call 只暫時經 `api/demo.js` 轉送，不能持久化或回傳。
 - 修改 session/LLM 時維持 case/route snapshot、server-side ownership/RBAC、production no-mock-fallback 與 evaluator-before-completion 不變量。
 - Canonical 整體驗證是 `npm test`；hosted CI 定義於 `.github/workflows/ci.yml`，目前使用 Node 22、syntax checks 與 `npm test`。
 
 ## Recent Outcomes
+
+### 2026-09-28 — Vercel Groq BYOK onboarding
+
+- Vercel Demo 首次進入提供 Mock vs Groq Live onboarding wizard；Mock 仍是預設且不需 Key，Live 使用訪客自己的 Groq API Key。
+- Key 預設只存 browser sessionStorage；只有訪客勾選「記住這台裝置」才存 localStorage。正式 Provider DB、production secret store 與 Vercel server storage 都不保存該 Key。
+- Live Patient/Coach/Evaluator request 將 Key 暫時傳至 isolated `api/demo.js`，再轉送固定 Groq endpoint；demo function 不回傳 Key 或 raw upstream error，且 model 限制為 wizard 支援清單。
+- 啟用或清除 Live BYOK 都會重新開始目前 browser-local interview，避免同一 session 中途切 Provider；Teacher/Admin 正式 AI Settings 在 Vercel 仍為唯讀。
 
 ### 2026-09-28 — GroqCloud provider preset
 

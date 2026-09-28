@@ -50,9 +50,9 @@
 
 ### `HTTP-005` Vercel demo
 
-- `vercel.json` rewrites only runtime, health, cases, chat, coach, evaluate, teacher-cases and the read-only AI-settings preview to `api/demo.js`.
+- `vercel.json` rewrites runtime, health, cases, chat, coach, evaluate, teacher-cases, the read-only AI-settings preview, and the isolated Groq BYOK connection test to `api/demo.js`.
 - `.vercelignore` allowlists static assets, deterministic mock dependencies and the single demo function; production auth, DB, sessions, audit and production teacher/student APIs must not enter the bundle.
-- Demo identities/state are browser-local and must not be represented as production authentication or durable persistence.
+- Demo identities/state are browser-local and must not be represented as production authentication or durable persistence. Groq BYOK is optional: default Mock remains deterministic; visitor-owned keys are stored in browser sessionStorage by default or localStorage only by explicit opt-in, then transmitted transiently to the isolated demo function for fixed-endpoint Groq forwarding. The demo function must never persist or echo the key.
 - Static report-export code may be present for browser-local demo records, but the production `/api/student/report` endpoint is intentionally not part of the Vercel demo API surface.
 
 ### `HTTP-006` student report export

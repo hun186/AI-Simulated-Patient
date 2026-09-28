@@ -112,7 +112,7 @@ Supported presets are OpenAI, DeepSeek, GroqCloud, Ollama Local, Ollama Cloud, D
 
 Session routes are snapshotted when an interview starts, so later route edits do not silently change an active interview. Provider usage and failures are recorded in `llm_usage_events`.
 
-The Vercel PoC remains an isolated deterministic Mock demonstration and receives no production LLM credentials. Teacher/Admin demo roles may open the LLM Provider / Agent Route / Prompt Template settings UI as a read-only product preview; those controls do not persist settings, test connections, or invoke external LLMs.
+The Vercel PoC remains isolated from production Auth/DB/provider credentials and defaults to deterministic Mock. Visitors may optionally enable a GroqCloud BYOK Live Demo from the onboarding wizard using their own API key. The key stays in browser sessionStorage by default or localStorage only when the visitor opts to remember it; each Live call sends the key transiently through the demo Vercel Function to Groq and the application does not persist it server-side. Teacher/Admin AI Settings remain a read-only product preview.
 
 See `docs/LLM_PROVIDERS.md`.
 

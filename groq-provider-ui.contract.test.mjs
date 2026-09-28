@@ -18,11 +18,13 @@ test('Groq preset does not expose editable Base URL',()=>{
   assert.doesNotMatch(app,/\['ollama','dify','groq'\]\.includes\(preset\)/);
 });
 
-test('read-only Vercel demo advertises Groq without enabling live calls',()=>{
+test('Vercel demo advertises Groq while keeping production AI Settings read-only',()=>{
   const demo=readFileSync('api/demo.js','utf8');
 
+  assert.match(demo,/const GROQ_BASE_URL='https:\/\/api\.groq\.com\/openai\/v1'/);
   assert.match(demo,/name:'Demo GroqCloud'/);
   assert.match(demo,/preset:'groq'/);
-  assert.match(demo,/baseUrl:'https:\/\/api\.groq\.com\/openai\/v1'/);
+  assert.match(demo,/baseUrl:GROQ_BASE_URL/);
   assert.match(demo,/VERCEL_DEMO_READ_ONLY/);
+  assert.match(demo,/route==='groq-test'/);
 });

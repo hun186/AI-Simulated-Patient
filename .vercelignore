@@ -1,4 +1,4 @@
-# Vercel is a browser-local PoC surface. Allow only the static UI and demo-only API.
+# Vercel is an isolated browser-local PoC surface. Allow only static UI, demo helpers/prompts, and the single demo API (Mock + optional visitor-owned Groq BYOK).
 /*
 !/.vercelignore
 !/vercel.json

@@ -1,10 +1,10 @@
 <!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI 模擬病人教學平台</title><link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/formal.css"></head><body><section id="authGate" class="auth-gate hidden">
-<section id="demoLoginForm" class="auth-card hidden"><div class="eyebrow">Vercel PoC Demo</div><h2>選擇展示身分</h2><p>此公開展示不使用正式帳號資料庫。請選擇角色體驗介面；資料僅保存在目前瀏覽器。</p><div class="demo-role-grid"><button type="button" class="primary" data-demo-role="student">以學生身分體驗</button><button type="button" class="secondary" data-demo-role="teacher">以教師身分體驗</button><button type="button" class="secondary" data-demo-role="admin">以管理員身分體驗</button></div><small class="demo-note">Mock Login 僅用於 Vercel PoC。Windows / Linux SQLite 正式部署仍使用真實登入、pending 審核與權限控管。</small></section>
+<section id="demoLoginForm" class="auth-card hidden"><div class="eyebrow">Vercel PoC Demo</div><h2>選擇展示身分</h2><p>此公開展示不使用正式帳號資料庫。請選擇角色體驗介面；資料僅保存在目前瀏覽器。進入後可選擇 Mock Demo，或使用自己的 Groq API Key 啟用 Live AI。</p><div class="demo-role-grid"><button type="button" class="primary" data-demo-role="student">以學生身分體驗</button><button type="button" class="secondary" data-demo-role="teacher">以教師身分體驗</button><button type="button" class="secondary" data-demo-role="admin">以管理員身分體驗</button></div><small class="demo-note">Mock Login 僅用於 Vercel PoC。Windows / Linux SQLite 正式部署仍使用真實登入、pending 審核與權限控管。</small></section>
 <form id="loginForm" class="auth-card"><div class="eyebrow">Production Login</div><h2>登入 AI 模擬病人</h2><p>正式資料庫模式需要教師／學生帳號。</p><label>Email<input id="loginEmail" type="email" required autocomplete="username"></label><label>密碼<input id="loginPassword" type="password" required autocomplete="current-password"></label><button class="primary" type="submit">登入</button><button id="showRegisterBtn" class="secondary auth-secondary" type="button">申請學生帳號</button><button id="showTeacherRegisterBtn" class="secondary auth-secondary" type="button">申請教師帳號</button><p id="loginError" class="auth-error"></p></form>
 <form id="registerForm" class="auth-card hidden"><div id="registerEyebrow" class="eyebrow">Student Registration</div><h2 id="registerTitle">申請學生帳號</h2><p id="registerHelp">密碼由你自行設定；教師與系統管理員不會看到你的原始密碼。申請送出後需先核准才能登入。</p><input id="registerRole" type="hidden" value="student"><label>姓名<input id="registerName" required maxlength="120" autocomplete="name"></label><label>Email<input id="registerEmail" type="email" required autocomplete="email"></label><label>密碼<input id="registerPassword" type="password" minlength="12" maxlength="256" required autocomplete="new-password"></label><label>再次輸入密碼<input id="registerPasswordConfirm" type="password" minlength="12" maxlength="256" required autocomplete="new-password"></label><label id="registerTeacherRow">指導教師 Email（選填）<input id="registerTeacherEmail" type="email" autocomplete="email"><small>若填寫正確，該教師可直接看到並審核你的申請；不填則由系統管理員處理。</small></label><button class="primary" type="submit">送出申請</button><button id="backToLoginBtn" class="secondary auth-secondary" type="button">返回登入</button><p id="registerMessage" class="auth-message"></p></form>
 <form id="bootstrapForm" class="auth-card hidden"><div class="eyebrow">First-time Setup</div><h2 id="bootstrapTitle">建立第一位系統管理員</h2><p id="bootstrapHelp">偵測到資料庫尚無帳號。此步驟只會成功一次。</p><label id="bootstrapNameRow">管理員姓名<input id="bootstrapName"></label><label>Email<input id="bootstrapEmail" type="email" required autocomplete="username"></label><label>密碼<input id="bootstrapPassword" type="password" minlength="12" required></label><label>ADMIN_SETUP_KEY<input id="bootstrapKey" type="password" required></label><button class="primary" type="submit">建立管理員並登入</button><p id="bootstrapError" class="auth-error"></p></form>
 </section><div id="appRoot" class="shell">
-<header class="topbar"><div><div class="eyebrow">Clinical Interview Learning Platform · POC</div><h1>AI 模擬病人</h1><p>問診訓練、考試評量、AI 教練與教師管理整合示範。</p></div><div class="top-actions"><div class="status"><span class="status-dot" aria-hidden="true"></span><span id="runtimeStatus" class="status-text">Initializing…</span></div><button id="changePasswordBtn" class="secondary hidden">變更密碼</button><button id="logoutBtn" class="secondary">登出</button></div></header>
+<header class="topbar"><div><div class="eyebrow">Clinical Interview Learning Platform · POC</div><h1>AI 模擬病人</h1><p>問診訓練、考試評量、AI 教練與教師管理整合示範。</p></div><div class="top-actions"><div class="status"><span class="status-dot" aria-hidden="true"></span><span id="runtimeStatus" class="status-text">Initializing…</span></div><button id="demoAiModeBtn" class="secondary hidden" type="button">Mock Demo</button><button id="changePasswordBtn" class="secondary hidden">變更密碼</button><button id="logoutBtn" class="secondary">登出</button></div></header>
 <nav class="tabs"><button class="tab active" data-tab="student">學生學習</button><button class="tab" data-tab="teacher">教師管理</button><button class="tab" data-tab="about">系統設計</button></nav><main>
 <section id="student" class="panel active"><div class="formal-setup card"><label>學生姓名<input id="studentName" placeholder="例如：王小明"></label><label>病例<select id="caseSelect"></select></label><label>學習模式<select id="modeSelect"><option value="training">訓練學習模式</option><option value="exam">考試評量模式</option></select></label><label id="coachControl">AI Coach<select id="coachToggle"><option value="off">關閉（自主練習）</option><option value="on">開啟提示</option></select></label></div>
 <div id="modeBanner" class="mode-banner training"><div><span id="modeBadge" class="mode-pill">TRAINING</span><strong id="modeTitle">訓練學習模式</strong></div><p id="modeDescription"></p></div>
@@ -130,6 +130,70 @@
   </div>
 </section>
 </section>
+<dialog id="demoByokDialog" class="demo-byok-dialog">
+  <div class="demo-byok-shell">
+    <div class="demo-byok-head">
+      <div><div class="eyebrow">Vercel Demo · Bring Your Own Key</div><h2>GroqCloud Live Demo</h2><p>你可以繼續使用不需 API Key 的 Mock Demo，或使用自己的 Groq API Key 體驗真實 Patient / Coach / Evaluator。</p></div>
+      <button id="demoByokCloseBtn" type="button" class="secondary small-btn">關閉</button>
+    </div>
+
+    <section id="demoByokStep1" class="demo-byok-step">
+      <h3>你想怎麼體驗？</h3>
+      <div class="demo-byok-choice-grid">
+        <article>
+          <span class="demo-byok-mode-pill mock">MOCK</span>
+          <h3>直接使用 Mock Demo</h3>
+          <p>不呼叫外部 LLM、不需要 API Key。適合快速瀏覽流程與介面。</p>
+          <button id="demoByokMockBtn" type="button" class="secondary">使用 Mock Demo</button>
+        </article>
+        <article>
+          <span class="demo-byok-mode-pill live">LIVE</span>
+          <h3>使用自己的 Groq API Key</h3>
+          <p>Patient、Coach、Evaluator 會透過你的 Groq 帳號實際呼叫模型。免費額度與限制依你的 Groq 帳號為準。</p>
+          <button id="demoByokSetupBtn" type="button" class="primary">開始設定 Groq</button>
+        </article>
+      </div>
+    </section>
+
+    <section id="demoByokStep2" class="demo-byok-step hidden">
+      <ol class="demo-byok-instructions">
+        <li><strong>取得 Groq API Key</strong><span>前往 Groq Console 建立一把專門給測試使用的 API Key。</span></li>
+        <li><strong>貼上 Key 並選模型</strong><span>建議先使用 GPT-OSS 120B；也可改用下列支援模型。</span></li>
+        <li><strong>先測試連線</strong><span>測試只會驗證 Key 與模型可用性，成功後才啟用 Live Demo。</span></li>
+      </ol>
+      <a class="demo-byok-console-link" href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">開啟 Groq Console 建立 API Key ↗</a>
+      <div class="demo-byok-form">
+        <label>Groq API Key<input id="demoByokApiKey" type="password" autocomplete="off" placeholder="貼上你的 Groq API Key"></label>
+        <label>Model<select id="demoByokModel"><option value="openai/gpt-oss-120b">openai/gpt-oss-120b</option><option value="openai/gpt-oss-20b">openai/gpt-oss-20b</option><option value="qwen/qwen3.8-27b">qwen/qwen3.8-27b</option></select></label>
+        <label class="demo-byok-checkbox"><input id="demoByokRemember" type="checkbox"> 記住這台裝置的 API Key</label>
+      </div>
+      <div class="demo-byok-security">
+        <strong>API Key 如何處理？</strong>
+        <p>未勾選「記住」時，Key 只保存在此瀏覽器的 <code>sessionStorage</code>；勾選後才保存在此瀏覽器的 <code>localStorage</code>。本專案不把 Key 寫入資料庫或持久化到 Vercel 伺服器。</p>
+        <p>每次 Live AI 呼叫時，Key 會暫時傳送到此網站的 Vercel Function，再由 Function 轉送到 GroqCloud。請勿在公用電腦勾選「記住這台裝置」。</p>
+      </div>
+      <p id="demoByokTestStatus" class="demo-byok-test-status"></p>
+      <div class="dialog-actions">
+        <button id="demoByokBackBtn" type="button" class="secondary">返回</button>
+        <button id="demoByokTestBtn" type="button" class="primary">測試連線</button>
+      </div>
+    </section>
+
+    <section id="demoByokStep3" class="demo-byok-step hidden">
+      <div class="demo-byok-success">
+        <span>✓</span>
+        <div><strong id="demoByokSuccessTitle">Groq 連線成功</strong><p id="demoByokSuccessText">可以啟用 Live Demo。</p></div>
+      </div>
+      <div id="demoByokCurrentStatus" class="demo-byok-current"></div>
+      <div class="dialog-actions">
+        <button id="demoByokReconfigureBtn" type="button" class="secondary">重新設定</button>
+        <button id="demoByokClearBtn" type="button" class="secondary hidden">清除 API Key 並改用 Mock</button>
+        <button id="demoByokEnableBtn" type="button" class="primary">啟用 Live Demo</button>
+        <button id="demoByokDoneBtn" type="button" class="primary hidden">完成</button>
+      </div>
+    </section>
+  </div>
+</dialog>
 <dialog id="promptExampleDialog" class="prompt-example-dialog">
   <div class="prompt-example-shell">
     <div class="section-head">

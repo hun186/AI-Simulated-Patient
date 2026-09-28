@@ -8,7 +8,7 @@ test('Vercel deployment is isolated to demo API instead of production auth/datab
   const demo=readFileSync('api/demo.js','utf8');
 
   const rewrites=new Map((config.rewrites||[]).map(item=>[item.source,item.destination]));
-  for(const route of ['/api/runtime','/api/health','/api/cases','/api/chat','/api/coach','/api/evaluate','/api/teacher/cases','/api/teacher/ai-settings']){
+  for(const route of ['/api/runtime','/api/health','/api/cases','/api/chat','/api/coach','/api/evaluate','/api/teacher/cases','/api/teacher/ai-settings','/api/demo/groq-test']){
     assert.match(rewrites.get(route)||'',/^\/api\/demo\?route=/,route+' must target demo API');
   }
 
@@ -69,6 +69,7 @@ test('Vercel demo API supports runtime, cases and patient chat without productio
   assert.equal(aiSettingsRes.body.routes.length,0);
   assert.ok(aiSettingsRes.body.connections.some(item=>item.preset==='openai'));
   assert.ok(aiSettingsRes.body.connections.some(item=>item.preset==='deepseek'));
+  assert.ok(aiSettingsRes.body.connections.some(item=>item.preset==='groq'));
   assert.ok(aiSettingsRes.body.connections.some(item=>item.preset==='ollama_cloud'));
   assert.ok(aiSettingsRes.body.connections.some(item=>item.preset==='ollama'));
   assert.ok(aiSettingsRes.body.connections.some(item=>item.preset==='dify'));
