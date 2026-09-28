@@ -271,6 +271,28 @@ test('DeepSeek connection probe disables default thinking so a tiny probe reache
   assert.equal(calls[0].body.max_tokens,32);
 });
 
+test('Groq connection probe uses fixed endpoint and a non-tiny completion budget',async()=>{
+  const calls=[];
+  const {testLlmConnection}=await gateway();
+  const fetchImpl=async(url,options)=>{
+    calls.push({url,body:JSON.parse(options.body)});
+    return fakeResponse({json:{
+      id:'groq_probe',model:'openai/gpt-oss-120b',
+      choices:[{message:{content:'OK'}}],
+      usage:{prompt_tokens:4,completion_tokens:1,total_tokens:5}
+    }});
+  };
+  const result=await testLlmConnection({
+    providerKind:'openai_compatible',preset:'groq',baseUrl:'https://wrong.invalid/v1',
+    apiKey:'test-groq-key',defaultModel:'openai/gpt-oss-120b'
+  },{fetchImpl});
+
+  assert.equal(result.ok,true);
+  assert.equal(result.preset,'groq');
+  assert.equal(calls[0].url,'https://api.groq.com/openai/v1/chat/completions');
+  assert.equal(calls[0].body.max_tokens,32);
+});
+
 test('testLlmConnection returns a sanitized success summary',async()=>{
   const {testLlmConnection}=await gateway();
   const fetchImpl=async()=>fakeResponse({json:{
