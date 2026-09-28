@@ -184,7 +184,8 @@ test('Vercel Demo exposes the AI settings surface as read-only without enabling 
   assert.match(app,/data-view="ai"\]\'\)\.classList\.toggle\('hidden',\(!state\.serverMode&&!state\.demoAuth\)\|\|!staff\)/);
   assert.match(app,/function demoAiReadOnly/);
   assert.match(app,/function blockDemoAiAction/);
-  assert.match(app,/Vercel Demo 僅展示 LLM Provider \/ Agent Route \/ Prompt Template/);
+  assert.match(app,/Vercel Demo 的正式 AI Settings 維持唯讀/);
+  assert.match(app,/Groq BYOK 精靈/);
   assert.match(app,/if\(blockDemoAiAction\(\)\)return/);
   assert.match(app,/const demoReadOnly=Boolean\(data\.demoReadOnly\|\|state\.demoAuth\)/);
   assert.match(html,/id="aiDemoNotice"/);
