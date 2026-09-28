@@ -56,6 +56,128 @@ function demoByokLast4(){
   const key=String(state.demoByok?.apiKey||'');
   return key?key.slice(-4):'----';
 }
+let pendingDemoByok=null;
+function setDemoByokStep(step){
+  [1,2,3].forEach(n=>$('demoByokStep'+n)?.classList.toggle('hidden',n!==step));
+}
+function syncDemoAiModeButton(){
+  const button=$('demoAiModeBtn');
+  if(!button)return;
+  button.classList.toggle('hidden',!state.demoAuth);
+  const live=demoLiveEnabled();
+  button.classList.toggle('demo-live',live);
+  button.textContent=live?'Live AI · GroqCloud':'Mock Demo';
+}
+function renderDemoByokCurrent({pending=false}={}){
+  const target=$('demoByokCurrentStatus');
+  if(!target)return;
+  const config=pending?pendingDemoByok:state.demoByok;
+  const key=String(config?.apiKey||'');
+  const storage=pending
+    ?(config?.remember?'啟用後儲存在此瀏覽器 localStorage':'啟用後只保留在目前工作階段 sessionStorage')
+    :(config?.storage==='local'?'此瀏覽器 localStorage':'目前工作階段 sessionStorage');
+  target.innerHTML=config
+    ?'<strong>'+esc(pending?'準備啟用 Groq Live Demo':'目前為 Groq Live Demo')+'</strong><br>'+
+      'Model：'+esc(config.model)+'<br>API Key：••••'+esc(key.slice(-4))+'<br>儲存方式：'+esc(storage)
+    :'<strong>目前為 Mock Demo</strong>';
+}
+function openDemoByokWizard(){
+  if(!state.demoAuth)return;
+  pendingDemoByok=null;
+  $('demoByokApiKey').value='';
+  $('demoByokModel').value=state.demoByok?.model||'openai/gpt-oss-120b';
+  $('demoByokRemember').checked=state.demoByok?.storage==='local';
+  $('demoByokTestStatus').textContent='';
+  $('demoByokTestStatus').className='demo-byok-test-status';
+  if(demoLiveEnabled()){
+    $('demoByokSuccessTitle').textContent='Groq Live Demo 已啟用';
+    $('demoByokSuccessText').textContent='目前 Patient / Coach / Evaluator 會使用你自己的 Groq API Key。';
+    $('demoByokEnableBtn').classList.add('hidden');
+    $('demoByokDoneBtn').classList.remove('hidden');
+    $('demoByokClearBtn').classList.remove('hidden');
+    renderDemoByokCurrent();
+    setDemoByokStep(3);
+  }else{
+    $('demoByokEnableBtn').classList.remove('hidden');
+    $('demoByokDoneBtn').classList.add('hidden');
+    $('demoByokClearBtn').classList.add('hidden');
+    setDemoByokStep(1);
+  }
+  $('demoByokDialog').showModal();
+}
+function maybeOpenDemoByokOnboarding(){
+  if(!state.demoAuth||!state.user)return;
+  let seen='';
+  try{seen=localStorage.getItem(DEMO_BYOK_ONBOARDING_KEY)||'';}catch{}
+  if(!seen||(seen==='live'&&!demoLiveEnabled()))openDemoByokWizard();
+}
+function selectDemoMock(){
+  try{localStorage.setItem(DEMO_BYOK_ONBOARDING_KEY,'mock');}catch{}
+  $('demoByokDialog').close();
+}
+function beginDemoByokSetup(){
+  pendingDemoByok=null;
+  $('demoByokApiKey').value='';
+  $('demoByokModel').value=state.demoByok?.model||'openai/gpt-oss-120b';
+  $('demoByokRemember').checked=state.demoByok?.storage==='local';
+  $('demoByokTestStatus').textContent=state.demoByok?'目前 Key 仍保持啟用；若要更換，請貼上新 Key 後重新測試。':'';
+  $('demoByokTestStatus').className='demo-byok-test-status';
+  setDemoByokStep(2);
+}
+async function testDemoByokConnection(){
+  const apiKey=$('demoByokApiKey').value.trim()||state.demoByok?.apiKey||'';
+  const model=$('demoByokModel').value;
+  const status=$('demoByokTestStatus');
+  if(!apiKey){
+    status.textContent='請先貼上 Groq API Key。';
+    status.className='demo-byok-test-status fail';
+    return;
+  }
+  status.textContent='正在驗證 API Key 與模型…';
+  status.className='demo-byok-test-status';
+  $('demoByokTestBtn').disabled=true;
+  try{
+    const result=await post('/api/demo/groq-test',{provider:'groq',apiKey,model});
+    if(!result?.ok)throw new Error('GROQ_CONNECTION_TEST_FAILED');
+    pendingDemoByok={apiKey,model,remember:$('demoByokRemember').checked};
+    status.textContent='連線成功，模型可用。';
+    status.className='demo-byok-test-status ok';
+    $('demoByokSuccessTitle').textContent='Groq 連線成功';
+    $('demoByokSuccessText').textContent='API Key 與 '+model+' 已驗證，可以啟用 Live Demo。';
+    $('demoByokEnableBtn').classList.remove('hidden');
+    $('demoByokDoneBtn').classList.add('hidden');
+    $('demoByokClearBtn').classList.add('hidden');
+    renderDemoByokCurrent({pending:true});
+    setDemoByokStep(3);
+  }catch(error){
+    const code=error?.details?.error||error?.message||'GROQ_CONNECTION_TEST_FAILED';
+    status.textContent='連線測試失敗：'+code;
+    status.className='demo-byok-test-status fail';
+  }finally{
+    $('demoByokTestBtn').disabled=false;
+  }
+}
+async function enableDemoByok(){
+  if(!pendingDemoByok)return;
+  try{
+    saveDemoByok(pendingDemoByok,{remember:pendingDemoByok.remember});
+    try{localStorage.setItem(DEMO_BYOK_ONBOARDING_KEY,'live');}catch{}
+    pendingDemoByok=null;
+    syncDemoAiModeButton();
+    $('demoByokDialog').close();
+    await start();
+  }catch(error){
+    $('demoByokSuccessText').textContent='無法儲存設定：'+(error?.message||'BROWSER_STORAGE_UNAVAILABLE');
+  }
+}
+async function clearDemoByokAndUseMock(){
+  clearDemoByok();
+  pendingDemoByok=null;
+  try{localStorage.setItem(DEMO_BYOK_ONBOARDING_KEY,'mock');}catch{}
+  syncDemoAiModeButton();
+  $('demoByokDialog').close();
+  await start();
+}
 const modeLabel=m=>m==='exam'?'考試評量':'訓練學習';
 const currentCaseDefinition=()=>state.customCases.find(c=>c.id===state.caseId)||null;
 const REPORT_SESSION_KEY='aisp-last-student-report-session-v1';
