@@ -91,7 +91,7 @@
 
 - Valid status values are `covered`, `partial`, `missed`; canonical evidence entries are `{turn,quote}` objects, and aggregate `totalScore` / `maxScore` / rounded `percentage` must match the validated item scores.
 - Provider text is normalized only for deterministic compatibility cases before canonical validation: transcript-formatted evidence strings such as `[2] student: ...` become `{turn:2,quote:"..."}`, numeric-string turn values are coerced, and aggregate scores are recomputed from already-numeric item scores. Ambiguous evidence still fails validation and may enter the LLM repair path.
-- Evaluator output is parsed/validated before `completeSession`; arbitrary model JSON is not a persistence contract.
+- Evaluator output is parsed/validated before `completeSession`; arbitrary model JSON is not a persistence contract. Learner-facing Evaluator prose (`item.reasoning` and non-empty `overall.*` feedback strings) must contain zh-TW Chinese text; English-only output is an `INVALID_EVALUATION_CONTRACT` condition and enters automatic repair. `evidence.quote` remains verbatim transcript text and is not translated.
 
 ## 通用相容性與安全規則
 
