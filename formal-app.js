@@ -283,7 +283,57 @@ async function post(url,payload){
   }
   return data;
 }
-async function ask(q){state.transcript.push({role:'student',content:q,at:new Date().toISOString()});renderChat();$('sendBtn').disabled=true;try{const d=await post('/api/chat',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,message:q,revealedFactIds:state.serverMode?[]:state.revealedFactIds,...(!state.serverMode?{transcript:state.transcript,mode:state.mode}:{})});if(!state.serverMode)state.revealedFactIds=d.revealedFactIds;state.transcript.push({role:'patient',content:d.reply,at:new Date().toISOString()});if(state.mode==='training'&&state.coachEnabled){state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds,mode:state.mode});state.coachUsed=true;}save();renderChat();renderMode();renderCoach();}catch(error){const code=error?.details?.error||error?.message||'';state.transcript.push({role:'patient',content:demoLiveEnabled()?'（Groq Live Demo 暫時無法取得回覆：'+code+'）':'（系統暫時無法取得回覆。）'});renderChat();}finally{$('sendBtn').disabled=false;}}
+function formatRuntimeProviderDiagnostic(diagnostic){
+  if(!diagnostic)return '';
+  const lines=[];
+  const add=(label,value)=>{
+    if(value===undefined||value===null||value==='')return;
+    lines.push(label+'：'+String(value));
+  };
+  add('HTTP',diagnostic.httpStatus);
+  add('Provider Request ID',diagnostic.providerRequestId);
+  add('Model',diagnostic.model);
+  add('finish_reason',diagnostic.finishReason);
+  if(diagnostic.usage){
+    add('Usage',
+      'prompt '+Number(diagnostic.usage.promptTokens||0)+
+      ' / completion '+Number(diagnostic.usage.completionTokens||0)+
+      ' / reasoning '+Number(diagnostic.usage.reasoningTokens||0)+
+      ' / total '+Number(diagnostic.usage.totalTokens||0)
+    );
+  }
+  if(diagnostic.providerError){
+    add('Provider error code',diagnostic.providerError.code);
+    add('Provider error type',diagnostic.providerError.type);
+    add('Provider error param',diagnostic.providerError.param);
+  }
+  if(diagnostic.rateLimit){
+    add('Rate limit',
+      [
+        diagnostic.rateLimit.remainingRequests!=null?'requests left '+diagnostic.rateLimit.remainingRequests:null,
+        diagnostic.rateLimit.remainingTokens!=null?'tokens left '+diagnostic.rateLimit.remainingTokens:null,
+        diagnostic.rateLimit.resetRequests?'requests reset '+diagnostic.rateLimit.resetRequests:null,
+        diagnostic.rateLimit.resetTokens?'tokens reset '+diagnostic.rateLimit.resetTokens:null,
+        diagnostic.rateLimit.retryAfter?'retry-after '+diagnostic.rateLimit.retryAfter+'s':null
+      ].filter(Boolean).join(' / ')
+    );
+  }
+  return lines.join('\n');
+}
+function patientProviderErrorLabel(code){
+  return ({
+    authentication_failed:'認證失敗',
+    invalid_request:'Provider 拒絕請求',
+    insufficient_balance:'API 帳戶餘額不足',
+    model_not_found:'模型不存在',
+    rate_limited:'Groq / Provider 速率限制',
+    endpoint_unreachable:'Provider 無法連線',
+    timeout:'Provider 回應逾時',
+    AI_PROVIDER_TIMEOUT:'Provider 回應逾時',
+    invalid_response:'Provider 回傳內容無法解析'
+  })[code]||code||'AI Provider 呼叫失敗';
+}
+async function ask(q){state.transcript.push({role:'student',content:q,at:new Date().toISOString()});renderChat();$('sendBtn').disabled=true;try{const d=await post('/api/chat',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,message:q,revealedFactIds:state.serverMode?[]:state.revealedFactIds,...(!state.serverMode?{transcript:state.transcript,mode:state.mode}:{})});if(!state.serverMode)state.revealedFactIds=d.revealedFactIds;state.transcript.push({role:'patient',content:d.reply,at:new Date().toISOString()});if(state.mode==='training'&&state.coachEnabled){state.coach=await post('/api/coach',{caseId:state.caseId,caseDefinition:state.serverMode?null:currentCaseDefinition(),sessionId:state.serverMode?state.sessionId:null,transcript:state.transcript,revealedFactIds:state.serverMode?[]:state.revealedFactIds,mode:state.mode});state.coachUsed=true;}save();renderChat();renderMode();renderCoach();}catch(error){const code=error?.details?.code||error?.details?.error||error?.message||'';const diagnostic=error?.details?.diagnostic;const staff=['teacher','admin'].includes(state.user?.role);const label=patientProviderErrorLabel(code);state.transcript.push({role:'patient',content:demoLiveEnabled()?'（Groq Live Demo 暫時無法取得回覆：'+label+'）':staff?'（AI Provider 暫時無法取得回覆：'+label+'）':'（系統暫時無法取得回覆。）'});renderChat();if(staff&&diagnostic){const detail=formatRuntimeProviderDiagnostic(diagnostic);if(detail)alert('Patient AI 呼叫失敗：'+label+'\n\n--- Provider runtime 摘要 ---\n'+detail);}}finally{$('sendBtn').disabled=false;}}
 function evaluationAuditStatusLabel(status){
   return ({
     success:'SUCCESS',
@@ -1157,6 +1207,17 @@ function formatAiTestDiagnostic(diagnostic){
       ' / completion '+Number(diagnostic.usage.completionTokens||0)+
       ' / reasoning '+Number(diagnostic.usage.reasoningTokens||0)+
       ' / total '+Number(diagnostic.usage.totalTokens||0)
+    );
+  }
+  if(diagnostic.rateLimit){
+    add('Rate limit',
+      [
+        diagnostic.rateLimit.remainingRequests!=null?'requests left '+diagnostic.rateLimit.remainingRequests:null,
+        diagnostic.rateLimit.remainingTokens!=null?'tokens left '+diagnostic.rateLimit.remainingTokens:null,
+        diagnostic.rateLimit.resetRequests?'requests reset '+diagnostic.rateLimit.resetRequests:null,
+        diagnostic.rateLimit.resetTokens?'tokens reset '+diagnostic.rateLimit.resetTokens:null,
+        diagnostic.rateLimit.retryAfter?'retry-after '+diagnostic.rateLimit.retryAfter+'s':null
+      ].filter(Boolean).join(' / ')
     );
   }
   if(diagnostic.providerError){
