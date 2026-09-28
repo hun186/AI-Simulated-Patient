@@ -112,7 +112,7 @@ test('Groq preset uses the fixed official OpenAI-compatible endpoint',async()=>{
   const result=await generateLlm({
     connection:{
       providerKind:'openai_compatible',preset:'groq',
-      baseUrl:'https://wrong.invalid/v1',apiKey:'test-groq-key',defaultModel:'openai/gpt-oss-120b'
+      baseUrl:'https://wrong.invalid/v1',apiKey:'test-groq-key',defaultModel:'openai/gptoss-120b'
     },
     systemPrompt:'system',
     messages:[{role:'user',content:'question'}]
