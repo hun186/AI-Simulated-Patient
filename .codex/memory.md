@@ -13,6 +13,13 @@
 
 ## Recent Outcomes
 
+### 2026-09-28 — Groq live Patient runtime fix
+
+- Groq GPT-OSS 正式 Patient/Coach/Evaluator 呼叫與 connection probe 對齊 reasoning-safe defaults：GPT-OSS 20B/120B 預設 `reasoning_effort=low`、`include_reasoning=false`；Patient/Coach completion budget 1024，Evaluator/repair 8192。
+- Route config 仍可明確覆寫 reasoning effort、includeReasoning 與 maxOutputTokens。
+- `/api/chat` Provider failure 回傳安全 runtime diagnostic（HTTP、request ID、model、finish reason、usage、error code/type/param、rate-limit metadata）；不回傳 content/reasoning/raw preview，避免病例隱藏資訊外洩。
+- Teacher/Admin 問診失敗時 UI 會顯示 runtime 摘要；Student 仍只看到一般錯誤訊息。
+
 ### 2026-09-28 — Provider connection-test diagnostics
 
 - AI Provider「測試連線」成功或失敗時會顯示 bounded sanitized Provider 回傳摘要：HTTP status、request ID、model、finish_reason、message.content、reasoning、usage、provider error fields 與 response/message keys。

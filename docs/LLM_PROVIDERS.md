@@ -176,3 +176,12 @@ Provider connection tests return a bounded, sanitized response summary for troub
 
 The diagnostic intentionally excludes request headers and credentials. Exact configured API-key values and common bearer/API-key patterns are redacted before the summary is returned to the browser. Non-JSON responses may include only a bounded redacted raw preview.
 
+
+
+## Groq live-agent defaults
+
+For Groq GPT-OSS 20B/120B runtime routes, Patient and Coach default to low reasoning with reasoning omitted from the returned payload and a 1024-token completion budget. Evaluator and evaluator-repair use the same low/hidden reasoning default with an 8192-token completion budget. Explicit route config may override these defaults.
+
+This keeps real interview traffic aligned with the connection-test behavior instead of allowing GPT-OSS medium reasoning to consume the response budget before final content is emitted.
+
+Patient runtime provider failures return only safe operational diagnostics to the browser: HTTP status, request ID, model, finish reason, usage, provider error code/type/param, and rate-limit metadata. Provider content, reasoning text, raw response previews, request headers, and credentials are not exposed through the Patient failure payload.
