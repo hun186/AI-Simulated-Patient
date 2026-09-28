@@ -20,8 +20,8 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
     let providerMode='ok';
     const evaluation={
       totalScore:10,maxScore:10,percentage:100,
-      items:[{id:'history',criterion:'history',status:'covered',score:10,maxScore:10,evidence:[{turn:2,quote:'history?'}],reasoning:'covered'}],
-      overall:{comment:'good',strengths:['history'],improvements:[],recommendations:['continue'],nextPracticeFocus:'depth'}
+      items:[{id:'history',criterion:'history',status:'covered',score:10,maxScore:10,evidence:[{turn:2,quote:'history?'}],reasoning:'學生有詢問重要病史，符合此評量項目。'}],
+      overall:{comment:'本次問診已涵蓋主要評量面向。',strengths:['能詢問重要病史'],improvements:[],recommendations:['可繼續增加追問深度'],nextPracticeFocus:'重要病史的追問深度'}
     };
     const server=http.createServer(async(req,res)=>{
       let raw='';for await(const chunk of req)raw+=chunk;
