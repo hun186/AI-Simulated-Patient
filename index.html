@@ -194,6 +194,19 @@
     </section>
   </div>
 </dialog>
+<dialog id="providerDiagnosticDialog" class="provider-diagnostic-dialog">
+  <div class="provider-diagnostic-shell">
+    <div class="section-head">
+      <div><div class="eyebrow">AI Provider Diagnostic</div><h3 id="providerDiagnosticTitle">Provider 診斷</h3><p>以下內容可直接選取或複製，方便回報除錯。</p></div>
+      <button id="providerDiagnosticCloseBtn" type="button" class="secondary small-btn">關閉</button>
+    </div>
+    <textarea id="providerDiagnosticText" readonly spellcheck="false"></textarea>
+    <div class="dialog-actions">
+      <button id="providerDiagnosticCopyBtn" type="button" class="secondary">複製診斷內容</button>
+      <button id="providerDiagnosticDoneBtn" type="button" class="primary">確定</button>
+    </div>
+  </div>
+</dialog>
 <dialog id="promptExampleDialog" class="prompt-example-dialog">
   <div class="prompt-example-shell">
     <div class="section-head">
