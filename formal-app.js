@@ -111,9 +111,13 @@ function maybeOpenDemoByokOnboarding(){
   try{seen=localStorage.getItem(DEMO_BYOK_ONBOARDING_KEY)||'';}catch{}
   if(!seen||(seen==='live'&&!demoLiveEnabled()))openDemoByokWizard();
 }
-function selectDemoMock(){
+async function selectDemoMock(){
+  const wasLive=demoLiveEnabled();
+  if(wasLive)clearDemoByok();
   try{localStorage.setItem(DEMO_BYOK_ONBOARDING_KEY,'mock');}catch{}
+  syncDemoAiModeButton();
   $('demoByokDialog').close();
+  if(wasLive)await start();
 }
 function beginDemoByokSetup(){
   pendingDemoByok=null;
