@@ -13,6 +13,13 @@
 
 ## Recent Outcomes
 
+### 2026-09-28 — Evaluator zh-TW output contract
+
+- Evaluator system/task/repair prompts 明確要求 learner-facing 評語使用繁體中文 zh-TW，且原本英文 JSON example 改為繁中，避免 Groq 等模型跟隨英文 few-shot 範例。
+- `item.reasoning` 與非空的 `overall.comment/strengths/improvements/recommendations/nextPracticeFocus` 在 persistence 前做中文文字檢查；English-only 輸出視為 `INVALID_EVALUATION_CONTRACT`，自動進 repair。
+- Repair 後仍非中文時回 `EVALUATION_REPAIR_FAILED`，不把英文評語寫入正式報告；`evidence.quote` 保留 transcript 原文，不翻譯。
+- 學生端結果頁的 `Summative Evaluation` 改為「總結性評量」。
+
 ### 2026-09-28 — Provider model/route synchronization and copyable diagnostics
 
 - 修正 Provider `defaultModel` 與 Agent route model 重複保存造成的 stale route：Provider model 更新時，只同步仍等於舊 default 的 route；刻意指定不同 model 的 route 保留。

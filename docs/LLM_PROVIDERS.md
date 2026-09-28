@@ -196,3 +196,10 @@ When a Provider default model changes, routes that still match the previous defa
 For Groq, the legacy typo aliases `openai/gptoss-120b` and `openai/gptoss-20b` are normalized to the official `openai/gpt-oss-120b` and `openai/gpt-oss-20b` IDs when saving connections/routes and again at runtime. The runtime normalization keeps already-created session snapshots with the legacy alias usable.
 
 Provider diagnostics are displayed in a selectable dialog with a copy button instead of a browser alert so support/debug details can be copied without screenshots.
+
+
+## Evaluator output language
+
+The product UI and learning reports use Traditional Chinese (`zh-TW`) for learner-facing evaluation prose. Evaluator prompts require `item.reasoning` plus all `overall.*` feedback fields to be written in Traditional Chinese. Transcript evidence quotes are never translated; they preserve the original interview wording.
+
+After JSON/schema validation, the Evaluator agent checks non-empty learner-facing prose for Chinese text. An English-only result is treated as `INVALID_EVALUATION_CONTRACT` and enters the existing automatic repair path. The repair prompt explicitly rewrites human-readable feedback in `zh-TW` while preserving scoring and evidence. If the repaired result is still non-Chinese, evaluation fails instead of persisting an English report.

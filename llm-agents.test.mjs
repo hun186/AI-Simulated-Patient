@@ -33,11 +33,11 @@ function validEvaluation(){
     totalScore:10,maxScore:10,percentage:100,
     items:[{
       id:'history',criterion:'ask history',status:'covered',score:10,maxScore:10,
-      evidence:[{turn:2,quote:'以前有住院過嗎？'}],reasoning:'The student asked about history.'
+      evidence:[{turn:2,quote:'以前有住院過嗎？'}],reasoning:'學生有直接詢問重要病史。'
     }],
     overall:{
-      comment:'complete',strengths:['history'],improvements:[],recommendations:['continue'],
-      nextPracticeFocus:'follow-up depth'
+      comment:'本次問診已涵蓋此評量項目。',strengths:['能主動詢問重要病史'],improvements:[],recommendations:['可繼續增加追問深度'],
+      nextPracticeFocus:'重要病史的追問深度'
     }
   };
 }
@@ -233,7 +233,7 @@ test('DeepSeek Patient, Coach, and Evaluator default to stable non-thinking mode
 
   const evaluation={
     totalScore:0,maxScore:0,percentage:0,items:[],
-    overall:{comment:'No evidence.',strengths:[],improvements:[],recommendations:[],nextPracticeFocus:'Ask more questions.'}
+    overall:{comment:'目前沒有足夠證據。',strengths:[],improvements:[],recommendations:[],nextPracticeFocus:'增加必要的問診問題。'}
   };
   const evaluatorFetch=async(_url,options)=>{
     calls.push(JSON.parse(options.body));
