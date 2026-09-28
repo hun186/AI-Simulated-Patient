@@ -13,6 +13,23 @@ function parseJson(value,fallback={}){
   if(typeof value==='string'){try{return JSON.parse(value);}catch{return fallback;}}
   return value&&typeof value==='object'?value:fallback;
 }
+function publicProviderDiagnostic(error){
+  const value=error?.providerDiagnostic;
+  if(!value||typeof value!=='object') return null;
+  return {
+    httpStatus:value.httpStatus??null,
+    providerRequestId:value.providerRequestId??null,
+    model:value.model??null,
+    finishReason:value.finishReason??null,
+    usage:value.usage??null,
+    providerError:value.providerError?{
+      code:value.providerError.code??null,
+      type:value.providerError.type??null,
+      param:value.providerError.param??null
+    }:null,
+    rateLimit:value.rateLimit??null
+  };
+}
 function providerFailure(res,error){
   if(error?.code==='AI_USAGE_QUOTA_EXCEEDED'){
     res.status(429).json({error:error.code,dimension:error.dimension});
@@ -27,7 +44,11 @@ function providerFailure(res,error){
     return true;
   }
   if(error?.code){
-    res.status(502).json({error:'AI_PROVIDER_FAILURE',code:error.code});
+    res.status(502).json({
+      error:'AI_PROVIDER_FAILURE',
+      code:error.code,
+      diagnostic:publicProviderDiagnostic(error)
+    });
     return true;
   }
   return false;
