@@ -131,3 +131,24 @@
 @media(max-width:1000px){.audit-filter-panel{grid-template-columns:repeat(3,minmax(150px,1fr))}}
 @media(max-width:720px){.audit-filter-panel{grid-template-columns:1fr 1fr}.audit-custom-range,.audit-keyword{grid-column:1/-1}.audit-event{grid-template-columns:1fr}}
 @media(max-width:520px){.audit-filter-panel{grid-template-columns:1fr}.audit-custom-range{grid-template-columns:1fr}.audit-custom-range,.audit-keyword{grid-column:auto}}
+
+.demo-byok-dialog{width:min(760px,94vw);max-height:92vh;border:0;border-radius:18px;padding:0;box-shadow:0 24px 80px rgba(20,34,58,.28);overflow:hidden}
+.demo-byok-dialog::backdrop{background:rgba(20,28,44,.55);backdrop-filter:blur(3px)}
+.demo-byok-shell{padding:22px;max-height:92vh;overflow:auto;background:#fff}
+.demo-byok-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}
+.demo-byok-head h2{margin:4px 0 7px}.demo-byok-head p{margin:0;color:#66748b;line-height:1.55}
+.demo-byok-choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.demo-byok-choice-grid article{display:flex;flex-direction:column;gap:8px;padding:18px;border:1px solid #dde5f0;border-radius:14px;background:#fafcff}
+.demo-byok-choice-grid article p{margin:0 0 8px;color:#66748b;line-height:1.55;flex:1}
+.demo-byok-mode-pill{display:inline-flex;align-self:flex-start;padding:4px 8px;border-radius:999px;font-size:10px;font-weight:900;letter-spacing:.08em}
+.demo-byok-mode-pill.mock{background:#eef1f5;color:#556176}.demo-byok-mode-pill.live{background:#e9f7ee;color:#267148}
+.demo-byok-instructions{display:grid;gap:10px;margin:0 0 12px;padding-left:22px}.demo-byok-instructions li{padding-left:4px}.demo-byok-instructions strong,.demo-byok-instructions span{display:block}.demo-byok-instructions span{margin-top:3px;color:#68758b;font-size:12px;line-height:1.5}
+.demo-byok-console-link{display:inline-block;margin:0 0 14px;font-size:12px;font-weight:800}
+.demo-byok-form{display:grid;grid-template-columns:1fr 1fr;gap:12px}.demo-byok-form label{display:grid;gap:6px;font-size:12px;font-weight:800;color:#536079}.demo-byok-form input,.demo-byok-form select{border:1px solid #dbe2ee;border-radius:10px;padding:10px;background:#fff;min-width:0}
+.demo-byok-checkbox{grid-column:1/-1!important;display:flex!important;grid-template-columns:none!important;align-items:center;gap:8px!important;font-weight:700!important}.demo-byok-checkbox input{width:auto;margin:0}
+.demo-byok-security{margin:14px 0;padding:13px 14px;border:1px solid #f0dfb8;border-radius:12px;background:#fffaf0;color:#6c5a33}.demo-byok-security strong{display:block;margin-bottom:5px}.demo-byok-security p{margin:5px 0;font-size:11px;line-height:1.55}.demo-byok-security code{font-size:10px}
+.demo-byok-test-status{min-height:18px;margin:10px 0 0;font-size:12px;font-weight:800}.demo-byok-test-status.ok{color:#257148}.demo-byok-test-status.fail{color:#a13e3e}
+.demo-byok-success{display:flex;gap:12px;align-items:center;padding:14px;border:1px solid #cfe8d8;border-radius:13px;background:#f3fbf6}.demo-byok-success>span{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#dff3e6;color:#217143;font-size:18px;font-weight:900}.demo-byok-success p{margin:3px 0 0;color:#66748b}
+.demo-byok-current{margin:14px 0;padding:13px 14px;border:1px solid #e1e6ef;border-radius:12px;background:#fafbfe;font-size:12px;color:#58667c;line-height:1.65}
+#demoAiModeBtn.demo-live{border-color:#9fd2b0;background:#eefaf2;color:#246d42;font-weight:900}
+@media(max-width:650px){.demo-byok-choice-grid,.demo-byok-form{grid-template-columns:1fr}.demo-byok-checkbox{grid-column:auto!important}.demo-byok-head{display:block}.demo-byok-head>button{margin-top:10px}}
