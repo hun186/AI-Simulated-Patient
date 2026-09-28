@@ -58,6 +58,9 @@ test('LLM routes support teacher-owned built-in overrides without cross-teacher 
     const t1Dify=await createConnection(t1,{
       name:'Teacher Dify',preset:'dify',baseUrl:'https://api.dify.ai/v1',defaultModel:'workflow',apiKey:'app-dify-5555'
     });
+    const t1Groq=await createConnection(t1,{
+      name:'Teacher Groq',preset:'groq',defaultModel:'openai/gpt-oss-120b',apiKey:'groq-test-6666'
+    });
 
     const systemRoute=await setSystemRoute(admin,{
       agentType:'patient',connectionId:sysA.id,model:'gpt-a',config:{temperature:0.4}
@@ -74,6 +77,9 @@ test('LLM routes support teacher-owned built-in overrides without cross-teacher 
     });
     const teacherOwnRoute=await setCaseRoute(t1,{
       caseId:'t1_case',agentType:'coach',connectionId:t1Conn.id,model:'gpt-teacher'
+    });
+    const groqRoute=await setCaseRoute(t1,{
+      caseId:'t1_case',agentType:'patient',connectionId:t1Groq.id,model:'openai/gpt-oss-120b'
     });
     const difyRoute=await setCaseRoute(t1,{
       caseId:'t1_case',agentType:'evaluator',connectionId:t1Dify.id,
@@ -158,7 +164,7 @@ test('LLM routes support teacher-owned built-in overrides without cross-teacher 
     }catch(error){missingProviderError=error.code||error.message;}
 
     console.log(JSON.stringify({
-      systemRoute,globalCaseRoute,teacherBuiltinT1,teacherBuiltinT2,teacherOwnRoute,difyRoute,difyResolved,
+      systemRoute,globalCaseRoute,teacherBuiltinT1,teacherBuiltinT2,teacherOwnRoute,groqRoute,difyRoute,difyResolved,
       globalResolved,t1Resolved,t2Resolved,t1AfterDelete,globalAfterChange,
       teacherSystemError,teacherOtherCaseError,teacherOtherConnectionError,unsupportedPromptVariableError,
       invalidStatefulWorkflowError,invalidPatientFinalTriggerError,
@@ -189,6 +195,11 @@ test('LLM routes support teacher-owned built-in overrides without cross-teacher 
 
     assert.equal(data.teacherOwnRoute.scopeType,'case');
     assert.equal(data.teacherOwnRoute.scopeId,'t1_case');
+    assert.equal(data.groqRoute.preset,'groq');
+    assert.equal(data.groqRoute.providerKind,'openai_compatible');
+    assert.equal(data.groqRoute.model,'openai/gpt-oss-120b');
+    assert.equal(data.difyResolved.patient.preset,'groq');
+    assert.equal(data.difyResolved.patient.providerKind,'openai_compatible');
     assert.equal(data.difyRoute.preset,'dify');
     assert.equal(data.difyRoute.providerKind,'dify');
     assert.equal(data.difyRoute.model,'workflow');
