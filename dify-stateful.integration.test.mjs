@@ -23,7 +23,7 @@ test('Dify stateful Chatflow persists conversation_id per interview and reuses i
       totalScore:1,maxScore:1,percentage:100,
       items:[{
         id:'H01',criterion:'主訴',status:'covered',score:1,maxScore:1,
-        evidence:[{turn:2,quote:'第一題'}],reasoning:'covered'
+        evidence:[{turn:2,quote:'第一題'}],reasoning:'學生有詢問主訴，符合此評量項目。'
       }],
       overall:{
         comment:'完成',strengths:['有詢問主訴'],improvements:[],
