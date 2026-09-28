@@ -71,6 +71,25 @@ test('chat header shows the actual snapshotted Patient provider and model for th
 });
 
 
+test('Patient runtime failures expose safe diagnostics to Teacher/Admin while keeping student copy generic',()=>{
+  const app=readFileSync('formal-app.js','utf8');
+  const chatApi=readFileSync('api/chat.js','utf8');
+
+  assert.match(app,/function formatRuntimeProviderDiagnostic/);
+  assert.match(app,/Provider runtime 摘要/);
+  assert.match(app,/\['teacher','admin'\]\.includes\(state\.user\?\.role\)/);
+  assert.match(app,/系統暫時無法取得回覆/);
+  assert.match(app,/AI Provider 暫時無法取得回覆/);
+
+  assert.match(chatApi,/function publicProviderDiagnostic/);
+  assert.match(chatApi,/httpStatus:value\.httpStatus/);
+  assert.match(chatApi,/finishReason:value\.finishReason/);
+  assert.match(chatApi,/rateLimit:value\.rateLimit/);
+  assert.doesNotMatch(chatApi,/content:value\.content/);
+  assert.doesNotMatch(chatApi,/reasoning:value\.reasoning/);
+  assert.doesNotMatch(chatApi,/rawPreview:value\.rawPreview/);
+});
+
 test('runtime UI explains missing Evaluator routes and evaluation provider failures',()=>{
   const app=readFileSync('formal-app.js','utf8');
   assert.match(app,/AI_EVALUATOR_PROVIDER_NOT_CONFIGURED/);
