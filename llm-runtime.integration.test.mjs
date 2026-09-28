@@ -208,6 +208,11 @@ test('production LLM runtime uses snapshotted routes, records usage, and never f
       {role:'student',content:'history?'},{role:'patient',content:'patient answer'}
     ]);
     assert.equal(data.failure.status,502);
+    assert.equal(data.failure.body.error,'AI_PROVIDER_FAILURE');
+    assert.equal(data.failure.body.code,'endpoint_unreachable');
+    assert.equal(data.failure.body.diagnostic.httpStatus,500);
+    assert.equal(data.failure.body.diagnostic.model,'test-model');
+    assert.equal(JSON.stringify(data.failure.body.diagnostic).includes('secret upstream body'),false);
     assert.equal(data.failure.afterFail,data.failure.beforeFail);
     assert.equal(data.coach.status,200);
     assert.equal(data.coach.body.nextHint,'Ask one focused follow-up question.');
