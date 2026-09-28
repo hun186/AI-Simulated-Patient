@@ -268,10 +268,7 @@ test('DeepSeek connection probe disables default thinking so a tiny probe reache
   assert.equal(calls.length,1);
   assert.equal(calls[0].url,'https://api.deepseek.com/chat/completions');
   assert.deepEqual(calls[0].body.thinking,{type:'disabled'});
-  assert.equal(calls[0].body.max_completion_tokens,256);
-  assert.equal('max_tokens' in calls[0].body,false);
-  assert.equal(calls[0].body.reasoning_effort,'low');
-  assert.equal(calls[0].body.include_reasoning,false);
+  assert.equal(calls[0].body.max_tokens,32);
 });
 
 test('Groq connection probe uses fixed endpoint and a non-tiny completion budget',async()=>{
@@ -293,7 +290,10 @@ test('Groq connection probe uses fixed endpoint and a non-tiny completion budget
   assert.equal(result.ok,true);
   assert.equal(result.preset,'groq');
   assert.equal(calls[0].url,'https://api.groq.com/openai/v1/chat/completions');
-  assert.equal(calls[0].body.max_tokens,32);
+  assert.equal(calls[0].body.max_completion_tokens,256);
+  assert.equal('max_tokens' in calls[0].body,false);
+  assert.equal(calls[0].body.reasoning_effort,'low');
+  assert.equal(calls[0].body.include_reasoning,false);
 });
 
 test('testLlmConnection returns a sanitized success summary',async()=>{
