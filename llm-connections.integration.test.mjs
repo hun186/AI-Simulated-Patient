@@ -96,6 +96,13 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
     },t1Auth);
     const storedTeacherCloud=(await query('select preset,base_url,api_key_last4 from llm_provider_connections where id=$1',[teacherCloud.body.connection.id]))[0];
 
+    const teacherGroq=await call('POST',{
+      action:'createConnection',name:'My Groq',preset:'groq',
+      baseUrl:'https://wrong.invalid/v1',
+      defaultModel:'openai/gpt-oss-120b',apiKey:'groq-teacher-test-1357'
+    },t1Auth);
+    const storedTeacherGroq=(await query('select provider_kind,preset,base_url,api_key_last4 from llm_provider_connections where id=$1',[teacherGroq.body.connection.id]))[0];
+
     const teacher2Create=await call('POST',{
       action:'createConnection',name:'Other Teacher OpenAI',preset:'openai',
       defaultModel:'gpt-other',apiKey:'sk-other-teacher-2222'
@@ -163,6 +170,7 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
       teacherPublicOllama:{status:teacherPublicOllama.statusCode,body:teacherPublicOllama.body},
       teacherDify:{status:teacherDify.statusCode,connection:teacherDify.body.connection,stored:storedTeacherDify},
       teacherCloud:{status:teacherCloud.statusCode,connection:teacherCloud.body.connection,stored:storedTeacherCloud},
+      teacherGroq:{status:teacherGroq.statusCode,connection:teacherGroq.body.connection,stored:storedTeacherGroq},
       teacher2Id:teacher2Create.body.connection.id,
       teacherCustom:{status:teacherCustom.statusCode,body:teacherCustom.body},
       teacherList:{status:teacherList.statusCode,ids:teacherIds,leakedFields},
@@ -226,6 +234,18 @@ test('LLM connection management encrypts secrets and enforces Admin/Teacher scop
     assert.equal(data.teacherCloud.stored.preset,'ollama');
     assert.equal(data.teacherCloud.stored.base_url,'https://ollama.com/v1');
     assert.equal(data.teacherCloud.stored.api_key_last4,'4321');
+
+    assert.equal(data.teacherGroq.status,201);
+    assert.equal(data.teacherGroq.connection.preset,'groq');
+    assert.equal(data.teacherGroq.connection.providerKind,'openai_compatible');
+    assert.equal(data.teacherGroq.connection.baseUrl,'https://api.groq.com/openai/v1');
+    assert.equal(data.teacherGroq.connection.defaultModel,'openai/gpt-oss-120b');
+    assert.equal(data.teacherGroq.connection.apiKeyLast4,'1357');
+    assert.equal(data.teacherGroq.stored.provider_kind,'openai_compatible');
+    assert.equal(data.teacherGroq.stored.preset,'custom');
+    assert.equal(data.teacherGroq.stored.base_url,'https://api.groq.com/openai/v1');
+    assert.equal(data.teacherGroq.stored.api_key_last4,'1357');
+
     assert.equal(data.teacherCustom.status,403);
 
     assert.equal(data.teacherList.status,200);
