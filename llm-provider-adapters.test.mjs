@@ -290,7 +290,57 @@ test('Groq connection probe uses fixed endpoint and a non-tiny completion budget
   assert.equal(result.ok,true);
   assert.equal(result.preset,'groq');
   assert.equal(calls[0].url,'https://api.groq.com/openai/v1/chat/completions');
-  assert.equal(calls[0].body.max_tokens,32);
+  assert.equal(calls[0].body.max_completion_tokens,256);
+  assert.equal('max_tokens' in calls[0].body,false);
+  assert.equal(calls[0].body.reasoning_effort,'low');
+  assert.equal(calls[0].body.include_reasoning,false);
+});
+
+test('connection test exposes empty-content diagnostics without leaking the API key',async()=>{
+  const {testLlmConnection}=await gateway();
+  const secret='gsk-super-secret-123456789';
+  const result=await testLlmConnection({
+    providerKind:'openai_compatible',preset:'groq',apiKey:secret,defaultModel:'openai/gpt-oss-120b'
+  },{fetchImpl:async()=>fakeResponse({json:{
+    id:'groq-empty-1',
+    model:'openai/gpt-oss-120b',
+    choices:[{finish_reason:'length',message:{content:'',reasoning:'internal reasoning used '+secret}}],
+    usage:{
+      prompt_tokens:8,
+      completion_tokens:256,
+      completion_tokens_details:{reasoning_tokens:256},
+      total_tokens:264
+    }
+  }})});
+
+  assert.equal(result.ok,false);
+  assert.equal(result.errorCode,'invalid_response');
+  assert.equal(result.diagnostic.httpStatus,200);
+  assert.equal(result.diagnostic.finishReason,'length');
+  assert.equal(result.diagnostic.content,'');
+  assert.match(result.diagnostic.reasoning,/\[REDACTED\]/);
+  assert.equal(JSON.stringify(result.diagnostic).includes(secret),false);
+  assert.deepEqual(result.diagnostic.usage,{
+    promptTokens:8,completionTokens:256,reasoningTokens:256,totalTokens:264
+  });
+});
+
+test('connection test surfaces sanitized provider error fields',async()=>{
+  const {testLlmConnection}=await gateway();
+  const secret='gsk-private-99887766';
+  const result=await testLlmConnection({
+    providerKind:'openai_compatible',preset:'groq',apiKey:secret,defaultModel:'openai/gpt-oss-120b'
+  },{fetchImpl:async()=>fakeResponse({
+    status:400,
+    json:{error:{message:'bad request for '+secret,type:'invalid_request_error',code:'bad_param',param:'reasoning_effort'}}
+  })});
+
+  assert.equal(result.ok,false);
+  assert.equal(result.errorCode,'invalid_request');
+  assert.equal(result.diagnostic.httpStatus,400);
+  assert.equal(result.diagnostic.providerError.code,'bad_param');
+  assert.match(result.diagnostic.providerError.message,/\[REDACTED\]/);
+  assert.equal(JSON.stringify(result.diagnostic).includes(secret),false);
 });
 
 test('testLlmConnection returns a sanitized success summary',async()=>{
@@ -308,7 +358,10 @@ test('testLlmConnection returns a sanitized success summary',async()=>{
   assert.equal(result.preset,'ollama');
   assert.equal(result.model,'qwen-local');
   assert.equal(typeof result.latencyMs,'number');
-  assert.deepEqual(Object.keys(result).sort(),['latencyMs','model','ok','preset','provider'].sort());
+  assert.deepEqual(Object.keys(result).sort(),['diagnostic','latencyMs','model','ok','preset','provider'].sort());
+  assert.equal(result.diagnostic.httpStatus,200);
+  assert.equal(result.diagnostic.content,'OK');
+  assert.equal(result.diagnostic.model,'qwen-local');
 });
 
 

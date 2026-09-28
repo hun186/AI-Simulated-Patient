@@ -1138,14 +1138,48 @@ const AI_TEST_ERROR_LABELS={
   timeout:'連線逾時。',
   invalid_response:'Provider 回傳內容無法解析。'
 };
+function formatAiTestDiagnostic(diagnostic){
+  if(!diagnostic)return '';
+  const lines=[];
+  const add=(label,value)=>{
+    if(value===undefined||value===null||value==='')return;
+    lines.push(label+'：'+String(value));
+  };
+  add('HTTP',diagnostic.httpStatus);
+  add('Provider Request ID',diagnostic.providerRequestId);
+  add('Model',diagnostic.model);
+  add('finish_reason',diagnostic.finishReason);
+  if(diagnostic.content!==undefined&&diagnostic.content!==null) add('message.content',diagnostic.content===''?'（空字串）':diagnostic.content);
+  if(diagnostic.reasoning!==undefined&&diagnostic.reasoning!==null) add('reasoning',diagnostic.reasoning===''?'（空字串）':diagnostic.reasoning);
+  if(diagnostic.usage){
+    add('Usage',
+      'prompt '+Number(diagnostic.usage.promptTokens||0)+
+      ' / completion '+Number(diagnostic.usage.completionTokens||0)+
+      ' / reasoning '+Number(diagnostic.usage.reasoningTokens||0)+
+      ' / total '+Number(diagnostic.usage.totalTokens||0)
+    );
+  }
+  if(diagnostic.providerError){
+    add('Provider error code',diagnostic.providerError.code);
+    add('Provider error type',diagnostic.providerError.type);
+    add('Provider error param',diagnostic.providerError.param);
+    add('Provider error message',diagnostic.providerError.message);
+  }
+  if(diagnostic.responseKeys?.length)add('Response keys',diagnostic.responseKeys.join(', '));
+  if(diagnostic.messageKeys?.length)add('Message keys',diagnostic.messageKeys.join(', '));
+  add('Raw preview',diagnostic.rawPreview);
+  return lines.length?'\n\n--- Provider 回傳摘要 ---\n'+lines.join('\n'):'';
+}
 async function testAiConnection(connectionId){
   if(blockDemoAiAction())return;
   try{
     const data=await post('/api/teacher/ai-settings',{action:'testConnection',connectionId});
-    alert(data.result?.ok?'連線測試成功。':'連線測試失敗。');
+    const result=data.result||{};
+    alert((result.ok?'連線測試成功。':'連線測試失敗。')+formatAiTestDiagnostic(result.diagnostic));
   }catch(error){
-    const code=error.details?.result?.errorCode||error.message;
-    alert('連線測試失敗：'+(AI_TEST_ERROR_LABELS[code]||code));
+    const result=error.details?.result||{};
+    const code=result.errorCode||error.message;
+    alert('連線測試失敗：'+(AI_TEST_ERROR_LABELS[code]||code)+formatAiTestDiagnostic(result.diagnostic));
   }
 }
 async function deleteAiConnection(connectionId){

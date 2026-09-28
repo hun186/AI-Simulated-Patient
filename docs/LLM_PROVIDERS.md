@@ -168,3 +168,11 @@ For Workflow routes, the route config supports:
 Dify token usage is recorded when the Dify response reports it. Because the actual underlying model and billing policy are managed inside Dify, the platform does not invent a native model price for Dify calls; unmatched Dify usage remains explicitly unpriced until a dedicated pricing policy is configured.
 
 For the compatibility contract with existing Dify Chatflows that depend on `conversation_id` and Conversation Variables, see [`DIFY_INTEGRATION_CONTRACT.md`](./DIFY_INTEGRATION_CONTRACT.md). Stateful Chatflow support was merged via PR #22 and is covered by adapter, route-validation, schema-migration, and interview-lifecycle integration tests.
+
+
+## Connection test diagnostics
+
+Provider connection tests return a bounded, sanitized response summary for troubleshooting. When the upstream protocol exposes the fields, the UI shows HTTP status, provider request ID, resolved model, finish reason, message content preview, reasoning preview, token usage, selected provider error fields, and response/message keys.
+
+The diagnostic intentionally excludes request headers and credentials. Exact configured API-key values and common bearer/API-key patterns are redacted before the summary is returned to the browser. Non-JSON responses may include only a bounded redacted raw preview.
+
