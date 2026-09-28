@@ -1,12 +1,61 @@
 import { downloadWordReport,printPdfReport } from './report-export.js';
 import { createZipBlob } from './support-bundle.js';
 const SKEY='aisp-formal-session-v1',RKEY='aisp-formal-records-v1',CKEY='aisp-formal-custom-cases-v1',DKEY='aisp-vercel-demo-user-v1';
-const state={serverMode:false,demoAuth:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,sessionRuntime:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[],aiSettings:null,usageDashboard:null,selectedRecordId:null,studentReport:null,studentReportSessionId:null,studentReportAllowed:false,studentReportAccess:null,evaluationDiagnostic:null};
+const DEMO_BYOK_SESSION_KEY='aisp-vercel-groq-byok-session-v1';
+const DEMO_BYOK_LOCAL_KEY='aisp-vercel-groq-byok-local-v1';
+const DEMO_BYOK_ONBOARDING_KEY='aisp-vercel-groq-byok-onboarding-v1';
+const state={serverMode:false,demoAuth:false,user:null,csrfToken:null,needsAdminMigration:false,cases:[],teacherCases:[],caseId:'aphasia_001',caseData:null,mode:'training',studentName:'',transcript:[],revealedFactIds:[],sessionId:null,sessionRuntime:null,records:[],coach:null,coachEnabled:false,coachUsed:false,customCases:[],aiSettings:null,usageDashboard:null,selectedRecordId:null,studentReport:null,studentReportSessionId:null,studentReportAllowed:false,studentReportAccess:null,evaluationDiagnostic:null,demoByok:null};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const uid=()=> 'session_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
 const read=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
 const write=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+function storageRead(storage,key){
+  try{return JSON.parse(storage.getItem(key)||'null');}catch{return null;}
+}
+function storageWrite(storage,key,value){
+  try{storage.setItem(key,JSON.stringify(value));return true;}catch{return false;}
+}
+function storageRemove(storage,key){
+  try{storage.removeItem(key);}catch{}
+}
+function validDemoByok(value){
+  return Boolean(
+    value&&value.provider==='groq'&&typeof value.apiKey==='string'&&value.apiKey.length>0&&
+    ['openai/gpt-oss-120b','openai/gpt-oss-20b','qwen/qwen3.8-27b'].includes(value.model)
+  );
+}
+function loadDemoByok(){
+  const session=storageRead(sessionStorage,DEMO_BYOK_SESSION_KEY);
+  if(validDemoByok(session))return {...session,storage:'session'};
+  const local=storageRead(localStorage,DEMO_BYOK_LOCAL_KEY);
+  if(validDemoByok(local))return {...local,storage:'local'};
+  return null;
+}
+function saveDemoByok(config,{remember=false}={}){
+  storageRemove(sessionStorage,DEMO_BYOK_SESSION_KEY);
+  storageRemove(localStorage,DEMO_BYOK_LOCAL_KEY);
+  const value={provider:'groq',apiKey:config.apiKey,model:config.model};
+  const storage=remember?localStorage:sessionStorage;
+  if(!storageWrite(storage,remember?DEMO_BYOK_LOCAL_KEY:DEMO_BYOK_SESSION_KEY,value))throw new Error('BROWSER_STORAGE_UNAVAILABLE');
+  state.demoByok={...value,storage:remember?'local':'session'};
+}
+function clearDemoByok(){
+  storageRemove(sessionStorage,DEMO_BYOK_SESSION_KEY);
+  storageRemove(localStorage,DEMO_BYOK_LOCAL_KEY);
+  state.demoByok=null;
+}
+function demoLiveEnabled(){
+  return Boolean(state.demoAuth&&!state.serverMode&&validDemoByok(state.demoByok));
+}
+function demoByokPayload(){
+  if(!demoLiveEnabled())return null;
+  return {provider:'groq',apiKey:state.demoByok.apiKey,model:state.demoByok.model};
+}
+function demoByokLast4(){
+  const key=String(state.demoByok?.apiKey||'');
+  return key?key.slice(-4):'----';
+}
 const modeLabel=m=>m==='exam'?'考試評量':'訓練學習';
 const currentCaseDefinition=()=>state.customCases.find(c=>c.id===state.caseId)||null;
 const REPORT_SESSION_KEY='aisp-last-student-report-session-v1';
